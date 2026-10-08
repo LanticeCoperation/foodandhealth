@@ -475,6 +475,12 @@ class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
               data: overlay,
               intake: _intake,
               rangeAnnotations: phaseAnnotations(context, overlay),
+              intakeReference: switch (_intake) {
+                IntakeSeries.kcal => p.targetKcal,
+                IntakeSeries.protein => p.targetProteinG,
+                IntakeSeries.none => null,
+              },
+              intakeReferenceLabel: '目標',
             ),
           ),
           Text(

@@ -349,6 +349,7 @@ class _EntryTile extends StatelessWidget {
     final detail = [
       time,
       if (e.totalProteinG != null) '蛋白質 ${fmtNum(e.totalProteinG!)} g',
+      if (e.totalFatG != null) '脂肪 ${fmtNum(e.totalFatG!)} g',
       if (e.note != null) e.note!,
     ].join(' · ');
 
@@ -503,10 +504,11 @@ class _DaySummaryCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (tdee != null || totals.missingKcal > 0) ...[
+            if (tdee != null || totals.missingKcal > 0 || totals.fatG > 0) ...[
               const SizedBox(height: 10),
               Text(
                 [
+                  if (totals.fatG > 0) '脂肪 ${totals.fatG.round()} g',
                   if (tdee != null)
                     'TDEE ${tdee!.round()} · ${formatBalance(totals.kcal - tdee!)}',
                   if (totals.missingKcal > 0) '${totals.missingKcal} 筆沒填熱量',

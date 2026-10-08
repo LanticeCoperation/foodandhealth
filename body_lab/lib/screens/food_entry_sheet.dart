@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../widgets/nutrition_fields.dart';
 
-/// 新增或編輯一筆飲食：選餐別、輸入熱量（蛋白質選填）。
+/// 新增或編輯一筆飲食：選餐別、輸入熱量（蛋白質、脂肪選填）。
 /// 按儲存回傳要寫入的 companion（編輯時含原本的 id），取消回傳 null。
 Future<FoodEntriesCompanion?> showFoodEntrySheet(
   BuildContext context, {
@@ -34,6 +34,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
   late MealType _meal;
   late final TextEditingController _kcal;
   late final TextEditingController _protein;
+  late final TextEditingController _fat;
 
   @override
   void initState() {
@@ -44,12 +45,14 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     // 畫面上一律顯示這一筆的總量（每份 × 份量）
     _kcal = TextEditingController(text: fmtNum(e?.totalKcal));
     _protein = TextEditingController(text: fmtNum(e?.totalProteinG));
+    _fat = TextEditingController(text: fmtNum(e?.totalFatG));
   }
 
   @override
   void dispose() {
     _kcal.dispose();
     _protein.dispose();
+    _fat.dispose();
     super.dispose();
   }
 
@@ -75,6 +78,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     final e = widget.initial;
     final kcal = parseNum(_kcal.text)!;
     final protein = parseNum(_protein.text);
+    final fat = parseNum(_fat.text);
 
     if (e == null) {
       Navigator.pop(
@@ -85,6 +89,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
           name: _meal.label,
           kcal: Value(kcal),
           proteinG: Value(protein),
+          fatG: Value(fat),
         ),
       );
       return;
@@ -102,6 +107,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
             name: e.name == e.meal.label ? _meal.label : e.name,
             kcal: Value(kcal / s),
             proteinG: Value(protein == null ? null : protein / s),
+            fatG: Value(fat == null ? null : fat / s),
           )
           .toCompanion(true),
     );
@@ -149,10 +155,13 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
                 fontWeight: FontWeight.w700,
                 color: theme.colorScheme.primary,
               ),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '熱量',
                 hintText: '0',
                 suffixText: 'kcal',
+                suffixStyle: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
               validator: (s) {
                 final v = parseNum(s ?? '');
@@ -160,14 +169,32 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
               },
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              controller: _protein,
-              keyboardType: numberKeyboard,
-              decoration: const InputDecoration(
-                labelText: '蛋白質（選填）',
-                suffixText: 'g',
-              ),
-              validator: validateOptionalNumber,
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _protein,
+                    keyboardType: numberKeyboard,
+                    decoration: const InputDecoration(
+                      labelText: '蛋白質（選填）',
+                      suffixText: 'g',
+                    ),
+                    validator: validateOptionalNumber,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _fat,
+                    keyboardType: numberKeyboard,
+                    decoration: const InputDecoration(
+                      labelText: '脂肪（選填）',
+                      suffixText: 'g',
+                    ),
+                    validator: validateOptionalNumber,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Row(

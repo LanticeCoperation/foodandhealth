@@ -114,7 +114,7 @@ class _HomeShellState extends State<_HomeShell> {
         phases: s.phases,
         profile: s.profile,
       ),
-      TrendScreen(dataset: s.dataset),
+      TrendScreen(dataset: s.dataset, profile: s.profile),
       AnalysisScreen(phases: s.phases, dataset: s.dataset, profile: s.profile),
     ];
   }

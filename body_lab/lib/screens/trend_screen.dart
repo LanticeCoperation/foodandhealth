@@ -5,15 +5,18 @@ import 'package:flutter/material.dart';
 
 import '../analysis/daily_dataset.dart';
 import '../analysis/overlay_chart.dart';
+import '../data/database.dart';
+import '../data/profile_repository.dart';
 import '../widgets/nutrition_fields.dart';
 import '../theme/app_theme.dart';
 import '../widgets/phase_style.dart';
 
 /// 疊加趨勢圖：身體組成 7 日平均的變化 + 每日攝取 + 肌酸，下方是區間摘要。
 class TrendScreen extends StatefulWidget {
-  const TrendScreen({super.key, required this.dataset});
+  const TrendScreen({super.key, required this.dataset, required this.profile});
 
   final DatasetRepository dataset;
+  final ProfileRepository profile;
 
   @override
   State<TrendScreen> createState() => _TrendScreenState();
@@ -24,6 +27,7 @@ class _TrendScreenState extends State<TrendScreen> {
 
   int _range = 30;
   late Stream<DailyDataset> _stream;
+  late final Stream<Profile?> _profile;
   Set<BodySeries> _series = BodySeries.values.toSet();
   IntakeSeries _intake = IntakeSeries.kcal;
 
@@ -31,6 +35,7 @@ class _TrendScreenState extends State<TrendScreen> {
   void initState() {
     super.initState();
     _stream = widget.dataset.watch(_range);
+    _profile = widget.profile.watch();
   }
 
   void _setRange(int days) {
@@ -44,37 +49,54 @@ class _TrendScreenState extends State<TrendScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('趨勢')),
-      body: StreamBuilder<DailyDataset>(
-        stream: _stream,
-        builder: (context, snapshot) {
-          final ds = snapshot.data;
-          if (ds == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final overlay = buildOverlay(ds, series: _series, intake: _intake);
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-            children: [
-              _buildControls(),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 300,
-                child: overlay.hasBodyData || overlay.hasIntakeData
-                    ? OverlayChart(
-                        data: overlay,
-                        intake: _intake,
-                        rangeAnnotations: phaseAnnotations(context, overlay),
-                      )
-                    : const Center(child: Text('這段期間沒有資料')),
-              ),
-              const SizedBox(height: 8),
-              _Legend(series: _series, intake: _intake, overlay: overlay),
-              const SizedBox(height: 16),
-              SummaryCard(summary: summarize(ds.days), title: '最近 $_range 天'),
-            ],
-          );
-        },
+      body: StreamBuilder<Profile?>(
+        stream: _profile,
+        builder: (context, profileSnap) => StreamBuilder<DailyDataset>(
+          stream: _stream,
+          builder: (context, snapshot) {
+            final ds = snapshot.data;
+            if (ds == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            return _buildBody(ds, profileSnap.data?.tdeeKcal);
+          },
+        ),
       ),
+    );
+  }
+
+  Widget _buildBody(DailyDataset ds, double? tdee) {
+    final overlay = buildOverlay(ds, series: _series, intake: _intake);
+    final showTdee = tdee != null && _intake == IntakeSeries.kcal;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      children: [
+        _buildControls(),
+        const SizedBox(height: 12),
+        SizedBox(
+          height: 300,
+          child: overlay.hasBodyData || overlay.hasIntakeData
+              ? OverlayChart(
+                  data: overlay,
+                  intake: _intake,
+                  rangeAnnotations: phaseAnnotations(context, overlay),
+                  intakeReference: showTdee ? tdee : null,
+                  intakeReferenceLabel: showTdee
+                      ? 'TDEE ${tdee.round()}'
+                      : null,
+                )
+              : const Center(child: Text('這段期間沒有資料')),
+        ),
+        const SizedBox(height: 8),
+        _Legend(
+          series: _series,
+          intake: _intake,
+          overlay: overlay,
+          referenceLabel: showTdee ? 'TDEE' : null,
+        ),
+        const SizedBox(height: 16),
+        SummaryCard(summary: summarize(ds.days), title: '最近 $_range 天'),
+      ],
     );
   }
 
@@ -145,6 +167,8 @@ class OverlayChart extends StatelessWidget {
     required this.data,
     required this.intake,
     this.rangeAnnotations = const [],
+    this.intakeReference,
+    this.intakeReferenceLabel,
   });
 
   final OverlayData data;
@@ -152,6 +176,10 @@ class OverlayChart extends StatelessWidget {
 
   /// 背景色塊（例如實驗階段）。
   final List<VerticalRangeAnnotation> rangeAnnotations;
+
+  /// 攝取量的參考虛線（例如 TDEE、階段目標），單位同 [intake]。
+  final double? intakeReference;
+  final String? intakeReferenceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -277,6 +305,23 @@ class OverlayChart extends StatelessWidget {
               strokeWidth: 1,
               dashArray: [4, 4],
             ),
+            if (intakeReference != null && intake != IntakeSeries.none)
+              HorizontalLine(
+                y: o.intakeToY(intakeReference!),
+                color: theme.colorScheme.onSurfaceVariant,
+                strokeWidth: 1.2,
+                dashArray: [6, 4],
+                label: HorizontalLineLabel(
+                  show: intakeReferenceLabel != null,
+                  alignment: Alignment.topRight,
+                  padding: const EdgeInsets.only(right: 4, bottom: 2),
+                  style: small?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  labelResolver: (_) => intakeReferenceLabel ?? '',
+                ),
+              ),
           ],
         ),
         rangeAnnotations: RangeAnnotations(
@@ -296,26 +341,8 @@ class OverlayChart extends StatelessWidget {
               ),
             ),
           ),
-          rightTitles: intake == IntakeSeries.none
-              ? const AxisTitles()
-              : AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 44,
-                    interval: step,
-                    getTitlesWidget: (v, meta) {
-                      final value = o.yToIntake(v);
-                      // 右軸只標在攝取量的範圍內
-                      if (value > o.intakeMax * 1.001) {
-                        return const SizedBox.shrink();
-                      }
-                      return SideTitleWidget(
-                        meta: meta,
-                        child: Text('${value.round()}', style: small),
-                      );
-                    },
-                  ),
-                ),
+          // 右軸數字是從左軸換算來的，不會是整齊的數字；改用 tooltip 與參考虛線。
+          rightTitles: const AxisTitles(),
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
@@ -387,11 +414,15 @@ class _Legend extends StatelessWidget {
     required this.series,
     required this.intake,
     required this.overlay,
+    this.referenceLabel,
   });
 
   final Set<BodySeries> series;
   final IntakeSeries intake;
   final OverlayData overlay;
+
+  /// 攝取量參考虛線的名稱（例如 TDEE）。
+  final String? referenceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -412,7 +443,10 @@ class _Legend extends StatelessWidget {
         for (final s in BodySeries.values.where(series.contains))
           item(seriesColor(context, s), '${s.label} 7 日平均'),
         if (intake != IntakeSeries.none)
-          item(intakeColor(context), '${intake.label}（右軸 ${intake.unit}）'),
+          item(
+            intakeColor(context),
+            '每日${intake.label}（灰柱${referenceLabel == null ? '' : '，虛線 = $referenceLabel'}）',
+          ),
         item(creatineColor(context), '肌酸', square: true),
         for (final p in {
           for (final s in overlay.phaseSpans) s.phase.id: s.phase,
