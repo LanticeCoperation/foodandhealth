@@ -149,6 +149,25 @@ package、iOS Bundle Identifier）。
 - 用週而不用逐日滑動，是因為逐日樣本彼此重疊，n 會灌水。這是相關不是因果。
 - 下方「各週資料」可以看每一週的原始數字。
 
+## App 圖示與啟動畫面
+
+- 圖示：深青綠底、米白燒瓶、薄荷綠液面是一條往下走的趨勢線。原圖由 `tool/make_icon.py` 產生，
+  各尺寸用 flutter_launcher_icons 產生：
+
+```bash
+python tool/make_icon.py assets/icon
+```
+
+```bash
+dart run flutter_launcher_icons
+```
+
+  注意：flutter_launcher_icons 0.14.4 會把 `ios/Runner.xcodeproj/project.pbxproj` 的
+  `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS` 誤改成 `AppIcon`，
+  產生完要用 `git checkout` 還原這個檔案。
+- 啟動畫面：滿版深青綠（#134A3E，和圖示底色相同）+ 置中燒瓶。Android 12+ 用系統啟動畫面
+  （圖示底色與背景同色，看不出圓框），Android 8–11 用 launch_background，iOS 用 LaunchScreen.storyboard。
+
 ## 專案結構
 
 ```

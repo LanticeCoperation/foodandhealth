@@ -57,6 +57,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   drift_dev: ^2.35.1
   build_runner: ^2.16.2
+  flutter_launcher_icons: 0.14.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -99,3 +100,16 @@ flutter:
   #
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/to/font-from-package
+
+# App 圖示：python tool/make_icon.py assets/icon 產生原圖，
+# 再執行 dart run flutter_launcher_icons 產生各尺寸。
+flutter_launcher_icons:
+  image_path: assets/icon/icon.png
+  android: true
+  adaptive_icon_background: "#134A3E"
+  adaptive_icon_foreground: assets/icon/foreground.png
+  # 前景圖本身已預留安全範圍，不要再內縮
+  adaptive_icon_foreground_inset: 0
+  min_sdk_android: 26
+  ios: true
+  remove_alpha_ios: true
