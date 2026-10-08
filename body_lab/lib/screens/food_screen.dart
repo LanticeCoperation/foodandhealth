@@ -284,7 +284,16 @@ class _FoodScreenState extends State<FoodScreen> {
   }
 }
 
-/// 一個餐別的卡片：標題列（餐別、小計）＋各筆紀錄，可點擊編輯、往左滑刪除。
+/// 餐別圖示。
+IconData mealIcon(MealType m) => switch (m) {
+  MealType.breakfast => Icons.wb_twilight,
+  MealType.lunch => Icons.wb_sunny_outlined,
+  MealType.dinner => Icons.nights_stay_outlined,
+  MealType.snack => Icons.cookie_outlined,
+};
+
+/// 一個餐別的卡片：左側餐別色條、標題列（圖示、餐別、小計）＋各筆紀錄，
+/// 可點擊編輯、往左滑刪除。
 class _MealCard extends StatelessWidget {
   const _MealCard({
     required this.meal,
@@ -302,42 +311,60 @@ class _MealCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final totals = DayTotals.of(entries);
-    final muted = theme.textTheme.bodySmall?.copyWith(
-      color: theme.colorScheme.onSurfaceVariant,
-    );
+    final color = context.palette.meal(meal.index);
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-            child: Row(
-              children: [
-                Text(meal.label, style: theme.textTheme.titleSmall),
-                const Spacer(),
-                Text('${totals.kcal.round()} kcal', style: muted),
-              ],
-            ),
-          ),
-          for (final e in entries)
-            Dismissible(
-              key: ValueKey(e.id),
-              direction: DismissDirection.endToStart,
-              background: Container(
-                color: theme.colorScheme.errorContainer,
-                alignment: Alignment.centerRight,
-                padding: const EdgeInsets.only(right: 24),
-                child: Icon(
-                  Icons.delete_outline,
-                  color: theme.colorScheme.onErrorContainer,
-                ),
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: color, width: 5)),
+        ),
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 16, 8),
+              child: Row(
+                children: [
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.16),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(mealIcon(meal), size: 17, color: color),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(meal.label, style: theme.textTheme.titleSmall),
+                  const Spacer(),
+                  Text(
+                    '${totals.kcal.round()} kcal',
+                    style: theme.textTheme.labelLarge?.copyWith(color: color),
+                  ),
+                ],
               ),
-              onDismissed: (_) => onDismissed(e),
-              child: _EntryTile(entry: e, onTap: () => onTap(e)),
             ),
-          const SizedBox(height: 6),
-        ],
+            for (final (i, e) in entries.indexed) ...[
+              if (i > 0) const Divider(indent: 16, endIndent: 16),
+              Dismissible(
+                key: ValueKey(e.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: theme.colorScheme.errorContainer,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 24),
+                  child: Icon(
+                    Icons.delete_outline,
+                    color: theme.colorScheme.onErrorContainer,
+                  ),
+                ),
+                onDismissed: (_) => onDismissed(e),
+                child: _EntryTile(entry: e, onTap: () => onTap(e)),
+              ),
+            ],
+            const SizedBox(height: 6),
+          ],
+        ),
       ),
     );
   }

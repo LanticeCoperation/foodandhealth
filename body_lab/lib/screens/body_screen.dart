@@ -6,6 +6,7 @@ import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../services/health_service.dart';
 import '../utils/dates.dart';
+import '../theme/app_theme.dart';
 import '../utils/trend.dart';
 
 /// 每天的體重 / 體脂 / 脂肪重 / 除脂體重 與 7 日平均。
@@ -115,14 +116,12 @@ class _BodyScreenState extends State<BodyScreen> {
           final banner = _problem(fullScreen: false);
           return RefreshIndicator(
             onRefresh: _sync,
-            child: ListView.separated(
-              padding: const EdgeInsets.only(bottom: 8),
+            child: ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               itemCount: points.length + 1,
-              separatorBuilder: (_, i) =>
-                  i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
               itemBuilder: (_, i) => i == 0
-                  ? (banner ?? const SizedBox(height: 8))
-                  : _DayRow(point: points[i - 1]),
+                  ? (banner ?? const SizedBox(height: 4))
+                  : _DayCard(point: points[i - 1]),
             ),
           );
         },
@@ -164,7 +163,7 @@ class _BodyScreenState extends State<BodyScreen> {
     }
     final scheme = Theme.of(context).colorScheme;
     return Container(
-      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      margin: const EdgeInsets.fromLTRB(0, 8, 0, 8),
       padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
       decoration: BoxDecoration(
         color: scheme.secondaryContainer,
@@ -194,8 +193,10 @@ class _BodyScreenState extends State<BodyScreen> {
   );
 }
 
-class _DayRow extends StatelessWidget {
-  const _DayRow({required this.point});
+/// 一天一張卡片：日期與量測時間、體重（大字）與 7 日平均，
+/// 下方三欄是體脂、脂肪重、除脂體重（顏色和趨勢圖的線一致）。
+class _DayCard extends StatelessWidget {
+  const _DayCard({required this.point});
 
   final TrendPoint point;
 
@@ -204,69 +205,114 @@ class _DayRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final palette = context.palette;
     final m = point.metric;
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
     final dev = point.weightDeviation;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                '${_two(m.date.month)}/${_two(m.date.day)}（${_weekdays[m.date.weekday - 1]}）',
-                style: theme.textTheme.titleMedium,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '${_two(m.measuredAt.hour)}:${_two(m.measuredAt.minute)}',
-                style: muted,
-              ),
-              const Spacer(),
-              if (point.isWaterOutlier) ...[
-                Icon(
-                  Icons.water_drop,
-                  size: 18,
-                  color: theme.colorScheme.primary,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  '${m.date.month}/${m.date.day}（${_weekdays[m.date.weekday - 1]}）',
+                  style: theme.textTheme.titleSmall,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${_two(m.measuredAt.hour)}:${_two(m.measuredAt.minute)}',
+                  style: muted,
+                ),
+                const Spacer(),
+                if (point.isWaterOutlier)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: palette.leanMass.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.water_drop,
+                          size: 14,
+                          color: palette.leanMass,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '水分 ${dev > 0 ? '+' : ''}${dev.toStringAsFixed(1)} kg',
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: palette.leanMass,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  m.weightKg.toStringAsFixed(1),
+                  style: theme.textTheme.headlineMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: palette.weight,
+                  ),
                 ),
                 const SizedBox(width: 4),
-                Text(
-                  '${dev > 0 ? '+' : ''}${dev.toStringAsFixed(1)} kg',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.primary,
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text('kg', style: muted),
+                ),
+                const Spacer(),
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
+                    style: muted,
                   ),
                 ),
               ],
-            ],
-          ),
-          const SizedBox(height: 6),
-          _ValueLine(
-            label: '體重',
-            value: '${m.weightKg.toStringAsFixed(1)} kg',
-            avg: '${point.weightAvg.toStringAsFixed(1)} kg',
-          ),
-          _ValueLine(
-            label: '體脂',
-            value: m.bodyFatPercent == null
-                ? '—'
-                : '${m.bodyFatPercent!.toStringAsFixed(1)} %',
-          ),
-          _ValueLine(
-            label: '脂肪重',
-            value: _kg(m.fatMassKg),
-            avg: point.fatMassAvg == null ? null : _kg(point.fatMassAvg),
-          ),
-          _ValueLine(
-            label: '除脂體重',
-            value: _kg(m.leanMassKg),
-            note: m.leanMassEstimated ? '*推算' : null,
-            avg: point.leanMassAvg == null ? null : _kg(point.leanMassAvg),
-          ),
-        ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _Metric(
+                  label: '體脂',
+                  value: m.bodyFatPercent == null
+                      ? '—'
+                      : '${m.bodyFatPercent!.toStringAsFixed(1)}%',
+                ),
+                _Metric(
+                  label: '脂肪重',
+                  value: _kg(m.fatMassKg),
+                  avg: point.fatMassAvg,
+                  color: palette.fatMass,
+                ),
+                _Metric(
+                  // 推算：體脂計沒寫入，由 體重 × (1 − 體脂%) 算出
+                  label: m.leanMassEstimated ? '除脂 · 推算' : '除脂體重',
+                  value: _kg(m.leanMassKg),
+                  avg: point.leanMassAvg,
+                  color: palette.leanMass,
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -277,18 +323,19 @@ class _DayRow extends StatelessWidget {
       v == null ? '—' : '${v.toStringAsFixed(1)} kg';
 }
 
-class _ValueLine extends StatelessWidget {
-  const _ValueLine({
+/// 卡片下方的一欄數值：標籤、當天值、7 日平均。
+class _Metric extends StatelessWidget {
+  const _Metric({
     required this.label,
     required this.value,
-    this.note,
     this.avg,
+    this.color,
   });
 
   final String label;
   final String value;
-  final String? note;
-  final String? avg;
+  final double? avg;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -296,18 +343,16 @@ class _ValueLine extends StatelessWidget {
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
-      child: Row(
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 72, child: Text(label, style: muted)),
-          Text(value, style: theme.textTheme.bodyLarge),
-          if (note != null) ...[
-            const SizedBox(width: 4),
-            Text(note!, style: muted),
-          ],
-          const Spacer(),
-          if (avg != null) Text('7日 $avg', style: muted),
+          Text(label, style: muted),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(color: color),
+          ),
+          if (avg != null) Text('7日 ${avg!.toStringAsFixed(1)}', style: muted),
         ],
       ),
     );

@@ -13,6 +13,7 @@ class AppPalette extends ThemeExtension<AppPalette> {
     required this.good,
     required this.bad,
     required this.phases,
+    required this.meals,
   });
 
   final Color weight;
@@ -30,6 +31,9 @@ class AppPalette extends ThemeExtension<AppPalette> {
   /// 實驗階段輪流使用的顏色。
   final List<Color> phases;
 
+  /// 餐別顏色，依 早餐 / 午餐 / 晚餐 / 點心 的順序。
+  final List<Color> meals;
+
   static const light = AppPalette(
     weight: Color(0xFF1F6B5A),
     fatMass: Color(0xFFDD6B4D),
@@ -45,6 +49,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
       Color(0xFF6A97D0),
       Color(0xFF9C88D4),
       Color(0xFF9DAF55),
+    ],
+    meals: [
+      Color(0xFFE09A2D),
+      Color(0xFF3F9A68),
+      Color(0xFF4C6FBF),
+      Color(0xFFC6608A),
     ],
   );
 
@@ -64,9 +74,18 @@ class AppPalette extends ThemeExtension<AppPalette> {
       Color(0xFFB7A6EC),
       Color(0xFFB8C873),
     ],
+    meals: [
+      Color(0xFFF0BC62),
+      Color(0xFF79C79A),
+      Color(0xFF8FA8E8),
+      Color(0xFFE79AB8),
+    ],
   );
 
   Color phase(int id) => phases[id % phases.length];
+
+  /// [mealIndex] 是 MealType.index。
+  Color meal(int mealIndex) => meals[mealIndex % meals.length];
 
   /// 熱力圖格子：score -1（差）～ 1（好）。
   Color heat(double score, {bool faded = false}) {
@@ -106,16 +125,16 @@ ColorScheme _scheme(Brightness brightness) {
       onPrimaryContainer: const Color(0xFF0A3A2F),
       secondaryContainer: const Color(0xFFE6EFE9),
       onSecondaryContainer: const Color(0xFF1D3B33),
-      surface: const Color(0xFFF8F6F1),
+      surface: const Color(0xFFEFEBE4),
       onSurface: const Color(0xFF1E2321),
       onSurfaceVariant: const Color(0xFF5E6662),
       surfaceContainerLowest: Colors.white,
-      surfaceContainerLow: const Color(0xFFF3F0EA),
-      surfaceContainer: const Color(0xFFEEEAE3),
-      surfaceContainerHigh: const Color(0xFFE8E4DC),
-      surfaceContainerHighest: const Color(0xFFE2DDD4),
+      surfaceContainerLow: const Color(0xFFE7E2D9),
+      surfaceContainer: const Color(0xFFE2DCD2),
+      surfaceContainerHigh: const Color(0xFFDCD6CB),
+      surfaceContainerHighest: const Color(0xFFD5CEC2),
       outline: const Color(0xFF8E948F),
-      outlineVariant: const Color(0xFFDDD8CE),
+      outlineVariant: const Color(0xFFD3CBBE),
       error: const Color(0xFFC2462E),
       errorContainer: const Color(0xFFFBDDD5),
       onErrorContainer: const Color(0xFF5C1606),
@@ -171,6 +190,10 @@ ThemeData buildAppTheme(Brightness brightness) {
   final base = ThemeData(colorScheme: scheme, useMaterial3: true);
   final text = _textTheme(base.textTheme);
   final radius12 = BorderRadius.circular(12);
+  final light = brightness == Brightness.light;
+
+  /// 卡片與輸入框的底色：淺色模式白色、深色模式比背景亮一階，和背景拉開層次。
+  final raised = light ? Colors.white : scheme.surfaceContainerHigh;
 
   return base.copyWith(
     textTheme: text,
@@ -187,9 +210,10 @@ ThemeData buildAppTheme(Brightness brightness) {
       ),
     ),
     cardTheme: CardThemeData(
-      color: scheme.surfaceContainerLowest,
+      color: raised,
       surfaceTintColor: Colors.transparent,
-      elevation: 0,
+      elevation: light ? 1.5 : 0,
+      shadowColor: const Color(0x33000000),
       margin: const EdgeInsets.symmetric(vertical: 6),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
@@ -220,7 +244,7 @@ ThemeData buildAppTheme(Brightness brightness) {
       labelStyle: text.titleSmall,
     ),
     chipTheme: base.chipTheme.copyWith(
-      backgroundColor: scheme.surfaceContainerLowest,
+      backgroundColor: raised,
       selectedColor: scheme.primaryContainer,
       side: BorderSide(color: scheme.outlineVariant),
       shape: RoundedRectangleBorder(borderRadius: radius12),
@@ -244,7 +268,7 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
     segmentedButtonTheme: SegmentedButtonThemeData(
       style: SegmentedButton.styleFrom(
-        backgroundColor: scheme.surfaceContainerLowest,
+        backgroundColor: raised,
         selectedBackgroundColor: scheme.primaryContainer,
         selectedForegroundColor: scheme.onPrimaryContainer,
         side: BorderSide(color: scheme.outlineVariant),
@@ -259,7 +283,7 @@ ThemeData buildAppTheme(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
-      fillColor: scheme.surfaceContainerLow,
+      fillColor: raised,
       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       border: OutlineInputBorder(
         borderRadius: radius12,
