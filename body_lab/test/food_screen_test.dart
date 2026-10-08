@@ -125,7 +125,7 @@ void main() {
     await tester.tap(find.text('蛋白粉（1 匙） · 1'));
     await settle(tester);
     expect(find.text('蛋白粉（1 匙） · 2'), findsOneWidget);
-    expect(find.text('48 g'), findsOneWidget); // 蛋白質總計 24 × 2
+    expect(find.text('24 g'), findsOneWidget); // 蛋白質總計 12 × 2
     expect(find.text('已加入「蛋白粉（1 匙）」'), findsOneWidget);
     await tester.pump(const Duration(seconds: 5));
     await settle(tester);

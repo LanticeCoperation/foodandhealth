@@ -50,31 +50,31 @@ const _maintenance = _Period(
   ],
 );
 
-// 約 1920 kcal、蛋白質 150 g（含蛋白粉 2 匙）
+// 約 1800 kcal、蛋白質 150 g（含蛋白粉 2 匙，每匙 12 g）
 const _highProtein = _Period(
   fatPerDay: -0.035,
   leanPerDay: 0.015,
   creatine: true,
   powderScoops: 2,
   meals: [
-    (MealType.breakfast, 280, 26, 7),
+    (MealType.breakfast, 280, 38, 7),
     (MealType.lunch, 850, 35, 12),
     (MealType.snack, 200, 3, 15),
-    (MealType.dinner, 350, 40, 19),
+    (MealType.dinner, 350, 52, 19),
   ],
 );
 
-// 約 1650 kcal、蛋白質 145 g（含蛋白粉 2 匙）
+// 約 1530 kcal、蛋白質 145 g（含蛋白粉 2 匙，每匙 12 g）
 const _cut = _Period(
   fatPerDay: -0.07,
   leanPerDay: -0.005,
   creatine: true,
   powderScoops: 2,
   meals: [
-    (MealType.breakfast, 280, 26, 7),
+    (MealType.breakfast, 280, 38, 7),
     (MealType.lunch, 350, 40, 12),
     (MealType.snack, 100, 1, 15),
-    (MealType.dinner, 680, 28, 19),
+    (MealType.dinner, 680, 40, 19),
   ],
 );
 

@@ -249,7 +249,7 @@ class AppDatabase extends _$AppDatabase {
   Future<void> seedDefaultTemplates() => customStatement(
     "INSERT INTO meal_templates "
     "(name, default_servings, kcal, protein_g, carbs_g, fat_g, pinned) "
-    "VALUES ('蛋白粉（1 匙）', 1, 120, 24, 3, 1.5, 1)",
+    "VALUES ('蛋白粉（1 匙）', 1, 60, 12, 1.5, 0.75, 1)",
   );
 
   /// 清空所有資料，回到剛安裝的狀態（保留預設範本）。

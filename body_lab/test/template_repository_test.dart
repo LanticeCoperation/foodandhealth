@@ -25,7 +25,7 @@ void main() {
   test('新資料庫預設有釘選的蛋白粉範本', () async {
     final pinned = await templates.watchPinned().first;
     expect(pinned.single.name, '蛋白粉（1 匙）');
-    expect(pinned.single.proteinG, 24);
+    expect(pinned.single.proteinG, 12);
   });
 
   test('從範本加入：複製營養素、記錄來源、使用次數 +1、改範本不影響舊紀錄', () async {
