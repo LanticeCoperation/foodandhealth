@@ -21,7 +21,8 @@ import 'extra_burn_sheet.dart';
 import 'food_entry_sheet.dart';
 import 'templates_screen.dart';
 
-/// 單日飲食：總量（對照階段目標與 TDEE）、一鍵 +1 與打勾、依餐別分組的紀錄。
+/// 每日紀錄：吃了什麼（依餐別）與消耗（基礎代謝、手錶活動、運動）、赤字 / 盈餘、
+/// 一鍵 +1、肌酸打勾；對照當天的階段目標。
 class FoodScreen extends StatefulWidget {
   const FoodScreen({
     super.key,
@@ -41,7 +42,7 @@ class FoodScreen extends StatefulWidget {
   final ProfileRepository profile;
   final ActivityRepository? activity;
 
-  /// 自訂消耗（手錶沒記錄到的活動）。
+  /// 運動（手錶沒記錄到的活動，自己輸入消耗）。
   final ExtraBurnRepository? extraBurns;
 
   @override
@@ -77,7 +78,8 @@ class _FoodScreenState extends State<FoodScreen> {
     _checks = widget.checks.watchDay(day);
     _phase = widget.phases.watchOn(day);
     _active = widget.activity?.watchDay(day) ?? Stream.value(null);
-    _extra = widget.extraBurns?.watchDay(day) ?? Stream.value(const []);
+    // 總量卡片和快速列都會聽這個 stream，備用值要能重複監聽
+    _extra = widget.extraBurns?.watchDay(day) ?? const Stream.empty();
   }
 
   bool get _isToday => _day == dateOnly(DateTime.now());
@@ -159,7 +161,7 @@ class _FoodScreenState extends State<FoodScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('飲食'),
+        title: const Text('每日紀錄'),
         actions: [
           IconButton(
             onPressed: _openTemplates,
@@ -192,7 +194,7 @@ class _FoodScreenState extends State<FoodScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
         icon: const Icon(Icons.add),
-        label: const Text('記錄'),
+        label: const Text('記一餐'),
       ),
       body: StreamBuilder<List<FoodEntry>>(
         stream: _entries,
@@ -224,13 +226,6 @@ class _FoodScreenState extends State<FoodScreen> {
                             extraKcal: (extraSnap.data ?? const [])
                                 .fold<double>(0, (s, b) => s + b.kcal),
                             isToday: _isToday,
-                            onExtraBurns: widget.extraBurns == null
-                                ? null
-                                : () => showExtraBurnSheet(
-                                    context,
-                                    repository: widget.extraBurns!,
-                                    day: _day,
-                                  ),
                           ),
                         ),
                   ),
@@ -243,7 +238,7 @@ class _FoodScreenState extends State<FoodScreen> {
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    '這天還沒有紀錄。\n按「記錄」選餐別、輸入熱量就好。',
+                    '這天還沒有飲食紀錄。\n按「記一餐」選餐別、輸入熱量就好。',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -265,34 +260,52 @@ class _FoodScreenState extends State<FoodScreen> {
     );
   }
 
-  /// 釘選項目一鍵 +1（顯示當天已幾份）與每日打勾。
+  void _openExercise() =>
+      showExtraBurnSheet(context, repository: widget.extraBurns!, day: _day);
+
+  /// 快速列：釘選項目一鍵 +1（顯示當天已幾份）、運動、每日打勾。
   Widget _buildQuickRow(List<FoodEntry> entries) {
     return StreamBuilder<List<MealTemplate>>(
       stream: _pinned,
       builder: (context, pinnedSnap) => StreamBuilder<Set<CheckItem>>(
         stream: _checks,
-        builder: (context, checkSnap) {
-          final pinned = pinnedSnap.data ?? const [];
-          final checked = checkSnap.data ?? const {};
-          return Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final t in pinned)
-                ActionChip(
-                  avatar: const Icon(Icons.add, size: 18),
-                  label: Text(_pinnedLabel(t, entries)),
-                  onPressed: () => _quickAdd(t),
-                ),
-              for (final item in CheckItem.values)
-                FilterChip(
-                  label: Text(item.label),
-                  selected: checked.contains(item),
-                  onSelected: (v) => widget.checks.set(_day, item, v),
-                ),
-            ],
-          );
-        },
+        builder: (context, checkSnap) => StreamBuilder<List<ExtraBurn>>(
+          stream: _extra,
+          builder: (context, extraSnap) {
+            final pinned = pinnedSnap.data ?? const [];
+            final checked = checkSnap.data ?? const {};
+            final exercise = (extraSnap.data ?? const []).fold<double>(
+              0,
+              (s, b) => s + b.kcal,
+            );
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final t in pinned)
+                  ActionChip(
+                    avatar: const Icon(Icons.add, size: 18),
+                    label: Text(_pinnedLabel(t, entries)),
+                    onPressed: () => _quickAdd(t),
+                  ),
+                if (widget.extraBurns != null)
+                  ActionChip(
+                    avatar: const Icon(Icons.directions_run, size: 18),
+                    label: Text(
+                      exercise > 0 ? '運動 · ${exercise.round()} kcal' : '運動',
+                    ),
+                    onPressed: _openExercise,
+                  ),
+                for (final item in CheckItem.values)
+                  FilterChip(
+                    label: Text(item.label),
+                    selected: checked.contains(item),
+                    onSelected: (v) => widget.checks.set(_day, item, v),
+                  ),
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -461,7 +474,6 @@ class _DaySummaryCard extends StatelessWidget {
     this.activeKcal,
     this.extraKcal = 0,
     this.isToday = false,
-    this.onExtraBurns,
   });
 
   final DayTotals totals;
@@ -469,14 +481,11 @@ class _DaySummaryCard extends StatelessWidget {
   final EnergyModel? energy;
   final double? activeKcal;
 
-  /// 當天自訂消耗的總和。
+  /// 當天運動（自訂消耗）的總和。
   final double extraKcal;
 
   /// 今天的活動消耗還會增加，標示「到目前」。
   final bool isToday;
-
-  /// 開啟自訂消耗；null 時不顯示按鈕。
-  final VoidCallback? onExtraBurns;
 
   @override
   Widget build(BuildContext context) {
@@ -615,7 +624,7 @@ class _DaySummaryCard extends StatelessWidget {
                                 'TDEE ${e.profile.tdeeKcal.round()}（沒有手錶資料）'
                               else
                                 'TDEE ${e.profile.tdeeKcal.round()}',
-                              if (extraKcal > 0) '自訂 ${extraKcal.round()}',
+                              if (extraKcal > 0) '運動 ${extraKcal.round()}',
                             ].join(' + '),
                             style: muted,
                           ),
@@ -628,19 +637,6 @@ class _DaySummaryCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (onExtraBurns != null)
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: onExtraBurns,
-                    icon: const Icon(Icons.add, size: 18),
-                    label: Text(extraKcal > 0 ? '自訂消耗（編輯）' : '自訂消耗'),
-                    style: TextButton.styleFrom(
-                      visualDensity: VisualDensity.compact,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                    ),
-                  ),
-                ),
             ],
             if (totals.missingKcal > 0 || totals.fatG > 0) ...[
               const SizedBox(height: 6),

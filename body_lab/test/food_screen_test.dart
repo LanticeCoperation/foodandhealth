@@ -1,5 +1,6 @@
 import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
+import 'package:body_lab/data/extra_burn_repository.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
@@ -51,6 +52,7 @@ void main() {
           checks: CheckRepository(db),
           phases: PhaseRepository(db),
           profile: ProfileRepository(db),
+          extraBurns: ExtraBurnRepository(db),
         ),
       ),
     );
@@ -65,9 +67,9 @@ void main() {
   testWidgets('選餐別、輸入熱量就能記錄；滑動刪除可復原', (tester) async {
     usePhoneSize(tester);
     await open(tester);
-    expect(find.textContaining('這天還沒有紀錄'), findsOneWidget);
+    expect(find.textContaining('這天還沒有飲食紀錄'), findsOneWidget);
 
-    await tester.tap(find.text('記錄'));
+    await tester.tap(find.text('記一餐'));
     await settle(tester);
     await tester.tap(find.text('午餐'));
     await tester.enterText(find.widgetWithText(TextFormField, '熱量'), '650');
@@ -80,7 +82,7 @@ void main() {
     expect(find.textContaining('蛋白質 35 g'), findsOneWidget);
 
     // 只輸入熱量也可以
-    await tester.tap(find.text('記錄'));
+    await tester.tap(find.text('記一餐'));
     await settle(tester);
     await tester.tap(find.text('晚餐'));
     await tester.enterText(find.widgetWithText(TextFormField, '熱量'), '700');
@@ -89,7 +91,7 @@ void main() {
     expect(find.text('700 kcal'), findsNWidgets(2));
 
     // 沒填熱量不能存
-    await tester.tap(find.text('記錄'));
+    await tester.tap(find.text('記一餐'));
     await settle(tester);
     await tester.tap(find.text('儲存'));
     await settle(tester);
@@ -137,6 +139,32 @@ void main() {
     await tester.tap(creatine);
     await settle(tester);
     expect(tester.widget<FilterChip>(creatine).selected, isTrue);
+
+    await close(tester);
+  });
+
+  testWidgets('快速列的運動：加入後顯示當天總消耗', (tester) async {
+    usePhoneSize(tester);
+    await open(tester);
+
+    final chip = find.widgetWithText(ActionChip, '運動');
+    expect(chip, findsOneWidget);
+    await tester.tap(chip);
+    await settle(tester);
+    expect(
+      find.text('運動 · ${DateTime.now().month}/${DateTime.now().day}'),
+      findsOneWidget,
+    );
+
+    await tester.enterText(find.widgetWithText(TextFormField, '消耗'), '300');
+    await tester.enterText(find.widgetWithText(TextFormField, '備註（選填）'), '游泳');
+    await tester.tap(find.text('加入'));
+    await settle(tester);
+    expect(find.text('游泳'), findsOneWidget); // 面板裡列出剛加的
+
+    await tester.tapAt(const Offset(10, 10)); // 關閉面板
+    await settle(tester);
+    expect(find.widgetWithText(ActionChip, '運動 · 300 kcal'), findsOneWidget);
 
     await close(tester);
   });

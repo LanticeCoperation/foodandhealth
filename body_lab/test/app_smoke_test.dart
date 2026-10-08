@@ -35,7 +35,7 @@ void main() {
     await settle();
     expect(find.text('身體組成'), findsOneWidget);
 
-    await tester.tap(find.text('飲食'));
+    await tester.tap(find.text('紀錄'));
     await settle();
     expect(find.widgetWithText(ActionChip, '蛋白粉（1 匙）'), findsOneWidget);
 

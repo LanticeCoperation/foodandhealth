@@ -155,9 +155,9 @@ class _HomeShellState extends State<_HomeShell> {
             label: '身體',
           ),
           NavigationDestination(
-            icon: Icon(Icons.restaurant_outlined),
-            selectedIcon: Icon(Icons.restaurant),
-            label: '飲食',
+            icon: Icon(Icons.event_note_outlined),
+            selectedIcon: Icon(Icons.event_note),
+            label: '紀錄',
           ),
           NavigationDestination(icon: Icon(Icons.show_chart), label: '趨勢'),
           NavigationDestination(

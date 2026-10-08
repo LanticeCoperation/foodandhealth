@@ -5,7 +5,7 @@ import '../data/extra_burn_repository.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/undo_snackbar.dart';
 
-/// 某一天的自訂消耗：列出已加的、可刪除，下方新增一筆。
+/// 某一天的運動（自訂消耗）：列出已加的、可刪除，下方新增一筆。
 Future<void> showExtraBurnSheet(
   BuildContext context, {
   required ExtraBurnRepository repository,
@@ -65,7 +65,7 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
     if (!mounted) return;
     showUndoSnackBar(
       context,
-      '已刪除自訂消耗 ${b.kcal.round()} kcal',
+      '已刪除運動 ${b.kcal.round()} kcal',
       onUndo: () => widget.repository.restore(b),
     );
   }
@@ -91,14 +91,11 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '自訂消耗 · ${d.month}/${d.day}',
-              style: theme.textTheme.titleLarge,
-            ),
+            Text('運動 · ${d.month}/${d.day}', style: theme.textTheme.titleLarge),
             const SizedBox(height: 6),
             Text(
-              '加 Apple Watch 沒記錄到的活動（例如沒戴錶的游泳、爬山）。'
-              '手錶已經記錄的運動不要再加，否則會重複計算。',
+              '記錄 Apple Watch 沒記錄到的運動消耗（例如沒戴錶的游泳、爬山），'
+              '會加進當天的每日消耗。手錶已經記錄的運動不要再加，否則會重複計算。',
               style: muted,
             ),
             const SizedBox(height: 12),
@@ -114,8 +111,8 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
                       for (final b in items)
                         ListTile(
                           dense: true,
-                          leading: const Icon(Icons.local_fire_department),
-                          title: Text(b.note ?? '自訂消耗'),
+                          leading: const Icon(Icons.directions_run),
+                          title: Text(b.note ?? '運動'),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
