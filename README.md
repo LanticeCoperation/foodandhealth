@@ -57,7 +57,7 @@ flutter run
 ```
 body_lab/
   lib/
-    main.dart                     建立資料庫與服務、底部頁籤（身體 / 飲食）
+    main.dart                     建立資料庫與服務、底部頁籤
     models/body_metric.dart       每日身體組成資料
     services/health_service.dart  HealthKit / Health Connect 讀取、每日取第一筆
     data/database.dart            drift schema：健康資料快取、飲食紀錄
@@ -65,6 +65,8 @@ body_lab/
     data/food_repository.dart     飲食紀錄 CRUD、每日總量
     data/template_repository.dart 餐點範本、從範本加入
     data/check_repository.dart    每日打勾（肌酸）
+    analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食總量、打勾）
+    analysis/overlay_chart.dart   疊加圖資料、區間摘要
     utils/trend.dart              7 日移動平均、異常值判斷
     utils/dates.dart              當地日期、yyyy-MM-dd 日期鍵
     screens/body_screen.dart      身體組成列表（先顯示快取再同步）
@@ -72,6 +74,7 @@ body_lab/
     screens/food_entry_sheet.dart 自訂輸入 / 編輯飲食
     screens/quick_add_sheet.dart  範本快速新增（搜尋、份量倍率、餐別）
     screens/templates_screen.dart 範本管理（釘選、編輯、封存）
+    screens/trend_screen.dart     疊加趨勢圖（fl_chart）與區間摘要
     widgets/nutrition_fields.dart 營養素輸入欄、數字格式
   test/                           單元測試 + widget 測試
     drift/                        schema migration 測試（make-migrations 產生）
@@ -116,10 +119,18 @@ dart run drift_dev make-migrations
 - **長按紀錄**：存成範本 / 編輯 / 刪除。往左滑也能刪除，都可以復原。
 - 右上角書籤圖示進入範本管理：釘選、編輯、往左滑刪除。
 
+## 趨勢頁
+
+- 左軸：體重 / 脂肪重 / 除脂體重的 7 日平均，相對區間第一天的變化（kg）。
+  三條線同一尺度，看得出體重下降是脂肪還是除脂體重。淡色點是當天實際量到的體重。
+- 右軸：每日熱量或蛋白質（只畫在圖表下半部），沒紀錄的天斷開。
+- 底部紫色方塊：有吃肌酸的天。
+- 點圖表看當天數值；下方摘要是區間內的變化、平均攝取（只算有紀錄的天）與紀錄天數。
+
 ## 接下來
 
 - [x] 本地資料庫（drift）：快取健康資料 + 存飲食紀錄
 - [x] 外食快速輸入：餐點範本、份量倍率、蛋白粉一鍵 +1、肌酸打勾
-- [ ] 疊加趨勢圖（fl_chart）
+- [x] 疊加趨勢圖（fl_chart）
 - [ ] 階段（4 週實驗）功能
 - [ ] 組合分析熱力圖

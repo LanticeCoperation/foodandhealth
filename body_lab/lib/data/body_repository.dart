@@ -22,12 +22,19 @@ class BodyRepository {
   /// 之後每次同步，從快取最後一天再往前重抓幾天（體脂計晚寫入、使用者刪改資料）。
   static const int overlapDays = 14;
 
-  Stream<List<BodyMetric>> watchSince(DateTime from) {
+  Stream<List<BodyMetric>> watchSince(DateTime from) =>
+      _sinceQuery(from).watch().map((rows) => rows.map(_toMetric).toList());
+
+  Future<List<BodyMetric>> since(DateTime from) async =>
+      (await _sinceQuery(from).get()).map(_toMetric).toList();
+
+  SimpleSelectStatement<$DailyBodyMetricsTable, DailyBodyMetricRow> _sinceQuery(
+    DateTime from,
+  ) {
     final t = _db.dailyBodyMetrics;
-    final query = _db.select(t)
+    return _db.select(t)
       ..where((r) => r.day.isBiggerOrEqualValue(dayKey(from)))
       ..orderBy([(r) => OrderingTerm.asc(r.day)]);
-    return query.watch().map((rows) => rows.map(_toMetric).toList());
   }
 
   /// 從健康資料同步到快取，回傳讀到的天數。

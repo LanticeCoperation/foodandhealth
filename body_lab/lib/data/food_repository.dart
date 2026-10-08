@@ -26,6 +26,19 @@ class FoodRepository {
     return query.watch();
   }
 
+  /// [from] 之後每天的攝取總量；沒有紀錄的天不會出現。key 是當地日期 00:00。
+  Future<Map<DateTime, DayTotals>> dailyTotalsSince(DateTime from) async {
+    final t = _db.foodEntries;
+    final rows = await (_db.select(
+      t,
+    )..where((r) => r.eatenAt.isBiggerOrEqualValue(dateOnly(from)))).get();
+    final byDay = <DateTime, List<FoodEntry>>{};
+    for (final e in rows) {
+      byDay.putIfAbsent(dateOnly(e.eatenAt), () => []).add(e);
+    }
+    return byDay.map((day, entries) => MapEntry(day, DayTotals.of(entries)));
+  }
+
   Future<int> add(FoodEntriesCompanion entry) =>
       _db.into(_db.foodEntries).insert(entry);
 

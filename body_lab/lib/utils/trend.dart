@@ -69,6 +69,52 @@ List<TrendPoint> computeTrend(
   return result;
 }
 
+class RollingAverage {
+  const RollingAverage({
+    required this.windowCount,
+    required this.weight,
+    this.fatMass,
+    this.leanMass,
+  });
+
+  final int windowCount;
+  final double weight;
+  final double? fatMass;
+  final double? leanMass;
+}
+
+/// [from]～[to] 每個日曆天（不論當天有沒有量）往前 [windowDays] 天的平均。
+/// 視窗內完全沒資料的天不會出現在結果裡。key 是當地日期 00:00。
+Map<DateTime, RollingAverage> rollingAverages(
+  Iterable<BodyMetric> metrics, {
+  required DateTime from,
+  required DateTime to,
+  int windowDays = kMovingAverageDays,
+}) {
+  final byDay = {for (final m in metrics) m.date: m};
+  final result = <DateTime, RollingAverage>{};
+
+  for (
+    var day = from;
+    !day.isAfter(to);
+    day = DateTime(day.year, day.month, day.day + 1)
+  ) {
+    final window = [
+      for (var i = 0; i < windowDays; i++)
+        byDay[DateTime(day.year, day.month, day.day - i)],
+    ].whereType<BodyMetric>().toList();
+    if (window.isEmpty) continue;
+
+    result[day] = RollingAverage(
+      windowCount: window.length,
+      weight: _average(window.map((m) => m.weightKg))!,
+      fatMass: _average(window.map((m) => m.fatMassKg)),
+      leanMass: _average(window.map((m) => m.leanMassKg)),
+    );
+  }
+  return result;
+}
+
 double? _average(Iterable<double?> values) {
   final present = values.whereType<double>().toList();
   if (present.isEmpty) return null;
