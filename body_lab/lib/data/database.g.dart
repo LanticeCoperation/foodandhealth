@@ -2212,6 +2212,629 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
   }
 }
 
+class $PhasesTable extends Phases with TableInfo<$PhasesTable, Phase> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PhasesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    additionalChecks: GeneratedColumn.checkTextLength(
+      minTextLength: 1,
+      maxTextLength: 60,
+    ),
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _startDayMeta = const VerificationMeta(
+    'startDay',
+  );
+  @override
+  late final GeneratedColumn<String> startDay = GeneratedColumn<String>(
+    'start_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endDayMeta = const VerificationMeta('endDay');
+  @override
+  late final GeneratedColumn<String> endDay = GeneratedColumn<String>(
+    'end_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _hypothesisMeta = const VerificationMeta(
+    'hypothesis',
+  );
+  @override
+  late final GeneratedColumn<String> hypothesis = GeneratedColumn<String>(
+    'hypothesis',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetKcalMeta = const VerificationMeta(
+    'targetKcal',
+  );
+  @override
+  late final GeneratedColumn<double> targetKcal = GeneratedColumn<double>(
+    'target_kcal',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _targetProteinGMeta = const VerificationMeta(
+    'targetProteinG',
+  );
+  @override
+  late final GeneratedColumn<double> targetProteinG = GeneratedColumn<double>(
+    'target_protein_g',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _creatineMeta = const VerificationMeta(
+    'creatine',
+  );
+  @override
+  late final GeneratedColumn<bool> creatine = GeneratedColumn<bool>(
+    'creatine',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("creatine" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _conclusionMeta = const VerificationMeta(
+    'conclusion',
+  );
+  @override
+  late final GeneratedColumn<String> conclusion = GeneratedColumn<String>(
+    'conclusion',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    startDay,
+    endDay,
+    hypothesis,
+    targetKcal,
+    targetProteinG,
+    creatine,
+    conclusion,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'phases';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Phase> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(
+        _nameMeta,
+        name.isAcceptableOrUnknown(data['name']!, _nameMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('start_day')) {
+      context.handle(
+        _startDayMeta,
+        startDay.isAcceptableOrUnknown(data['start_day']!, _startDayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_startDayMeta);
+    }
+    if (data.containsKey('end_day')) {
+      context.handle(
+        _endDayMeta,
+        endDay.isAcceptableOrUnknown(data['end_day']!, _endDayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_endDayMeta);
+    }
+    if (data.containsKey('hypothesis')) {
+      context.handle(
+        _hypothesisMeta,
+        hypothesis.isAcceptableOrUnknown(data['hypothesis']!, _hypothesisMeta),
+      );
+    }
+    if (data.containsKey('target_kcal')) {
+      context.handle(
+        _targetKcalMeta,
+        targetKcal.isAcceptableOrUnknown(data['target_kcal']!, _targetKcalMeta),
+      );
+    }
+    if (data.containsKey('target_protein_g')) {
+      context.handle(
+        _targetProteinGMeta,
+        targetProteinG.isAcceptableOrUnknown(
+          data['target_protein_g']!,
+          _targetProteinGMeta,
+        ),
+      );
+    }
+    if (data.containsKey('creatine')) {
+      context.handle(
+        _creatineMeta,
+        creatine.isAcceptableOrUnknown(data['creatine']!, _creatineMeta),
+      );
+    }
+    if (data.containsKey('conclusion')) {
+      context.handle(
+        _conclusionMeta,
+        conclusion.isAcceptableOrUnknown(data['conclusion']!, _conclusionMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Phase map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Phase(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      name: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}name'],
+      )!,
+      startDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}start_day'],
+      )!,
+      endDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}end_day'],
+      )!,
+      hypothesis: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}hypothesis'],
+      ),
+      targetKcal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_kcal'],
+      ),
+      targetProteinG: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}target_protein_g'],
+      ),
+      creatine: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}creatine'],
+      )!,
+      conclusion: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}conclusion'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PhasesTable createAlias(String alias) {
+    return $PhasesTable(attachedDatabase, alias);
+  }
+}
+
+class Phase extends DataClass implements Insertable<Phase> {
+  final int id;
+  final String name;
+
+  /// 當地日期 yyyy-MM-dd，含頭含尾。
+  final String startDay;
+  final String endDay;
+
+  /// 這階段改變了什麼、預期會怎樣。
+  final String? hypothesis;
+
+  /// 每日目標；熱量 ±10% 算達標，蛋白質達到即算。
+  final double? targetKcal;
+  final double? targetProteinG;
+
+  /// 這階段是否每天吃肌酸。
+  final bool creatine;
+
+  /// 結束後的心得。
+  final String? conclusion;
+  final DateTime createdAt;
+  const Phase({
+    required this.id,
+    required this.name,
+    required this.startDay,
+    required this.endDay,
+    this.hypothesis,
+    this.targetKcal,
+    this.targetProteinG,
+    required this.creatine,
+    this.conclusion,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['start_day'] = Variable<String>(startDay);
+    map['end_day'] = Variable<String>(endDay);
+    if (!nullToAbsent || hypothesis != null) {
+      map['hypothesis'] = Variable<String>(hypothesis);
+    }
+    if (!nullToAbsent || targetKcal != null) {
+      map['target_kcal'] = Variable<double>(targetKcal);
+    }
+    if (!nullToAbsent || targetProteinG != null) {
+      map['target_protein_g'] = Variable<double>(targetProteinG);
+    }
+    map['creatine'] = Variable<bool>(creatine);
+    if (!nullToAbsent || conclusion != null) {
+      map['conclusion'] = Variable<String>(conclusion);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  PhasesCompanion toCompanion(bool nullToAbsent) {
+    return PhasesCompanion(
+      id: Value(id),
+      name: Value(name),
+      startDay: Value(startDay),
+      endDay: Value(endDay),
+      hypothesis: hypothesis == null && nullToAbsent
+          ? const Value.absent()
+          : Value(hypothesis),
+      targetKcal: targetKcal == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetKcal),
+      targetProteinG: targetProteinG == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetProteinG),
+      creatine: Value(creatine),
+      conclusion: conclusion == null && nullToAbsent
+          ? const Value.absent()
+          : Value(conclusion),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Phase.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Phase(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      startDay: serializer.fromJson<String>(json['startDay']),
+      endDay: serializer.fromJson<String>(json['endDay']),
+      hypothesis: serializer.fromJson<String?>(json['hypothesis']),
+      targetKcal: serializer.fromJson<double?>(json['targetKcal']),
+      targetProteinG: serializer.fromJson<double?>(json['targetProteinG']),
+      creatine: serializer.fromJson<bool>(json['creatine']),
+      conclusion: serializer.fromJson<String?>(json['conclusion']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'startDay': serializer.toJson<String>(startDay),
+      'endDay': serializer.toJson<String>(endDay),
+      'hypothesis': serializer.toJson<String?>(hypothesis),
+      'targetKcal': serializer.toJson<double?>(targetKcal),
+      'targetProteinG': serializer.toJson<double?>(targetProteinG),
+      'creatine': serializer.toJson<bool>(creatine),
+      'conclusion': serializer.toJson<String?>(conclusion),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Phase copyWith({
+    int? id,
+    String? name,
+    String? startDay,
+    String? endDay,
+    Value<String?> hypothesis = const Value.absent(),
+    Value<double?> targetKcal = const Value.absent(),
+    Value<double?> targetProteinG = const Value.absent(),
+    bool? creatine,
+    Value<String?> conclusion = const Value.absent(),
+    DateTime? createdAt,
+  }) => Phase(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    startDay: startDay ?? this.startDay,
+    endDay: endDay ?? this.endDay,
+    hypothesis: hypothesis.present ? hypothesis.value : this.hypothesis,
+    targetKcal: targetKcal.present ? targetKcal.value : this.targetKcal,
+    targetProteinG: targetProteinG.present
+        ? targetProteinG.value
+        : this.targetProteinG,
+    creatine: creatine ?? this.creatine,
+    conclusion: conclusion.present ? conclusion.value : this.conclusion,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Phase copyWithCompanion(PhasesCompanion data) {
+    return Phase(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      startDay: data.startDay.present ? data.startDay.value : this.startDay,
+      endDay: data.endDay.present ? data.endDay.value : this.endDay,
+      hypothesis: data.hypothesis.present
+          ? data.hypothesis.value
+          : this.hypothesis,
+      targetKcal: data.targetKcal.present
+          ? data.targetKcal.value
+          : this.targetKcal,
+      targetProteinG: data.targetProteinG.present
+          ? data.targetProteinG.value
+          : this.targetProteinG,
+      creatine: data.creatine.present ? data.creatine.value : this.creatine,
+      conclusion: data.conclusion.present
+          ? data.conclusion.value
+          : this.conclusion,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Phase(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('startDay: $startDay, ')
+          ..write('endDay: $endDay, ')
+          ..write('hypothesis: $hypothesis, ')
+          ..write('targetKcal: $targetKcal, ')
+          ..write('targetProteinG: $targetProteinG, ')
+          ..write('creatine: $creatine, ')
+          ..write('conclusion: $conclusion, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    name,
+    startDay,
+    endDay,
+    hypothesis,
+    targetKcal,
+    targetProteinG,
+    creatine,
+    conclusion,
+    createdAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Phase &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.startDay == this.startDay &&
+          other.endDay == this.endDay &&
+          other.hypothesis == this.hypothesis &&
+          other.targetKcal == this.targetKcal &&
+          other.targetProteinG == this.targetProteinG &&
+          other.creatine == this.creatine &&
+          other.conclusion == this.conclusion &&
+          other.createdAt == this.createdAt);
+}
+
+class PhasesCompanion extends UpdateCompanion<Phase> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> startDay;
+  final Value<String> endDay;
+  final Value<String?> hypothesis;
+  final Value<double?> targetKcal;
+  final Value<double?> targetProteinG;
+  final Value<bool> creatine;
+  final Value<String?> conclusion;
+  final Value<DateTime> createdAt;
+  const PhasesCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.startDay = const Value.absent(),
+    this.endDay = const Value.absent(),
+    this.hypothesis = const Value.absent(),
+    this.targetKcal = const Value.absent(),
+    this.targetProteinG = const Value.absent(),
+    this.creatine = const Value.absent(),
+    this.conclusion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  PhasesCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    required String startDay,
+    required String endDay,
+    this.hypothesis = const Value.absent(),
+    this.targetKcal = const Value.absent(),
+    this.targetProteinG = const Value.absent(),
+    this.creatine = const Value.absent(),
+    this.conclusion = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : name = Value(name),
+       startDay = Value(startDay),
+       endDay = Value(endDay);
+  static Insertable<Phase> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? startDay,
+    Expression<String>? endDay,
+    Expression<String>? hypothesis,
+    Expression<double>? targetKcal,
+    Expression<double>? targetProteinG,
+    Expression<bool>? creatine,
+    Expression<String>? conclusion,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (startDay != null) 'start_day': startDay,
+      if (endDay != null) 'end_day': endDay,
+      if (hypothesis != null) 'hypothesis': hypothesis,
+      if (targetKcal != null) 'target_kcal': targetKcal,
+      if (targetProteinG != null) 'target_protein_g': targetProteinG,
+      if (creatine != null) 'creatine': creatine,
+      if (conclusion != null) 'conclusion': conclusion,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  PhasesCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? startDay,
+    Value<String>? endDay,
+    Value<String?>? hypothesis,
+    Value<double?>? targetKcal,
+    Value<double?>? targetProteinG,
+    Value<bool>? creatine,
+    Value<String?>? conclusion,
+    Value<DateTime>? createdAt,
+  }) {
+    return PhasesCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      startDay: startDay ?? this.startDay,
+      endDay: endDay ?? this.endDay,
+      hypothesis: hypothesis ?? this.hypothesis,
+      targetKcal: targetKcal ?? this.targetKcal,
+      targetProteinG: targetProteinG ?? this.targetProteinG,
+      creatine: creatine ?? this.creatine,
+      conclusion: conclusion ?? this.conclusion,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (startDay.present) {
+      map['start_day'] = Variable<String>(startDay.value);
+    }
+    if (endDay.present) {
+      map['end_day'] = Variable<String>(endDay.value);
+    }
+    if (hypothesis.present) {
+      map['hypothesis'] = Variable<String>(hypothesis.value);
+    }
+    if (targetKcal.present) {
+      map['target_kcal'] = Variable<double>(targetKcal.value);
+    }
+    if (targetProteinG.present) {
+      map['target_protein_g'] = Variable<double>(targetProteinG.value);
+    }
+    if (creatine.present) {
+      map['creatine'] = Variable<bool>(creatine.value);
+    }
+    if (conclusion.present) {
+      map['conclusion'] = Variable<String>(conclusion.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PhasesCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('startDay: $startDay, ')
+          ..write('endDay: $endDay, ')
+          ..write('hypothesis: $hypothesis, ')
+          ..write('targetKcal: $targetKcal, ')
+          ..write('targetProteinG: $targetProteinG, ')
+          ..write('creatine: $creatine, ')
+          ..write('conclusion: $conclusion, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2221,6 +2844,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FoodEntriesTable foodEntries = $FoodEntriesTable(this);
   late final $MealTemplatesTable mealTemplates = $MealTemplatesTable(this);
   late final $DailyChecksTable dailyChecks = $DailyChecksTable(this);
+  late final $PhasesTable phases = $PhasesTable(this);
   late final Index foodEntriesEatenAt = Index(
     'food_entries_eaten_at',
     'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
@@ -2234,6 +2858,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     foodEntries,
     mealTemplates,
     dailyChecks,
+    phases,
     foodEntriesEatenAt,
   ];
 }
@@ -3373,6 +3998,304 @@ typedef $$DailyChecksTableProcessedTableManager =
       DailyCheck,
       PrefetchHooks Function()
     >;
+typedef $$PhasesTableCreateCompanionBuilder = PhasesCompanion Function({
+  Value<int> id,
+  required String name,
+  required String startDay,
+  required String endDay,
+  Value<String?> hypothesis,
+  Value<double?> targetKcal,
+  Value<double?> targetProteinG,
+  Value<bool> creatine,
+  Value<String?> conclusion,
+  Value<DateTime> createdAt,
+});
+typedef $$PhasesTableUpdateCompanionBuilder = PhasesCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> startDay,
+  Value<String> endDay,
+  Value<String?> hypothesis,
+  Value<double?> targetKcal,
+  Value<double?> targetProteinG,
+  Value<bool> creatine,
+  Value<String?> conclusion,
+  Value<DateTime> createdAt,
+});
+
+class $$PhasesTableFilterComposer
+    extends Composer<_$AppDatabase, $PhasesTable> {
+  $$PhasesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get startDay => $composableBuilder(
+    column: $table.startDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get endDay => $composableBuilder(
+    column: $table.endDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get hypothesis => $composableBuilder(
+    column: $table.hypothesis,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetKcal => $composableBuilder(
+    column: $table.targetKcal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get targetProteinG => $composableBuilder(
+    column: $table.targetProteinG,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get creatine => $composableBuilder(
+    column: $table.creatine,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get conclusion => $composableBuilder(
+    column: $table.conclusion,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PhasesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PhasesTable> {
+  $$PhasesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get name => $composableBuilder(
+    column: $table.name,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get startDay => $composableBuilder(
+    column: $table.startDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get endDay => $composableBuilder(
+    column: $table.endDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get hypothesis => $composableBuilder(
+    column: $table.hypothesis,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetKcal => $composableBuilder(
+    column: $table.targetKcal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get targetProteinG => $composableBuilder(
+    column: $table.targetProteinG,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get creatine => $composableBuilder(
+    column: $table.creatine,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get conclusion => $composableBuilder(
+    column: $table.conclusion,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PhasesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PhasesTable> {
+  $$PhasesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name =>
+      $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get startDay =>
+      $composableBuilder(column: $table.startDay, builder: (column) => column);
+
+  GeneratedColumn<String> get endDay =>
+      $composableBuilder(column: $table.endDay, builder: (column) => column);
+
+  GeneratedColumn<String> get hypothesis => $composableBuilder(
+    column: $table.hypothesis,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetKcal => $composableBuilder(
+    column: $table.targetKcal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get targetProteinG => $composableBuilder(
+    column: $table.targetProteinG,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get creatine =>
+      $composableBuilder(column: $table.creatine, builder: (column) => column);
+
+  GeneratedColumn<String> get conclusion => $composableBuilder(
+    column: $table.conclusion,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$PhasesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PhasesTable,
+          Phase,
+          $$PhasesTableFilterComposer,
+          $$PhasesTableOrderingComposer,
+          $$PhasesTableAnnotationComposer,
+          $$PhasesTableCreateCompanionBuilder,
+          $$PhasesTableUpdateCompanionBuilder,
+          (Phase, BaseReferences<_$AppDatabase, $PhasesTable, Phase>),
+          Phase,
+          PrefetchHooks Function()
+        > {
+  $$PhasesTableTableManager(_$AppDatabase db, $PhasesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PhasesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PhasesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PhasesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> startDay = const Value.absent(),
+                Value<String> endDay = const Value.absent(),
+                Value<String?> hypothesis = const Value.absent(),
+                Value<double?> targetKcal = const Value.absent(),
+                Value<double?> targetProteinG = const Value.absent(),
+                Value<bool> creatine = const Value.absent(),
+                Value<String?> conclusion = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => PhasesCompanion(
+                id: id,
+                name: name,
+                startDay: startDay,
+                endDay: endDay,
+                hypothesis: hypothesis,
+                targetKcal: targetKcal,
+                targetProteinG: targetProteinG,
+                creatine: creatine,
+                conclusion: conclusion,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                required String startDay,
+                required String endDay,
+                Value<String?> hypothesis = const Value.absent(),
+                Value<double?> targetKcal = const Value.absent(),
+                Value<double?> targetProteinG = const Value.absent(),
+                Value<bool> creatine = const Value.absent(),
+                Value<String?> conclusion = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => PhasesCompanion.insert(
+                id: id,
+                name: name,
+                startDay: startDay,
+                endDay: endDay,
+                hypothesis: hypothesis,
+                targetKcal: targetKcal,
+                targetProteinG: targetProteinG,
+                creatine: creatine,
+                conclusion: conclusion,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PhasesTable, Phase>(table),
+                  BaseReferences<_$AppDatabase, $PhasesTable, Phase>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PhasesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PhasesTable,
+      Phase,
+      $$PhasesTableFilterComposer,
+      $$PhasesTableOrderingComposer,
+      $$PhasesTableAnnotationComposer,
+      $$PhasesTableCreateCompanionBuilder,
+      $$PhasesTableUpdateCompanionBuilder,
+      (Phase, BaseReferences<_$AppDatabase, $PhasesTable, Phase>),
+      Phase,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -3385,4 +4308,6 @@ class $AppDatabaseManager {
       $$MealTemplatesTableTableManager(_db, _db.mealTemplates);
   $$DailyChecksTableTableManager get dailyChecks =>
       $$DailyChecksTableTableManager(_db, _db.dailyChecks);
+  $$PhasesTableTableManager get phases =>
+      $$PhasesTableTableManager(_db, _db.phases);
 }

@@ -3,9 +3,12 @@ import 'package:flutter/material.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
+import '../analysis/phase_summary.dart' show kKcalTolerance;
+import '../data/phase_repository.dart';
 import '../data/template_repository.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
+import '../widgets/phase_style.dart';
 import 'food_entry_sheet.dart';
 import 'quick_add_sheet.dart';
 import 'templates_screen.dart';
@@ -18,11 +21,13 @@ class FoodScreen extends StatefulWidget {
     required this.repository,
     required this.templates,
     required this.checks,
+    required this.phases,
   });
 
   final FoodRepository repository;
   final TemplateRepository templates;
   final CheckRepository checks;
+  final PhaseRepository phases;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -32,6 +37,7 @@ class _FoodScreenState extends State<FoodScreen> {
   late DateTime _day;
   late Stream<List<FoodEntry>> _entries;
   late Stream<Set<CheckItem>> _checks;
+  late Stream<Phase?> _phase;
   late final Stream<List<MealTemplate>> _pinned;
 
   /// 滑掉的項目要立刻從畫面消失（Dismissible 的要求），不等資料庫 stream 更新。
@@ -50,6 +56,7 @@ class _FoodScreenState extends State<FoodScreen> {
     _day = day;
     _entries = widget.repository.watchDay(day);
     _checks = widget.checks.watchDay(day);
+    _phase = widget.phases.watchOn(day);
   }
 
   bool get _isToday => _day == dateOnly(DateTime.now());
@@ -254,7 +261,13 @@ class _FoodScreenState extends State<FoodScreen> {
           return ListView(
             padding: const EdgeInsets.only(bottom: 88),
             children: [
-              _TotalsCard(totals: DayTotals.of(entries)),
+              StreamBuilder<Phase?>(
+                stream: _phase,
+                builder: (context, phaseSnap) => _TotalsCard(
+                  totals: DayTotals.of(entries),
+                  phase: phaseSnap.data,
+                ),
+              ),
               _buildQuickRow(entries),
               if (entries.isEmpty)
                 const Padding(
@@ -393,21 +406,38 @@ class _EntryTile extends StatelessWidget {
 }
 
 class _TotalsCard extends StatelessWidget {
-  const _TotalsCard({required this.totals});
+  const _TotalsCard({required this.totals, this.phase});
 
   final DayTotals totals;
+
+  /// 當天所屬的實驗階段；有目標時顯示「實際 / 目標」，達標變色。
+  final Phase? phase;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    Widget stat(String label, String value) => Expanded(
-      child: Column(
-        children: [
-          Text(value, style: theme.textTheme.titleMedium),
-          Text(label, style: theme.textTheme.bodySmall),
-        ],
-      ),
-    );
+    final p = phase;
+    final kcalTarget = p?.targetKcal;
+    final proteinTarget = p?.targetProteinG;
+
+    Widget stat(String label, double value, {double? target, bool? hit}) {
+      final color = hit == null
+          ? null
+          : (hit ? theme.colorScheme.primary : theme.colorScheme.error);
+      return Expanded(
+        child: Column(
+          children: [
+            Text(
+              target == null
+                  ? '${value.round()}'
+                  : '${value.round()} / ${target.round()}',
+              style: theme.textTheme.titleMedium?.copyWith(color: color),
+            ),
+            Text(label, style: theme.textTheme.bodySmall),
+          ],
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
@@ -415,12 +445,43 @@ class _TotalsCard extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12),
         child: Column(
           children: [
+            if (p != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.science_outlined,
+                      size: 16,
+                      color: phaseColor(p),
+                    ),
+                    const SizedBox(width: 4),
+                    Text('階段：${p.name}', style: theme.textTheme.labelMedium),
+                  ],
+                ),
+              ),
             Row(
               children: [
-                stat('熱量 kcal', '${totals.kcal.round()}'),
-                stat('蛋白質 g', '${totals.proteinG.round()}'),
-                stat('碳水 g', '${totals.carbsG.round()}'),
-                stat('脂肪 g', '${totals.fatG.round()}'),
+                stat(
+                  '熱量 kcal',
+                  totals.kcal,
+                  target: kcalTarget,
+                  hit: kcalTarget == null
+                      ? null
+                      : (totals.kcal - kcalTarget).abs() <=
+                            kcalTarget * kKcalTolerance,
+                ),
+                stat(
+                  '蛋白質 g',
+                  totals.proteinG,
+                  target: proteinTarget,
+                  hit: proteinTarget == null
+                      ? null
+                      : totals.proteinG >= proteinTarget,
+                ),
+                stat('碳水 g', totals.carbsG),
+                stat('脂肪 g', totals.fatG),
               ],
             ),
             if (totals.missingKcal > 0)

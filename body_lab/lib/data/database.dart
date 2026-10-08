@@ -103,8 +103,32 @@ class DailyChecks extends Table {
   Set<Column> get primaryKey => {day, item};
 }
 
+/// 實驗階段（v3）：一段期間固定改變某些做法（例如高蛋白 + 肌酸），看身體組成怎麼變。
+class Phases extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text().withLength(min: 1, max: 60)();
+
+  /// 當地日期 yyyy-MM-dd，含頭含尾。
+  TextColumn get startDay => text()();
+  TextColumn get endDay => text()();
+
+  /// 這階段改變了什麼、預期會怎樣。
+  TextColumn get hypothesis => text().nullable()();
+
+  /// 每日目標；熱量 ±10% 算達標，蛋白質達到即算。
+  RealColumn get targetKcal => real().nullable()();
+  RealColumn get targetProteinG => real().nullable()();
+
+  /// 這階段是否每天吃肌酸。
+  BoolColumn get creatine => boolean().withDefault(const Constant(false))();
+
+  /// 結束後的心得。
+  TextColumn get conclusion => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 @DriftDatabase(
-  tables: [DailyBodyMetrics, FoodEntries, MealTemplates, DailyChecks],
+  tables: [DailyBodyMetrics, FoodEntries, MealTemplates, DailyChecks, Phases],
 )
 class AppDatabase extends _$AppDatabase {
   /// 不傳 [executor] 時使用 App 文件目錄下的 body_lab.sqlite；測試可傳記憶體資料庫。
@@ -112,7 +136,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -128,6 +152,9 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(schema.dailyChecks);
         await m.addColumn(schema.foodEntries, schema.foodEntries.templateId);
         await _seedDefaultTemplates();
+      },
+      from2To3: (m, schema) async {
+        await m.createTable(schema.phases);
       },
     ),
   );

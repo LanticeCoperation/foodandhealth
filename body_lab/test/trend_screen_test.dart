@@ -3,6 +3,7 @@ import 'package:body_lab/data/body_repository.dart';
 import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
+import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/models/body_metric.dart';
 import 'package:body_lab/screens/trend_screen.dart';
 import 'package:body_lab/services/health_service.dart';
@@ -16,6 +17,13 @@ import 'package:flutter_test/flutter_test.dart';
 class _NoSource implements BodyMetricsSource {
   @override
   Future<List<BodyMetric>> fetchDailyMetrics(DateTime start) async => [];
+}
+
+/// 手機尺寸（360 × 780 dp），確認窄螢幕不會溢出。
+void usePhoneSize(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2340);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
 }
 
 void main() {
@@ -40,6 +48,7 @@ void main() {
   }
 
   testWidgets('有資料時畫出疊加圖與摘要，可切換區間', (tester) async {
+    usePhoneSize(tester);
     final body = BodyRepository(db, _NoSource());
     final food = FoodRepository(db);
     final checks = CheckRepository(db);
@@ -74,7 +83,13 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: TrendScreen(
-          dataset: DatasetRepository(db, body, food, checks),
+          dataset: DatasetRepository(
+            db,
+            body,
+            food,
+            checks,
+            PhaseRepository(db),
+          ),
         ),
       ),
     );

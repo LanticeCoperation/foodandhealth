@@ -5,9 +5,11 @@ import 'data/body_repository.dart';
 import 'data/check_repository.dart';
 import 'data/database.dart';
 import 'data/food_repository.dart';
+import 'data/phase_repository.dart';
 import 'data/template_repository.dart';
 import 'screens/body_screen.dart';
 import 'screens/food_screen.dart';
+import 'screens/phases_screen.dart';
 import 'screens/trend_screen.dart';
 import 'services/health_service.dart';
 
@@ -21,8 +23,9 @@ class AppServices {
     : body = BodyRepository(db, health),
       food = FoodRepository(db),
       templates = TemplateRepository(db),
-      checks = CheckRepository(db) {
-    dataset = DatasetRepository(db, body, food, checks);
+      checks = CheckRepository(db),
+      phases = PhaseRepository(db) {
+    dataset = DatasetRepository(db, body, food, checks, phases);
   }
 
   final AppDatabase db;
@@ -31,6 +34,7 @@ class AppServices {
   final FoodRepository food;
   final TemplateRepository templates;
   final CheckRepository checks;
+  final PhaseRepository phases;
   late final DatasetRepository dataset;
 }
 
@@ -72,8 +76,17 @@ class _HomeShellState extends State<_HomeShell> {
     final s = widget.services;
     _pages = [
       BodyScreen(health: s.health, repository: s.body),
-      FoodScreen(repository: s.food, templates: s.templates, checks: s.checks),
+      FoodScreen(
+        repository: s.food,
+        templates: s.templates,
+        checks: s.checks,
+        phases: s.phases,
+      ),
       TrendScreen(dataset: s.dataset),
+      Scaffold(
+        appBar: AppBar(title: const Text('實驗階段')),
+        body: PhasesScreen(phases: s.phases, dataset: s.dataset),
+      ),
     ];
   }
 
@@ -96,6 +109,11 @@ class _HomeShellState extends State<_HomeShell> {
             label: '飲食',
           ),
           NavigationDestination(icon: Icon(Icons.show_chart), label: '趨勢'),
+          NavigationDestination(
+            icon: Icon(Icons.science_outlined),
+            selectedIcon: Icon(Icons.science),
+            label: '實驗',
+          ),
         ],
       ),
     );

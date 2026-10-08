@@ -65,8 +65,10 @@ body_lab/
     data/food_repository.dart     飲食紀錄 CRUD、每日總量
     data/template_repository.dart 餐點範本、從範本加入
     data/check_repository.dart    每日打勾（肌酸）
+    data/phase_repository.dart    實驗階段（不可重疊）
     analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食總量、打勾）
     analysis/overlay_chart.dart   疊加圖資料、區間摘要
+    analysis/phase_summary.dart   階段進度、執行率、每週變化
     utils/trend.dart              7 日移動平均、異常值判斷
     utils/dates.dart              當地日期、yyyy-MM-dd 日期鍵
     screens/body_screen.dart      身體組成列表（先顯示快取再同步）
@@ -75,6 +77,8 @@ body_lab/
     screens/quick_add_sheet.dart  範本快速新增（搜尋、份量倍率、餐別）
     screens/templates_screen.dart 範本管理（釘選、編輯、封存）
     screens/trend_screen.dart     疊加趨勢圖（fl_chart）與區間摘要
+    screens/phases_screen.dart    實驗階段列表、詳情、比較、表單
+    widgets/phase_style.dart      階段顏色、圖表色塊
     widgets/nutrition_fields.dart 營養素輸入欄、數字格式
   test/                           單元測試 + widget 測試
     drift/                        schema migration 測試（make-migrations 產生）
@@ -94,6 +98,7 @@ body_lab/
   新資料庫預設有一個釘選的「蛋白粉（1 匙）」範本（120 kcal / 24 g 蛋白質），
   數值請依自己的蛋白粉在範本管理修改。刪除範本只做封存。
 - **每日打勾** `daily_checks`（v2）：目前只有肌酸，有紀錄 = 當天有吃。
+- **實驗階段** `phases`（v3）：名稱、起訖日、假設、熱量 / 蛋白質目標、是否吃肌酸、心得。
 
 ### 改 schema 的流程
 
@@ -127,10 +132,20 @@ dart run drift_dev make-migrations
 - 底部紫色方塊：有吃肌酸的天。
 - 點圖表看當天數值；下方摘要是區間內的變化、平均攝取（只算有紀錄的天）與紀錄天數。
 
+## 實驗頁（4 週實驗）
+
+- 一個階段固定改變一件事，預設 4 週（可選 2 / 4 / 6 / 8 週或自訂結束日），階段不能重疊。
+- 卡片顯示進度、**每週**體重 / 脂肪 / 除脂變化（長度不同的階段才能比較），以及執行率：
+  熱量在目標 ±10% 內、蛋白質達到目標、有吃肌酸、有飲食紀錄的天數。
+- 已進行 7 天以上的階段有兩個以上時，下方出現「階段比較」表。
+- 詳情頁的圖表多顯示階段前 7 天當對照；可編輯（含心得）或刪除（只刪設定，資料保留）。
+- 階段期間在趨勢圖上有背景色塊；飲食頁的總量會顯示「實際 / 目標」，達標變色。
+- 變化量是「結束時 7 日平均 − 開始時 7 日平均」，開始時的平均包含階段前幾天，等於以進入階段時的狀態為基準。
+
 ## 接下來
 
 - [x] 本地資料庫（drift）：快取健康資料 + 存飲食紀錄
 - [x] 外食快速輸入：餐點範本、份量倍率、蛋白粉一鍵 +1、肌酸打勾
 - [x] 疊加趨勢圖（fl_chart）
-- [ ] 階段（4 週實驗）功能
+- [x] 階段（4 週實驗）功能
 - [ ] 組合分析熱力圖

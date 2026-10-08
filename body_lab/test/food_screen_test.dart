@@ -1,12 +1,20 @@
 import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
+import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/screens/food_screen.dart';
 import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+/// 手機尺寸（360 × 780 dp），確認窄螢幕不會溢出。
+void usePhoneSize(WidgetTester tester) {
+  tester.view.physicalSize = const Size(1080, 2340);
+  tester.view.devicePixelRatio = 3;
+  addTearDown(tester.view.reset);
+}
 
 void main() {
   late AppDatabase db;
@@ -40,6 +48,7 @@ void main() {
           repository: FoodRepository(db),
           templates: TemplateRepository(db),
           checks: CheckRepository(db),
+          phases: PhaseRepository(db),
         ),
       ),
     );
@@ -52,6 +61,7 @@ void main() {
   }
 
   testWidgets('自訂輸入一筆後出現在列表與總量，滑動刪除可復原', (tester) async {
+    usePhoneSize(tester);
     await open(tester);
     expect(find.text('這天還沒有紀錄，按 + 新增。'), findsOneWidget);
 
@@ -84,6 +94,7 @@ void main() {
   });
 
   testWidgets('從範本加入、蛋白粉一鍵 +1、肌酸打勾', (tester) async {
+    usePhoneSize(tester);
     await open(tester);
 
     // 預設的蛋白粉範本釘選在快速列

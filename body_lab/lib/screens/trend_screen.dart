@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../analysis/daily_dataset.dart';
 import '../analysis/overlay_chart.dart';
 import '../widgets/nutrition_fields.dart';
+import '../widgets/phase_style.dart';
 
 /// 疊加趨勢圖：身體組成 7 日平均的變化 + 每日攝取 + 肌酸，下方是區間摘要。
 class TrendScreen extends StatefulWidget {
@@ -58,11 +59,15 @@ class _TrendScreenState extends State<TrendScreen> {
               SizedBox(
                 height: 300,
                 child: overlay.hasBodyData || overlay.hasIntakeData
-                    ? OverlayChart(data: overlay, intake: _intake)
+                    ? OverlayChart(
+                        data: overlay,
+                        intake: _intake,
+                        rangeAnnotations: phaseAnnotations(overlay),
+                      )
                     : const Center(child: Text('這段期間沒有資料')),
               ),
               const SizedBox(height: 8),
-              _Legend(series: _series, intake: _intake),
+              _Legend(series: _series, intake: _intake, overlay: overlay),
               const SizedBox(height: 16),
               SummaryCard(summary: summarize(ds.days), title: '最近 $_range 天'),
             ],
@@ -172,11 +177,15 @@ class OverlayChart extends StatelessWidget {
       final color = intakeColor(context);
       bars.add(
         LineChartBarData(
+          // 每天畫成一小段水平線 + 底色，像長條圖；前後沒紀錄的單獨一天也看得到。
           spots: [
             for (final s in o.intake)
-              s == FlSpot.nullSpot ? s : FlSpot(s.x, o.intakeToY(s.y)),
+              if (s != FlSpot.nullSpot) ...[
+                FlSpot(s.x - 0.4, o.intakeToY(s.y)),
+                FlSpot(s.x + 0.4, o.intakeToY(s.y)),
+                FlSpot.nullSpot,
+              ],
           ],
-          isStepLineChart: true,
           barWidth: 1,
           color: color.withValues(alpha: 0.6),
           dotData: const FlDotData(show: false),
@@ -345,7 +354,14 @@ class OverlayChart extends StatelessWidget {
                     null => null,
                     final text => () {
                       final d = o.days[s.x.round()];
-                      final prefix = first ? '${d.month}/${d.day}\n' : '';
+                      final phase = o.phaseSpans
+                          .where((p) => p.x1 <= s.x && s.x <= p.x2)
+                          .firstOrNull
+                          ?.phase;
+                      final date =
+                          '${d.month}/${d.day}'
+                          '${phase == null ? '' : ' · ${phase.name}'}';
+                      final prefix = first ? '$date\n' : '';
                       first = false;
                       return LineTooltipItem(
                         '$prefix$text',
@@ -373,10 +389,15 @@ class OverlayChart extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({required this.series, required this.intake});
+  const _Legend({
+    required this.series,
+    required this.intake,
+    required this.overlay,
+  });
 
   final Set<BodySeries> series;
   final IntakeSeries intake;
+  final OverlayData overlay;
 
   @override
   Widget build(BuildContext context) {
@@ -399,6 +420,14 @@ class _Legend extends StatelessWidget {
         if (intake != IntakeSeries.none)
           item(intakeColor(context), '${intake.label}（右軸 ${intake.unit}）'),
         item(creatineColor(context), '肌酸', square: true),
+        for (final p in {
+          for (final s in overlay.phaseSpans) s.phase.id: s.phase,
+        }.values)
+          item(
+            phaseColor(p).withValues(alpha: 0.4),
+            '階段：${p.name}',
+            square: true,
+          ),
         Text('左軸：相對區間起點的變化 kg', style: small),
       ],
     );

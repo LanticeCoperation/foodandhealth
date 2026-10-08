@@ -55,6 +55,7 @@ class OverlayData {
     required this.weightDots,
     required this.intake,
     required this.creatineX,
+    this.phaseSpans = const [],
     required this.minY,
     required this.maxY,
     required this.intakeMax,
@@ -74,6 +75,9 @@ class OverlayData {
 
   /// 有吃肌酸的天。
   final List<double> creatineX;
+
+  /// 實驗階段在圖上的範圍（x 前後各延伸半天，色塊才會蓋滿整天）。
+  final List<({Phase phase, double x1, double x2})> phaseSpans;
 
   final double minY;
   final double maxY;
@@ -156,10 +160,26 @@ OverlayData buildOverlay(
       for (final (i, d) in days.indexed)
         if (d.checks.contains(CheckItem.creatine)) i.toDouble(),
     ],
+    phaseSpans: _phaseSpans(days),
     minY: (lo * 2).floorToDouble() / 2,
     maxY: (hi * 2).ceilToDouble() / 2,
     intakeMax: intakeMax,
   );
+}
+
+List<({Phase phase, double x1, double x2})> _phaseSpans(List<DayRecord> days) {
+  final spans = <({Phase phase, double x1, double x2})>[];
+  for (final (i, d) in days.indexed) {
+    final p = d.phase;
+    if (p == null) continue;
+    final last = spans.lastOrNull;
+    if (last != null && last.phase.id == p.id && last.x2 == i - 0.5) {
+      spans[spans.length - 1] = (phase: p, x1: last.x1, x2: i + 0.5);
+    } else {
+      spans.add((phase: p, x1: i - 0.5, x2: i + 0.5));
+    }
+  }
+  return spans;
 }
 
 /// 區間摘要：身體組成變化（最後一天平均 − 第一天平均）與平均攝取。
