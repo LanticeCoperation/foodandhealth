@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'analysis/daily_dataset.dart';
 import 'data/activity_repository.dart';
+import 'data/backup_service.dart';
 import 'data/body_repository.dart';
 import 'data/check_repository.dart';
 import 'data/database.dart';
@@ -33,7 +34,8 @@ class AppServices {
       checks = CheckRepository(db),
       phases = PhaseRepository(db),
       profile = ProfileRepository(db),
-      activity = ActivityRepository(db, health) {
+      activity = ActivityRepository(db, health),
+      backup = BackupService(db) {
     dataset = DatasetRepository(
       db,
       body,
@@ -53,6 +55,7 @@ class AppServices {
   final PhaseRepository phases;
   final ProfileRepository profile;
   final ActivityRepository activity;
+  final BackupService backup;
   late final DatasetRepository dataset;
 }
 
@@ -105,7 +108,7 @@ class _HomeShellState extends State<_HomeShell> {
         repository: s.body,
         activity: s.activity,
         extraActions: [
-          ProfileButton(profile: s.profile, body: s.body),
+          ProfileButton(profile: s.profile, body: s.body, backup: s.backup),
           if (kDebugMode)
             DemoDataMenu(
               db: s.db,

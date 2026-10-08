@@ -1,40 +1,58 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../analysis/tdee.dart';
+import '../data/backup_service.dart';
 import '../data/body_repository.dart';
 import '../data/database.dart';
 import '../data/profile_repository.dart';
 import '../utils/dates.dart';
 import '../utils/trend.dart';
+import '../widgets/backup_section.dart';
 import '../widgets/nutrition_fields.dart';
 
 /// 身體頁右上角的入口。
 class ProfileButton extends StatelessWidget {
-  const ProfileButton({super.key, required this.profile, required this.body});
+  const ProfileButton({
+    super.key,
+    required this.profile,
+    required this.body,
+    required this.backup,
+  });
 
   final ProfileRepository profile;
   final BodyRepository body;
+  final BackupService backup;
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) => ProfileScreen(profile: profile, body: body),
+          builder: (_) =>
+              ProfileScreen(profile: profile, body: body, backup: backup),
         ),
       ),
       icon: const Icon(Icons.person_outline),
-      tooltip: '個人資料與 TDEE',
+      tooltip: '個人資料與設定',
     );
   }
 }
 
 /// 個人資料：性別、年齡、身高、活動量 → 用 Mifflin-St Jeor 算 TDEE 並固定下來。
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.profile, required this.body});
+  const ProfileScreen({
+    super.key,
+    required this.profile,
+    required this.body,
+    required this.backup,
+  });
 
   final ProfileRepository profile;
   final BodyRepository body;
+  final BackupService backup;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -187,7 +205,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('個人資料與 TDEE')),
+      appBar: AppBar(title: const Text('個人資料與設定')),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : Form(
@@ -366,6 +384,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     icon: const Icon(Icons.save_outlined),
                     label: const Text('儲存'),
                   ),
+                  // 備份以 iPhone 為主；debug 版的 Android 也顯示，方便在模擬器測試
+                  if (Platform.isIOS || kDebugMode) ...[
+                    const SizedBox(height: 24),
+                    BackupSection(backup: widget.backup),
+                  ],
                 ],
               ),
             ),

@@ -77,6 +77,18 @@ package、iOS Bundle Identifier）。
 - 活動消耗用 HealthKit 統計查詢 / Health Connect 聚合查詢讀取每日總和，已依來源去重
   （iPhone 與手錶同時記錄不會加兩次）。
 
+### 資料備份（iPhone）
+
+個人資料頁（身體頁右上角人像）最下方：
+
+- **匯出**：產生 `body_lab_backup_日期.json`，分享選單選「儲存到檔案 → iCloud Drive」
+  （或 Google Drive 等任何地方）。
+- **從檔案匯入**：從「檔案」App 選備份檔，確認後**取代**目前的飲食紀錄、一鍵項目、打勾、
+  階段與個人資料；身體組成與活動消耗不在備份內，會從 Apple 健康重新同步。
+- iPhone 開著 iCloud 備份時，App 資料庫本身也會一起備份（換新手機從 iCloud 還原就會回來），
+  但刪掉 App 重裝不會，所以建議定期匯出。
+- 正式版只在 iOS 顯示；debug 版的 Android 也顯示，方便在模擬器測試。
+
 ### 飲食
 
 - **記錄**：選早餐 / 午餐 / 晚餐 / 點心（預設依時間），輸入熱量就能存；蛋白質、脂肪選填。
@@ -134,6 +146,7 @@ body_lab/
     data/phase_repository.dart    實驗階段（不可重疊）
     data/profile_repository.dart  個人資料（只有一列）
     data/activity_repository.dart 每日活動消耗快取、同步
+    data/backup_service.dart      JSON 備份匯出 / 匯入（帶格式版本）
     analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食、打勾、階段）
     analysis/overlay_chart.dart   疊加圖資料、區間摘要
     analysis/phase_summary.dart   階段進度、執行率、每週變化
@@ -154,6 +167,7 @@ body_lab/
     widgets/nutrition_fields.dart 營養素輸入欄、數字格式
     widgets/phase_style.dart      階段顏色、圖表色塊
     widgets/undo_snackbar.dart    4 秒自動消失的復原提示
+    widgets/backup_section.dart   備份區塊（分享選單匯出、檔案選擇器匯入）
     theme/app_theme.dart          主題與 AppPalette（圖表 / 語意用色，深淺色各一套）
     dev/demo_data.dart            debug 版示範資料（身體頁 🐞）
   test/                           單元測試 + widget 測試（手機尺寸 360 × 780）
@@ -207,4 +221,5 @@ flutter test test/drift
 - [x] 疊加趨勢圖（fl_chart）
 - [x] 階段（4 週實驗）功能
 - [x] 組合分析熱力圖
+- [x] 資料備份：匯出到 iCloud Drive / 從檔案匯入
 - [ ] iPhone 實機驗證
