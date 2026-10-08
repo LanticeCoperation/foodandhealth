@@ -81,36 +81,14 @@ class _TrendScreenState extends State<TrendScreen> {
       ds,
       expenditureOf: energy == null ? null : expenditureOf,
     );
-    final theme = Theme.of(context);
     final annotations = phaseAnnotations(context, overlay);
-
-    Widget section(String title, Widget chart, Widget legend) => Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(left: 8, bottom: 8),
-              child: Text(title, style: theme.textTheme.titleSmall),
-            ),
-            chart,
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: legend,
-            ),
-          ],
-        ),
-      ),
-    );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
         _buildControls(),
         const SizedBox(height: 8),
-        section(
+        ChartCard(
           '身體',
           SizedBox(
             height: 240,
@@ -123,9 +101,9 @@ class _TrendScreenState extends State<TrendScreen> {
                   )
                 : const Center(child: Text('這段期間沒有身體資料')),
           ),
-          _Legend(series: _series, overlay: overlay),
+          BodyLegend(series: _series, overlay: overlay),
         ),
-        section(
+        ChartCard(
           '攝取',
           SizedBox(
             height: 220,
@@ -181,6 +159,39 @@ class _TrendScreenState extends State<TrendScreen> {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// 圖表卡片：標題、圖、圖例。趨勢頁與階段詳情頁共用。
+class ChartCard extends StatelessWidget {
+  const ChartCard(this.title, this.chart, this.legend, {super.key});
+
+  final String title;
+  final Widget chart;
+  final Widget legend;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 8),
+              child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+            ),
+            chart,
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: legend,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -465,8 +476,8 @@ class OverlayChart extends StatelessWidget {
   }
 }
 
-class _Legend extends StatelessWidget {
-  const _Legend({required this.series, required this.overlay});
+class BodyLegend extends StatelessWidget {
+  const BodyLegend({super.key, required this.series, required this.overlay});
 
   final Set<BodySeries> series;
   final OverlayData overlay;

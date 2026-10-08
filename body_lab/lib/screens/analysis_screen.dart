@@ -35,7 +35,7 @@ class AnalysisScreen extends StatelessWidget {
         ),
         body: TabBarView(
           children: [
-            PhasesScreen(phases: phases, dataset: dataset),
+            PhasesScreen(phases: phases, dataset: dataset, profile: profile),
             ComboScreen(dataset: dataset, profile: profile),
           ],
         ),

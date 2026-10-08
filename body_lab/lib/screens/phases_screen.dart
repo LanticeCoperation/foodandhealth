@@ -2,11 +2,15 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../analysis/daily_dataset.dart';
+import '../analysis/energy.dart';
+import '../analysis/intake_chart.dart';
 import '../analysis/overlay_chart.dart';
 import '../analysis/phase_summary.dart';
 import '../data/database.dart';
 import '../data/phase_repository.dart';
+import '../data/profile_repository.dart';
 import '../utils/dates.dart';
+import '../widgets/intake_chart.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/phase_style.dart';
 import 'trend_screen.dart';
@@ -18,10 +22,16 @@ String _kgPerWeek(double? v) =>
 
 /// 實驗階段列表：進行中的階段、所有階段卡片、階段比較表。
 class PhasesScreen extends StatefulWidget {
-  const PhasesScreen({super.key, required this.phases, required this.dataset});
+  const PhasesScreen({
+    super.key,
+    required this.phases,
+    required this.dataset,
+    required this.profile,
+  });
 
   final PhaseRepository phases;
   final DatasetRepository dataset;
+  final ProfileRepository profile;
 
   @override
   State<PhasesScreen> createState() => _PhasesScreenState();
@@ -60,6 +70,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
           phaseId: p.id,
           phases: widget.phases,
           dataset: widget.dataset,
+          profile: widget.profile,
         ),
       ),
     );
@@ -326,11 +337,13 @@ class PhaseDetailScreen extends StatefulWidget {
     required this.phaseId,
     required this.phases,
     required this.dataset,
+    required this.profile,
   });
 
   final int phaseId;
   final PhaseRepository phases;
   final DatasetRepository dataset;
+  final ProfileRepository profile;
 
   @override
   State<PhaseDetailScreen> createState() => _PhaseDetailScreenState();
@@ -338,12 +351,13 @@ class PhaseDetailScreen extends StatefulWidget {
 
 class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
   late final Stream<PhaseOverview> _overview;
-  IntakeSeries _intake = IntakeSeries.kcal;
+  late final Stream<Profile?> _profile;
 
   @override
   void initState() {
     super.initState();
     _overview = widget.dataset.watchPhaseOverview();
+    _profile = widget.profile.watch();
   }
 
   Future<void> _edit(Phase p) async {
@@ -413,24 +427,46 @@ class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
           ),
           body: p == null || ds == null
               ? const Center(child: CircularProgressIndicator())
-              : _buildBody(p, ds),
+              : StreamBuilder<Profile?>(
+                  stream: _profile,
+                  builder: (context, profileSnap) => _buildBody(
+                    p,
+                    ds,
+                    profileSnap.data == null
+                        ? null
+                        : EnergyModel(profileSnap.data!),
+                  ),
+                ),
         );
       },
     );
   }
 
-  Widget _buildBody(Phase p, DailyDataset ds) {
+  static const _bodySeries = {BodySeries.weight, BodySeries.bodyFatPercent};
+
+  Widget _buildBody(Phase p, DailyDataset ds, EnergyModel? energy) {
     final theme = Theme.of(context);
     final today = dateOnly(DateTime.now());
-    final s = summarizePhase(p, ds, today);
+    double? expenditureOf(DayRecord d) => energy?.expenditure(d.activeKcal);
+    final s = summarizePhase(
+      p,
+      ds,
+      today,
+      expenditureOf: energy == null ? null : expenditureOf,
+    );
     // 圖表多顯示階段前 7 天當對照
     final chartTo = p.end.isAfter(today) ? today : p.end;
     final chartDs = ds.slice(addDays(p.start, -7), chartTo);
     final overlay = buildOverlay(
       chartDs,
-      series: BodySeries.values.toSet(),
-      intake: _intake,
+      series: _bodySeries,
+      intake: IntakeSeries.none,
     );
+    final intake = buildIntakeChart(
+      chartDs,
+      expenditureOf: energy == null ? null : expenditureOf,
+    );
+    final annotations = phaseAnnotations(context, overlay);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
@@ -452,39 +488,42 @@ class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
             child: Text('階段還沒開始。', textAlign: TextAlign.center),
           )
         else ...[
-          Align(
-            alignment: Alignment.centerRight,
-            child: DropdownButton<IntakeSeries>(
-              value: _intake,
-              underline: const SizedBox.shrink(),
-              items: [
-                for (final i in IntakeSeries.values)
-                  DropdownMenuItem(
-                    value: i,
-                    child: Text(
-                      i == IntakeSeries.none ? '攝取：不顯示' : '攝取：${i.label}',
-                    ),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _intake = v!),
+          ChartCard(
+            '身體',
+            SizedBox(
+              height: 220,
+              child: OverlayChart(
+                data: overlay,
+                intake: IntakeSeries.none,
+                rangeAnnotations: annotations,
+                showCreatine: false,
+              ),
             ),
+            BodyLegend(series: _bodySeries, overlay: overlay),
           ),
-          SizedBox(
-            height: 260,
-            child: OverlayChart(
-              data: overlay,
-              intake: _intake,
-              rangeAnnotations: phaseAnnotations(context, overlay),
-              intakeReference: switch (_intake) {
-                IntakeSeries.kcal => p.targetKcal,
-                IntakeSeries.protein => p.targetProteinG,
-                IntakeSeries.none => null,
-              },
-              intakeReferenceLabel: '目標',
+          ChartCard(
+            '攝取',
+            SizedBox(
+              height: 220,
+              child: intake.isEmpty
+                  ? const Center(child: Text('這段期間沒有飲食紀錄'))
+                  : IntakeChart(
+                      data: intake,
+                      rangeAnnotations: annotations,
+                      kcalTarget: p.targetKcal,
+                      proteinTarget: p.targetProteinG,
+                    ),
+            ),
+            IntakeLegend(
+              hasExpenditure: intake.expenditure.isNotEmpty,
+              hasFat: intake.fat.isNotEmpty,
+              kcalTarget: p.targetKcal,
+              proteinTarget: p.targetProteinG,
             ),
           ),
           Text(
-            '色塊是階段期間，前面 7 天是對照。線條是 7 日平均相對圖表起點的變化。',
+            '色塊是階段期間，前面 7 天是對照。身體圖是 7 日平均相對圖表起點的變化；'
+            '攝取圖的水平虛線是這個階段的目標。',
             style: theme.textTheme.bodySmall,
           ),
           const SizedBox(height: 12),

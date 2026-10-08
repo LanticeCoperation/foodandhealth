@@ -53,7 +53,12 @@ class PhaseSummary {
   }
 }
 
-PhaseSummary summarizePhase(Phase p, DailyDataset ds, DateTime today) {
+PhaseSummary summarizePhase(
+  Phase p,
+  DailyDataset ds,
+  DateTime today, {
+  double? Function(DayRecord)? expenditureOf,
+}) {
   final t = dateOnly(today);
   final status = t.isBefore(p.start)
       ? PhaseStatus.upcoming
@@ -75,7 +80,7 @@ PhaseSummary summarizePhase(Phase p, DailyDataset ds, DateTime today) {
     phase: p,
     status: status,
     elapsedDays: elapsed,
-    range: summarize(days),
+    range: summarize(days, expenditureOf: expenditureOf),
     kcalHitDays: countHits(
       p.targetKcal,
       (f, target) => (f.kcal - target).abs() <= target * kKcalTolerance,

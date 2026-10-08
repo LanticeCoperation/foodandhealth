@@ -13,10 +13,16 @@ class IntakeChart extends StatelessWidget {
     super.key,
     required this.data,
     this.rangeAnnotations = const [],
+    this.kcalTarget,
+    this.proteinTarget,
   });
 
   final IntakeChartData data;
   final List<VerticalRangeAnnotation> rangeAnnotations;
+
+  /// 階段目標，畫成水平虛線（熱量用左軸、蛋白質用右軸）。
+  final double? kcalTarget;
+  final double? proteinTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -168,6 +174,14 @@ class IntakeChart extends StatelessWidget {
         rangeAnnotations: RangeAnnotations(
           verticalRangeAnnotations: rangeAnnotations,
         ),
+        extraLinesData: ExtraLinesData(
+          horizontalLines: [
+            if (kcalTarget != null)
+              _targetLine(kcalTarget!, palette.intakeLine),
+            if (proteinTarget != null)
+              _targetLine(d.gramsToY(proteinTarget!), palette.protein),
+          ],
+        ),
         gridData: FlGridData(
           drawVerticalLine: false,
           horizontalInterval: d.kcalStep,
@@ -263,15 +277,29 @@ class IntakeChart extends StatelessWidget {
   }
 }
 
+/// 目標虛線；數值寫在圖例（寫在圖上會和熱量柱、平均線疊在一起）。
+HorizontalLine _targetLine(double y, Color color) => HorizontalLine(
+  y: y,
+  color: color.withValues(alpha: 0.85),
+  strokeWidth: 1.4,
+  dashArray: [8, 4],
+);
+
 class IntakeLegend extends StatelessWidget {
   const IntakeLegend({
     super.key,
     required this.hasExpenditure,
     required this.hasFat,
+    this.kcalTarget,
+    this.proteinTarget,
   });
 
   final bool hasExpenditure;
   final bool hasFat;
+
+  /// 階段目標（圖上畫成水平虛線）。
+  final double? kcalTarget;
+  final double? proteinTarget;
 
   @override
   Widget build(BuildContext context) {
@@ -296,6 +324,10 @@ class IntakeLegend extends StatelessWidget {
         item(palette.protein, '蛋白質（右軸 g）'),
         if (hasFat) item(palette.fatMass, '脂肪（右軸 g，虛線）'),
         item(palette.creatine, '肌酸', box: true),
+        if (kcalTarget != null)
+          item(palette.intakeLine, '- - 熱量目標 ${kcalTarget!.round()}'),
+        if (proteinTarget != null)
+          item(palette.protein, '- - 蛋白質目標 ${proteinTarget!.round()} g'),
         Text('線是 7 日平均，點是每日值', style: small),
       ],
     );

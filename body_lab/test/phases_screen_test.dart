@@ -72,7 +72,11 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
-          body: PhasesScreen(phases: phases, dataset: dataset),
+          body: PhasesScreen(
+            phases: phases,
+            dataset: dataset,
+            profile: ProfileRepository(db),
+          ),
         ),
       ),
     );
@@ -115,7 +119,9 @@ void main() {
 
     await tester.tap(find.text('高蛋白'));
     await settle(tester);
-    expect(find.byType(LineChart), findsOneWidget);
+    expect(find.byType(LineChart), findsNWidgets(2)); // 身體 + 攝取
+    await tester.scrollUntilVisible(find.text('階段期間'), 300);
+    await settle(tester);
     expect(find.text('階段期間'), findsOneWidget);
 
     await close(tester);
