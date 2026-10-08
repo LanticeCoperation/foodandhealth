@@ -4,6 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../analysis/daily_dataset.dart';
+import '../analysis/energy.dart';
+import '../analysis/tdee.dart' show formatBalance;
 import '../analysis/overlay_chart.dart';
 import '../data/database.dart';
 import '../data/profile_repository.dart';
@@ -58,16 +60,22 @@ class _TrendScreenState extends State<TrendScreen> {
             if (ds == null) {
               return const Center(child: CircularProgressIndicator());
             }
-            return _buildBody(ds, profileSnap.data?.tdeeKcal);
+            final p = profileSnap.data;
+            return _buildBody(ds, p == null ? null : EnergyModel(p));
           },
         ),
       ),
     );
   }
 
-  Widget _buildBody(DailyDataset ds, double? tdee) {
-    final overlay = buildOverlay(ds, series: _series, intake: _intake);
-    final showTdee = tdee != null && _intake == IntakeSeries.kcal;
+  Widget _buildBody(DailyDataset ds, EnergyModel? energy) {
+    double? expenditureOf(DayRecord d) => energy?.expenditure(d.activeKcal);
+    final overlay = buildOverlay(
+      ds,
+      series: _series,
+      intake: _intake,
+      expenditureOf: energy == null ? null : expenditureOf,
+    );
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
@@ -80,10 +88,6 @@ class _TrendScreenState extends State<TrendScreen> {
                   data: overlay,
                   intake: _intake,
                   rangeAnnotations: phaseAnnotations(context, overlay),
-                  intakeReference: showTdee ? tdee : null,
-                  intakeReferenceLabel: showTdee
-                      ? 'TDEE ${tdee.round()}'
-                      : null,
                 )
               : const Center(child: Text('這段期間沒有資料')),
         ),
@@ -92,10 +96,18 @@ class _TrendScreenState extends State<TrendScreen> {
           series: _series,
           intake: _intake,
           overlay: overlay,
-          referenceLabel: showTdee ? 'TDEE' : null,
+          referenceLabel: overlay.expenditure.isEmpty
+              ? null
+              : (energy!.usesWatch ? '每日消耗' : 'TDEE'),
         ),
         const SizedBox(height: 16),
-        SummaryCard(summary: summarize(ds.days), title: '最近 $_range 天'),
+        SummaryCard(
+          summary: summarize(
+            ds.days,
+            expenditureOf: energy == null ? null : expenditureOf,
+          ),
+          title: '最近 $_range 天',
+        ),
       ],
     );
   }
@@ -194,6 +206,22 @@ class OverlayChart extends StatelessWidget {
     // 每條線對應 tooltip 文字；回傳 null 表示這條線不顯示 tooltip。
     final bars = <LineChartBarData>[];
     final labels = <String? Function(FlSpot)>[];
+
+    if (o.expenditure.isNotEmpty) {
+      // 每日總消耗：虛線階梯，和熱量柱同一個尺度
+      bars.add(
+        LineChartBarData(
+          spots: [for (final s in o.expenditure) FlSpot(s.x, o.intakeToY(s.y))],
+          isStepLineChart: true,
+          lineChartStepData: const LineChartStepData(stepDirection: 0.5),
+          barWidth: 1.4,
+          dashArray: [5, 3],
+          color: theme.colorScheme.onSurfaceVariant,
+          dotData: const FlDotData(show: false),
+        ),
+      );
+      labels.add((s) => '消耗 ${o.yToIntake(s.y).round()} kcal');
+    }
 
     if (intake != IntakeSeries.none) {
       final color = intakeColor(context);
@@ -503,6 +531,8 @@ class SummaryCard extends StatelessWidget {
             const Divider(),
             row('平均熱量', num(s.avgKcal, 'kcal')),
             row('平均蛋白質', num(s.avgProteinG, 'g')),
+            if (s.avgBalance != null)
+              row('平均熱量差（攝取 − 消耗）', formatBalance(s.avgBalance!)),
             const Divider(),
             row('有量體重', '${s.weighDays} / ${s.totalDays} 天'),
             row('有飲食紀錄', '${s.foodDays} / ${s.totalDays} 天'),

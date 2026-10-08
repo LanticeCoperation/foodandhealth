@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Value;
 
+import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../analysis/tdee.dart';
 import '../data/check_repository.dart';
@@ -81,7 +82,8 @@ const _cut = _Period(
 /// 讓沒有健康資料的模擬器也能看到所有畫面。只在 debug 版提供。
 ///
 /// 飲食只有「餐別 + 熱量 + 蛋白質」，加上蛋白粉一鍵 +1；個人資料設為
-/// 男性 35 歲、175 cm、輕度活動，固定 TDEE 約 2320 kcal。
+/// 男性 35 歲、175 cm、輕度活動，固定 TDEE 約 2320 kcal；每日消耗用
+/// Apple Watch 模式（活動消耗平常約 420 kcal，週一 / 三 / 五運動日多約 280）。
 ///
 /// - 第 1～4 週「維持期」：約 2350 kcal、蛋白質約 90 g，脂肪微升
 /// - 第 5～8 週「高蛋白 + 肌酸」：約 2000 kcal、蛋白質約 150 g、肌酸；
@@ -95,11 +97,14 @@ Future<void> seedDemoData({
   required CheckRepository checks,
   required PhaseRepository phases,
   required ProfileRepository profile,
+  required ActivityRepository activity,
   DateTime? today,
 }) async {
   final end = dateOnly(today ?? DateTime.now());
   final start = addDays(end, -(kDemoDays - 1));
   final random = math.Random(42);
+  // 活動消耗用獨立的亂數，不影響其他資料的序列
+  final activityRandom = math.Random(7);
 
   double gaussian() {
     // Box–Muller
@@ -190,6 +195,7 @@ Future<void> seedDemoData({
   var lean = 60.0;
   var water = 0.0;
   final metrics = <BodyMetric>[];
+  final active = <DateTime, double>{};
 
   for (var i = 0; i < kDemoDays; i++) {
     final day = addDays(start, i);
@@ -250,10 +256,18 @@ Future<void> seedDemoData({
       }
     }
 
+    // Apple Watch 活動消耗；約 5% 的天沒戴
+    if (activityRandom.nextDouble() > 0.05) {
+      final workout = const {1, 3, 5}.contains(day.weekday) ? 280 : 0;
+      final noise = (activityRandom.nextDouble() - 0.5) * 240;
+      active[day] = (420 + workout + noise).roundToDouble();
+    }
+
     if (p.creatine && random.nextDouble() > 0.1) {
       await checks.set(day, CheckItem.creatine, true);
     }
   }
 
   await body.replaceFrom(start, metrics);
+  await activity.replaceFrom(start, active);
 }

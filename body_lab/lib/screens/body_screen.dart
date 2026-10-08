@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../services/health_service.dart';
 import '../utils/dates.dart';
@@ -14,11 +15,15 @@ class BodyScreen extends StatefulWidget {
     super.key,
     required this.health,
     required this.repository,
+    this.activity,
     this.extraActions = const [],
   });
 
   final HealthService health;
   final BodyRepository repository;
+
+  /// 一起同步每日活動消耗（Apple Watch）。
+  final ActivityRepository? activity;
 
   /// AppBar 額外的按鈕（debug 版的示範資料選單）。
   final List<Widget> extraActions;
@@ -55,7 +60,13 @@ class _BodyScreenState extends State<BodyScreen> {
     });
     try {
       final access = await widget.health.ensureAccess();
-      if (access == HealthAccess.granted) await widget.repository.sync();
+      if (access == HealthAccess.granted) {
+        await widget.repository.sync();
+        // 活動消耗失敗不影響身體資料（例如使用者只允許讀體重）
+        try {
+          await widget.activity?.sync();
+        } catch (_) {}
+      }
       if (!mounted) return;
       setState(() => _access = access);
     } catch (e) {

@@ -149,6 +149,30 @@ enum ActivityLevel {
   final String description;
 }
 
+/// 每日消耗怎麼算。
+enum EnergyMode {
+  /// 基礎代謝 + 當天手錶記錄的活動消耗（沒有手錶資料的天用固定 TDEE）。
+  watch('Apple Watch 活動消耗'),
+
+  /// 固定 TDEE（基礎代謝 × 活動量係數）。
+  fixed('固定 TDEE');
+
+  const EnergyMode(this.label);
+  final String label;
+}
+
+/// 每日活動消耗快取（v5），來自 Apple 健康 / Health Connect 的活動能量（已依來源去重）。
+@DataClassName('DailyActivityRow')
+class DailyActivity extends Table {
+  /// 當地日期 yyyy-MM-dd。
+  TextColumn get day => text()();
+  RealColumn get activeKcal => real()();
+  DateTimeColumn get syncedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {day};
+}
+
 /// 個人資料（v4），只有一列（id = 1）。TDEE 算好後固定存下來，
 /// 不隨每天體重變動；體重變化大時再到個人資料頁重算。
 class Profiles extends Table {
@@ -163,6 +187,10 @@ class Profiles extends Table {
 
   /// 固定的每日總消耗（kcal），可手動調整。
   RealColumn get tdeeKcal => real()();
+
+  /// 每日消耗的算法（v5）。
+  TextColumn get energyMode =>
+      textEnum<EnergyMode>().withDefault(const Constant('watch'))();
   DateTimeColumn get updatedAt => dateTime()();
 
   @override
@@ -177,6 +205,7 @@ class Profiles extends Table {
     DailyChecks,
     Phases,
     Profiles,
+    DailyActivity,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -185,7 +214,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -207,6 +236,10 @@ class AppDatabase extends _$AppDatabase {
       },
       from3To4: (m, schema) async {
         await m.createTable(schema.profiles);
+      },
+      from4To5: (m, schema) async {
+        await m.createTable(schema.dailyActivity);
+        await m.addColumn(schema.profiles, schema.profiles.energyMode);
       },
     ),
   );

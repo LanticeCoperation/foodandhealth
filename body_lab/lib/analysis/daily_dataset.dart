@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:drift/drift.dart';
 
+import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
@@ -20,6 +21,7 @@ class DayRecord {
     this.food,
     this.checks = const {},
     this.phase,
+    this.activeKcal,
   });
 
   final DateTime date;
@@ -37,6 +39,9 @@ class DayRecord {
 
   /// 當天所屬的實驗階段。
   final Phase? phase;
+
+  /// 當天手錶記錄的活動消耗（kcal）。
+  final double? activeKcal;
 }
 
 /// 連續日期的每日資料，由舊到新，每天都有一筆。
@@ -66,6 +71,7 @@ DailyDataset buildDataset({
   required Map<DateTime, DayTotals> food,
   required Map<DateTime, Set<CheckItem>> checks,
   List<Phase> phases = const [],
+  Map<DateTime, double> activity = const {},
 }) {
   final byDay = {for (final m in metrics) m.date: m};
   final averages = rollingAverages(metrics, from: from, to: to);
@@ -78,6 +84,7 @@ DailyDataset buildDataset({
         food: food[d],
         checks: checks[d] ?? const {},
         phase: phases.where((p) => p.contains(d)).firstOrNull,
+        activeKcal: activity[d],
       ),
   ]);
 }
@@ -89,6 +96,7 @@ class DatasetRepository {
     this._food,
     this._checks,
     this._phases, {
+    this.activity,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -97,6 +105,9 @@ class DatasetRepository {
   final FoodRepository _food;
   final CheckRepository _checks;
   final PhaseRepository _phases;
+
+  /// 每日活動消耗（沒有時每日消耗退回固定 TDEE）。
+  final ActivityRepository? activity;
   final DateTime Function() _clock;
 
   DateTime get today => dateOnly(_clock());
@@ -107,11 +118,12 @@ class DatasetRepository {
 
   /// [from]～[to]（含頭尾）。
   Future<DailyDataset> loadRange(DateTime from, DateTime to) async {
-    final (metrics, food, checks, phases) = await (
+    final (metrics, food, checks, phases, active) = await (
       _body.since(addDays(from, -(kMovingAverageDays - 1))),
       _food.dailyTotalsSince(from),
       _checks.since(from),
       _phases.all(),
+      activity?.since(from) ?? Future.value(<DateTime, double>{}),
     ).wait;
     return buildDataset(
       from: from,
@@ -120,6 +132,7 @@ class DatasetRepository {
       food: food,
       checks: checks,
       phases: phases,
+      activity: active,
     );
   }
 
@@ -174,6 +187,7 @@ class DatasetRepository {
         _db.foodEntries,
         _db.dailyChecks,
         _db.phases,
+        _db.dailyActivity,
       ]),
     );
     await for (final _ in updates) {

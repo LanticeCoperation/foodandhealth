@@ -5,12 +5,13 @@ import 'package:body_lab/data/profile_repository.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-WeekSample week(double? kcal) => WeekSample(
+WeekSample week(double? balance) => WeekSample(
   start: DateTime(2026, 1, 1),
   end: DateTime(2026, 1, 7),
   foodDays: 7,
   creatineDays: 0,
-  kcal: kcal,
+  kcal: balance == null ? null : 2300 + balance,
+  balance: balance,
 );
 
 void main() {
@@ -70,12 +71,12 @@ void main() {
     await db.close();
   });
 
-  test('有 TDEE 時熱量依每日赤字分組', () {
-    final b = bucketsFor(HeatmapFactor.kcal, const [], tdee: 2300);
+  test('有每日消耗時熱量依平均每日赤字分組', () {
+    final b = bucketsFor(HeatmapFactor.kcal, [week(-600)]);
     expect(b.labels, ['赤字 >500', '赤字 0–500', '盈餘']);
-    expect(b.classify(week(1700)), 0); // 赤字 600
-    expect(b.classify(week(2000)), 1); // 赤字 300
-    expect(b.classify(week(2300)), 2); // 持平算盈餘那組
+    expect(b.classify(week(-600)), 0);
+    expect(b.classify(week(-300)), 1);
+    expect(b.classify(week(0)), 2); // 持平算盈餘那組
     expect(b.classify(week(null)), isNull);
   });
 }

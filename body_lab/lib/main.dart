@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'analysis/daily_dataset.dart';
+import 'data/activity_repository.dart';
 import 'data/body_repository.dart';
 import 'data/check_repository.dart';
 import 'data/database.dart';
@@ -31,8 +32,16 @@ class AppServices {
       templates = TemplateRepository(db),
       checks = CheckRepository(db),
       phases = PhaseRepository(db),
-      profile = ProfileRepository(db) {
-    dataset = DatasetRepository(db, body, food, checks, phases);
+      profile = ProfileRepository(db),
+      activity = ActivityRepository(db, health) {
+    dataset = DatasetRepository(
+      db,
+      body,
+      food,
+      checks,
+      phases,
+      activity: activity,
+    );
   }
 
   final AppDatabase db;
@@ -43,6 +52,7 @@ class AppServices {
   final CheckRepository checks;
   final PhaseRepository phases;
   final ProfileRepository profile;
+  final ActivityRepository activity;
   late final DatasetRepository dataset;
 }
 
@@ -93,6 +103,7 @@ class _HomeShellState extends State<_HomeShell> {
       BodyScreen(
         health: s.health,
         repository: s.body,
+        activity: s.activity,
         extraActions: [
           ProfileButton(profile: s.profile, body: s.body),
           if (kDebugMode)
@@ -104,6 +115,7 @@ class _HomeShellState extends State<_HomeShell> {
               checks: s.checks,
               phases: s.phases,
               profile: s.profile,
+              activity: s.activity,
             ),
         ],
       ),
@@ -113,6 +125,7 @@ class _HomeShellState extends State<_HomeShell> {
         checks: s.checks,
         phases: s.phases,
         profile: s.profile,
+        activity: s.activity,
       ),
       TrendScreen(dataset: s.dataset, profile: s.profile),
       AnalysisScreen(phases: s.phases, dataset: s.dataset, profile: s.profile),

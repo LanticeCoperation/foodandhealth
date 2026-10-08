@@ -1,6 +1,7 @@
 import 'package:body_lab/analysis/combo_heatmap.dart';
 import 'package:body_lab/analysis/daily_dataset.dart';
 import 'package:body_lab/analysis/phase_summary.dart';
+import 'package:body_lab/data/activity_repository.dart';
 import 'package:body_lab/data/body_repository.dart';
 import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
@@ -14,9 +15,13 @@ import 'package:body_lab/services/health_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-class _NoSource implements BodyMetricsSource {
+class _NoSource implements BodyMetricsSource, ActivitySource {
   @override
   Future<List<BodyMetric>> fetchDailyMetrics(DateTime start) async => [];
+
+  @override
+  Future<Map<DateTime, double>> fetchDailyActiveEnergy(DateTime start) async =>
+      {};
 }
 
 DateTime addDaysForTest(DateTime d, int n) =>
@@ -32,6 +37,7 @@ void main() {
   late CheckRepository checks;
   late PhaseRepository phases;
   late ProfileRepository profile;
+  late ActivityRepository activity;
   late DatasetRepository dataset;
 
   setUp(() async {
@@ -42,12 +48,14 @@ void main() {
     checks = CheckRepository(db);
     phases = PhaseRepository(db);
     profile = ProfileRepository(db);
+    activity = ActivityRepository(db, _NoSource(), clock: () => today);
     dataset = DatasetRepository(
       db,
       body,
       food,
       checks,
       phases,
+      activity: activity,
       clock: () => today,
     );
 
@@ -68,6 +76,7 @@ void main() {
       checks: checks,
       phases: phases,
       profile: profile,
+      activity: activity,
       today: today,
     );
   });
@@ -103,6 +112,11 @@ void main() {
     final p = (await profile.get())!;
     expect(p.sex, Sex.male);
     expect(p.tdeeKcal, closeTo(2320, 20));
+    expect(p.energyMode, EnergyMode.watch);
+
+    final active = await activity.since(DateTime(2000));
+    expect(active.length, inInclusiveRange(70, 84));
+    expect(active.values.every((v) => v > 150 && v < 1100), isTrue);
   });
 
   test('階段結果符合設計：維持期脂肪微升、之後兩階段脂肪下降', () async {

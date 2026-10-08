@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../analysis/combo_heatmap.dart';
 import '../analysis/daily_dataset.dart';
+import '../analysis/energy.dart';
 import '../data/database.dart';
 import '../data/profile_repository.dart';
 import '../theme/app_theme.dart';
@@ -43,22 +44,21 @@ class _ComboScreenState extends State<ComboScreen> {
           if (ds == null) {
             return const Center(child: CircularProgressIndicator());
           }
-          final tdee = profileSnap.data?.tdeeKcal;
-          return _buildBody(ds, tdee);
+          final p = profileSnap.data;
+          return _buildBody(ds, p == null ? null : EnergyModel(p));
         },
       ),
     );
   }
 
-  Widget _buildBody(DailyDataset ds, double? tdee) {
-    final samples = weeklySamples(ds);
-    final heatmap = buildHeatmap(
-      samples,
-      x: _x,
-      y: _y,
-      outcome: _outcome,
-      tdee: tdee,
+  Widget _buildBody(DailyDataset ds, EnergyModel? energy) {
+    final samples = weeklySamples(
+      ds,
+      expenditureOf: energy == null
+          ? null
+          : (d) => energy.expenditure(d.activeKcal),
     );
+    final heatmap = buildHeatmap(samples, x: _x, y: _y, outcome: _outcome);
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
       children: [
@@ -72,7 +72,7 @@ class _ComboScreenState extends State<ComboScreen> {
           _ColorLegend(outcome: _outcome),
         ],
         const SizedBox(height: 12),
-        _Notes(heatmap: heatmap, tdee: tdee),
+        _Notes(heatmap: heatmap, energy: energy),
         const SizedBox(height: 8),
         _WeekList(samples: samples),
       ],
@@ -297,17 +297,21 @@ class _EmptyHeatmap extends StatelessWidget {
 }
 
 class _Notes extends StatelessWidget {
-  const _Notes({required this.heatmap, this.tdee});
+  const _Notes({required this.heatmap, this.energy});
 
   final Heatmap heatmap;
-  final double? tdee;
+  final EnergyModel? energy;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       '每格是落在該組合的週，${heatmap.outcome.label} 7 日平均每週變化的平均。'
       '共 ${heatmap.total} 週，可用 ${heatmap.used} 週。'
-      '${tdee == null ? '熱量依自己資料的三分位分成低 / 中 / 高（在身體頁右上角設定 TDEE 後改為依赤字分組）' : '熱量依平均每日赤字（相對固定 TDEE ${tdee!.round()} kcal）分組'}；肌酸一週 $kCreatineDaysPerWeek 天以上算有；'
+      '${energy == null
+          ? '熱量依自己資料的三分位分成低 / 中 / 高（在身體頁右上角設定個人資料後改為依赤字分組）'
+          : energy!.usesWatch
+          ? '熱量依平均每日赤字分組（消耗 = 基礎代謝 ${energy!.bmr.round()} + 當天 Apple Watch 活動消耗）'
+          : '熱量依平均每日赤字（相對固定 TDEE ${energy!.profile.tdeeKcal.round()} kcal）分組'}；肌酸一週 $kCreatineDaysPerWeek 天以上算有；'
       '階段以一週有 4 天以上在該階段為準。\n'
       '這是相關不是因果：同一組合的週可能還有其他差異（睡眠、訓練量），樣本少時參考就好。',
       style: Theme.of(context).textTheme.bodySmall,

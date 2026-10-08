@@ -2911,6 +2911,16 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  @override
+  late final GeneratedColumnWithTypeConverter<EnergyMode, String> energyMode =
+      GeneratedColumn<String>(
+        'energy_mode',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant('watch'),
+      ).withConverter<EnergyMode>($ProfilesTable.$converterenergyMode);
   static const VerificationMeta _updatedAtMeta = const VerificationMeta(
     'updatedAt',
   );
@@ -2931,6 +2941,7 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     activity,
     weightKg,
     tdeeKcal,
+    energyMode,
     updatedAt,
   ];
   @override
@@ -3029,6 +3040,12 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         DriftSqlType.double,
         data['${effectivePrefix}tdee_kcal'],
       )!,
+      energyMode: $ProfilesTable.$converterenergyMode.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}energy_mode'],
+        )!,
+      ),
       updatedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
@@ -3045,6 +3062,8 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
       const EnumNameConverter<Sex>(Sex.values);
   static JsonTypeConverter2<ActivityLevel, String, String> $converteractivity =
       const EnumNameConverter<ActivityLevel>(ActivityLevel.values);
+  static JsonTypeConverter2<EnergyMode, String, String> $converterenergyMode =
+      const EnumNameConverter<EnergyMode>(EnergyMode.values);
 }
 
 class Profile extends DataClass implements Insertable<Profile> {
@@ -3059,6 +3078,9 @@ class Profile extends DataClass implements Insertable<Profile> {
 
   /// 固定的每日總消耗（kcal），可手動調整。
   final double tdeeKcal;
+
+  /// 每日消耗的算法（v5）。
+  final EnergyMode energyMode;
   final DateTime updatedAt;
   const Profile({
     required this.id,
@@ -3068,6 +3090,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     required this.activity,
     required this.weightKg,
     required this.tdeeKcal,
+    required this.energyMode,
     required this.updatedAt,
   });
   @override
@@ -3086,6 +3109,11 @@ class Profile extends DataClass implements Insertable<Profile> {
     }
     map['weight_kg'] = Variable<double>(weightKg);
     map['tdee_kcal'] = Variable<double>(tdeeKcal);
+    {
+      map['energy_mode'] = Variable<String>(
+        $ProfilesTable.$converterenergyMode.toSql(energyMode),
+      );
+    }
     map['updated_at'] = Variable<DateTime>(updatedAt);
     return map;
   }
@@ -3099,6 +3127,7 @@ class Profile extends DataClass implements Insertable<Profile> {
       activity: Value(activity),
       weightKg: Value(weightKg),
       tdeeKcal: Value(tdeeKcal),
+      energyMode: Value(energyMode),
       updatedAt: Value(updatedAt),
     );
   }
@@ -3120,6 +3149,9 @@ class Profile extends DataClass implements Insertable<Profile> {
       ),
       weightKg: serializer.fromJson<double>(json['weightKg']),
       tdeeKcal: serializer.fromJson<double>(json['tdeeKcal']),
+      energyMode: $ProfilesTable.$converterenergyMode.fromJson(
+        serializer.fromJson<String>(json['energyMode']),
+      ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
     );
   }
@@ -3138,6 +3170,9 @@ class Profile extends DataClass implements Insertable<Profile> {
       ),
       'weightKg': serializer.toJson<double>(weightKg),
       'tdeeKcal': serializer.toJson<double>(tdeeKcal),
+      'energyMode': serializer.toJson<String>(
+        $ProfilesTable.$converterenergyMode.toJson(energyMode),
+      ),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
     };
   }
@@ -3150,6 +3185,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     ActivityLevel? activity,
     double? weightKg,
     double? tdeeKcal,
+    EnergyMode? energyMode,
     DateTime? updatedAt,
   }) => Profile(
     id: id ?? this.id,
@@ -3159,6 +3195,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     activity: activity ?? this.activity,
     weightKg: weightKg ?? this.weightKg,
     tdeeKcal: tdeeKcal ?? this.tdeeKcal,
+    energyMode: energyMode ?? this.energyMode,
     updatedAt: updatedAt ?? this.updatedAt,
   );
   Profile copyWithCompanion(ProfilesCompanion data) {
@@ -3170,6 +3207,9 @@ class Profile extends DataClass implements Insertable<Profile> {
       activity: data.activity.present ? data.activity.value : this.activity,
       weightKg: data.weightKg.present ? data.weightKg.value : this.weightKg,
       tdeeKcal: data.tdeeKcal.present ? data.tdeeKcal.value : this.tdeeKcal,
+      energyMode: data.energyMode.present
+          ? data.energyMode.value
+          : this.energyMode,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
     );
   }
@@ -3184,6 +3224,7 @@ class Profile extends DataClass implements Insertable<Profile> {
           ..write('activity: $activity, ')
           ..write('weightKg: $weightKg, ')
           ..write('tdeeKcal: $tdeeKcal, ')
+          ..write('energyMode: $energyMode, ')
           ..write('updatedAt: $updatedAt')
           ..write(')'))
         .toString();
@@ -3198,6 +3239,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     activity,
     weightKg,
     tdeeKcal,
+    energyMode,
     updatedAt,
   );
   @override
@@ -3211,6 +3253,7 @@ class Profile extends DataClass implements Insertable<Profile> {
           other.activity == this.activity &&
           other.weightKg == this.weightKg &&
           other.tdeeKcal == this.tdeeKcal &&
+          other.energyMode == this.energyMode &&
           other.updatedAt == this.updatedAt);
 }
 
@@ -3222,6 +3265,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   final Value<ActivityLevel> activity;
   final Value<double> weightKg;
   final Value<double> tdeeKcal;
+  final Value<EnergyMode> energyMode;
   final Value<DateTime> updatedAt;
   const ProfilesCompanion({
     this.id = const Value.absent(),
@@ -3231,6 +3275,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.activity = const Value.absent(),
     this.weightKg = const Value.absent(),
     this.tdeeKcal = const Value.absent(),
+    this.energyMode = const Value.absent(),
     this.updatedAt = const Value.absent(),
   });
   ProfilesCompanion.insert({
@@ -3241,6 +3286,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     required ActivityLevel activity,
     required double weightKg,
     required double tdeeKcal,
+    this.energyMode = const Value.absent(),
     required DateTime updatedAt,
   }) : sex = Value(sex),
        birthYear = Value(birthYear),
@@ -3257,6 +3303,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Expression<String>? activity,
     Expression<double>? weightKg,
     Expression<double>? tdeeKcal,
+    Expression<String>? energyMode,
     Expression<DateTime>? updatedAt,
   }) {
     return RawValuesInsertable({
@@ -3267,6 +3314,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       if (activity != null) 'activity': activity,
       if (weightKg != null) 'weight_kg': weightKg,
       if (tdeeKcal != null) 'tdee_kcal': tdeeKcal,
+      if (energyMode != null) 'energy_mode': energyMode,
       if (updatedAt != null) 'updated_at': updatedAt,
     });
   }
@@ -3279,6 +3327,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Value<ActivityLevel>? activity,
     Value<double>? weightKg,
     Value<double>? tdeeKcal,
+    Value<EnergyMode>? energyMode,
     Value<DateTime>? updatedAt,
   }) {
     return ProfilesCompanion(
@@ -3289,6 +3338,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       activity: activity ?? this.activity,
       weightKg: weightKg ?? this.weightKg,
       tdeeKcal: tdeeKcal ?? this.tdeeKcal,
+      energyMode: energyMode ?? this.energyMode,
       updatedAt: updatedAt ?? this.updatedAt,
     );
   }
@@ -3321,6 +3371,11 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     if (tdeeKcal.present) {
       map['tdee_kcal'] = Variable<double>(tdeeKcal.value);
     }
+    if (energyMode.present) {
+      map['energy_mode'] = Variable<String>(
+        $ProfilesTable.$converterenergyMode.toSql(energyMode.value),
+      );
+    }
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
@@ -3337,7 +3392,279 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
           ..write('activity: $activity, ')
           ..write('weightKg: $weightKg, ')
           ..write('tdeeKcal: $tdeeKcal, ')
+          ..write('energyMode: $energyMode, ')
           ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $DailyActivityTable extends DailyActivity
+    with TableInfo<$DailyActivityTable, DailyActivityRow> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $DailyActivityTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _activeKcalMeta = const VerificationMeta(
+    'activeKcal',
+  );
+  @override
+  late final GeneratedColumn<double> activeKcal = GeneratedColumn<double>(
+    'active_kcal',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _syncedAtMeta = const VerificationMeta(
+    'syncedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> syncedAt = GeneratedColumn<DateTime>(
+    'synced_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [day, activeKcal, syncedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'daily_activity';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<DailyActivityRow> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('day')) {
+      context.handle(
+        _dayMeta,
+        day.isAcceptableOrUnknown(data['day']!, _dayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dayMeta);
+    }
+    if (data.containsKey('active_kcal')) {
+      context.handle(
+        _activeKcalMeta,
+        activeKcal.isAcceptableOrUnknown(data['active_kcal']!, _activeKcalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_activeKcalMeta);
+    }
+    if (data.containsKey('synced_at')) {
+      context.handle(
+        _syncedAtMeta,
+        syncedAt.isAcceptableOrUnknown(data['synced_at']!, _syncedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_syncedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {day};
+  @override
+  DailyActivityRow map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return DailyActivityRow(
+      day: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}day'],
+      )!,
+      activeKcal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}active_kcal'],
+      )!,
+      syncedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}synced_at'],
+      )!,
+    );
+  }
+
+  @override
+  $DailyActivityTable createAlias(String alias) {
+    return $DailyActivityTable(attachedDatabase, alias);
+  }
+}
+
+class DailyActivityRow extends DataClass
+    implements Insertable<DailyActivityRow> {
+  /// 當地日期 yyyy-MM-dd。
+  final String day;
+  final double activeKcal;
+  final DateTime syncedAt;
+  const DailyActivityRow({
+    required this.day,
+    required this.activeKcal,
+    required this.syncedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['day'] = Variable<String>(day);
+    map['active_kcal'] = Variable<double>(activeKcal);
+    map['synced_at'] = Variable<DateTime>(syncedAt);
+    return map;
+  }
+
+  DailyActivityCompanion toCompanion(bool nullToAbsent) {
+    return DailyActivityCompanion(
+      day: Value(day),
+      activeKcal: Value(activeKcal),
+      syncedAt: Value(syncedAt),
+    );
+  }
+
+  factory DailyActivityRow.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return DailyActivityRow(
+      day: serializer.fromJson<String>(json['day']),
+      activeKcal: serializer.fromJson<double>(json['activeKcal']),
+      syncedAt: serializer.fromJson<DateTime>(json['syncedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'day': serializer.toJson<String>(day),
+      'activeKcal': serializer.toJson<double>(activeKcal),
+      'syncedAt': serializer.toJson<DateTime>(syncedAt),
+    };
+  }
+
+  DailyActivityRow copyWith({
+    String? day,
+    double? activeKcal,
+    DateTime? syncedAt,
+  }) => DailyActivityRow(
+    day: day ?? this.day,
+    activeKcal: activeKcal ?? this.activeKcal,
+    syncedAt: syncedAt ?? this.syncedAt,
+  );
+  DailyActivityRow copyWithCompanion(DailyActivityCompanion data) {
+    return DailyActivityRow(
+      day: data.day.present ? data.day.value : this.day,
+      activeKcal: data.activeKcal.present
+          ? data.activeKcal.value
+          : this.activeKcal,
+      syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyActivityRow(')
+          ..write('day: $day, ')
+          ..write('activeKcal: $activeKcal, ')
+          ..write('syncedAt: $syncedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(day, activeKcal, syncedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is DailyActivityRow &&
+          other.day == this.day &&
+          other.activeKcal == this.activeKcal &&
+          other.syncedAt == this.syncedAt);
+}
+
+class DailyActivityCompanion extends UpdateCompanion<DailyActivityRow> {
+  final Value<String> day;
+  final Value<double> activeKcal;
+  final Value<DateTime> syncedAt;
+  final Value<int> rowid;
+  const DailyActivityCompanion({
+    this.day = const Value.absent(),
+    this.activeKcal = const Value.absent(),
+    this.syncedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  DailyActivityCompanion.insert({
+    required String day,
+    required double activeKcal,
+    required DateTime syncedAt,
+    this.rowid = const Value.absent(),
+  }) : day = Value(day),
+       activeKcal = Value(activeKcal),
+       syncedAt = Value(syncedAt);
+  static Insertable<DailyActivityRow> custom({
+    Expression<String>? day,
+    Expression<double>? activeKcal,
+    Expression<DateTime>? syncedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (day != null) 'day': day,
+      if (activeKcal != null) 'active_kcal': activeKcal,
+      if (syncedAt != null) 'synced_at': syncedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  DailyActivityCompanion copyWith({
+    Value<String>? day,
+    Value<double>? activeKcal,
+    Value<DateTime>? syncedAt,
+    Value<int>? rowid,
+  }) {
+    return DailyActivityCompanion(
+      day: day ?? this.day,
+      activeKcal: activeKcal ?? this.activeKcal,
+      syncedAt: syncedAt ?? this.syncedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (day.present) {
+      map['day'] = Variable<String>(day.value);
+    }
+    if (activeKcal.present) {
+      map['active_kcal'] = Variable<double>(activeKcal.value);
+    }
+    if (syncedAt.present) {
+      map['synced_at'] = Variable<DateTime>(syncedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('DailyActivityCompanion(')
+          ..write('day: $day, ')
+          ..write('activeKcal: $activeKcal, ')
+          ..write('syncedAt: $syncedAt, ')
+          ..write('rowid: $rowid')
           ..write(')'))
         .toString();
   }
@@ -3354,6 +3681,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DailyChecksTable dailyChecks = $DailyChecksTable(this);
   late final $PhasesTable phases = $PhasesTable(this);
   late final $ProfilesTable profiles = $ProfilesTable(this);
+  late final $DailyActivityTable dailyActivity = $DailyActivityTable(this);
   late final Index foodEntriesEatenAt = Index(
     'food_entries_eaten_at',
     'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
@@ -3369,6 +3697,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dailyChecks,
     phases,
     profiles,
+    dailyActivity,
     foodEntriesEatenAt,
   ];
 }
@@ -4814,6 +5143,7 @@ typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
   required ActivityLevel activity,
   required double weightKg,
   required double tdeeKcal,
+  Value<EnergyMode> energyMode,
   required DateTime updatedAt,
 });
 typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
@@ -4824,6 +5154,7 @@ typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<ActivityLevel> activity,
   Value<double> weightKg,
   Value<double> tdeeKcal,
+  Value<EnergyMode> energyMode,
   Value<DateTime> updatedAt,
 });
 
@@ -4871,6 +5202,12 @@ class $$ProfilesTableFilterComposer
   ColumnFilters<double> get tdeeKcal => $composableBuilder(
     column: $table.tdeeKcal,
     builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<EnergyMode, EnergyMode, String>
+  get energyMode => $composableBuilder(
+    column: $table.energyMode,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
   );
 
   ColumnFilters<DateTime> get updatedAt => $composableBuilder(
@@ -4923,6 +5260,11 @@ class $$ProfilesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get energyMode => $composableBuilder(
+    column: $table.energyMode,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
@@ -4958,6 +5300,12 @@ class $$ProfilesTableAnnotationComposer
 
   GeneratedColumn<double> get tdeeKcal =>
       $composableBuilder(column: $table.tdeeKcal, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<EnergyMode, String> get energyMode =>
+      $composableBuilder(
+        column: $table.energyMode,
+        builder: (column) => column,
+      );
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
@@ -4998,6 +5346,7 @@ class $$ProfilesTableTableManager
                 Value<ActivityLevel> activity = const Value.absent(),
                 Value<double> weightKg = const Value.absent(),
                 Value<double> tdeeKcal = const Value.absent(),
+                Value<EnergyMode> energyMode = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
               }) => ProfilesCompanion(
                 id: id,
@@ -5007,6 +5356,7 @@ class $$ProfilesTableTableManager
                 activity: activity,
                 weightKg: weightKg,
                 tdeeKcal: tdeeKcal,
+                energyMode: energyMode,
                 updatedAt: updatedAt,
               ),
           createCompanionCallback:
@@ -5018,6 +5368,7 @@ class $$ProfilesTableTableManager
                 required ActivityLevel activity,
                 required double weightKg,
                 required double tdeeKcal,
+                Value<EnergyMode> energyMode = const Value.absent(),
                 required DateTime updatedAt,
               }) => ProfilesCompanion.insert(
                 id: id,
@@ -5027,6 +5378,7 @@ class $$ProfilesTableTableManager
                 activity: activity,
                 weightKg: weightKg,
                 tdeeKcal: tdeeKcal,
+                energyMode: energyMode,
                 updatedAt: updatedAt,
               ),
           withReferenceMapper: (p0) => p0
@@ -5060,6 +5412,183 @@ typedef $$ProfilesTableProcessedTableManager =
       Profile,
       PrefetchHooks Function()
     >;
+typedef $$DailyActivityTableCreateCompanionBuilder =
+    DailyActivityCompanion Function({
+      required String day,
+      required double activeKcal,
+      required DateTime syncedAt,
+      Value<int> rowid,
+    });
+typedef $$DailyActivityTableUpdateCompanionBuilder =
+    DailyActivityCompanion Function({
+      Value<String> day,
+      Value<double> activeKcal,
+      Value<DateTime> syncedAt,
+      Value<int> rowid,
+    });
+
+class $$DailyActivityTableFilterComposer
+    extends Composer<_$AppDatabase, $DailyActivityTable> {
+  $$DailyActivityTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get activeKcal => $composableBuilder(
+    column: $table.activeKcal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$DailyActivityTableOrderingComposer
+    extends Composer<_$AppDatabase, $DailyActivityTable> {
+  $$DailyActivityTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get activeKcal => $composableBuilder(
+    column: $table.activeKcal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
+    column: $table.syncedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$DailyActivityTableAnnotationComposer
+    extends Composer<_$AppDatabase, $DailyActivityTable> {
+  $$DailyActivityTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get day =>
+      $composableBuilder(column: $table.day, builder: (column) => column);
+
+  GeneratedColumn<double> get activeKcal => $composableBuilder(
+    column: $table.activeKcal,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get syncedAt =>
+      $composableBuilder(column: $table.syncedAt, builder: (column) => column);
+}
+
+class $$DailyActivityTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $DailyActivityTable,
+          DailyActivityRow,
+          $$DailyActivityTableFilterComposer,
+          $$DailyActivityTableOrderingComposer,
+          $$DailyActivityTableAnnotationComposer,
+          $$DailyActivityTableCreateCompanionBuilder,
+          $$DailyActivityTableUpdateCompanionBuilder,
+          (
+            DailyActivityRow,
+            BaseReferences<
+              _$AppDatabase,
+              $DailyActivityTable,
+              DailyActivityRow
+            >,
+          ),
+          DailyActivityRow,
+          PrefetchHooks Function()
+        > {
+  $$DailyActivityTableTableManager(_$AppDatabase db, $DailyActivityTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$DailyActivityTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$DailyActivityTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$DailyActivityTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> day = const Value.absent(),
+                Value<double> activeKcal = const Value.absent(),
+                Value<DateTime> syncedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => DailyActivityCompanion(
+                day: day,
+                activeKcal: activeKcal,
+                syncedAt: syncedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String day,
+                required double activeKcal,
+                required DateTime syncedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => DailyActivityCompanion.insert(
+                day: day,
+                activeKcal: activeKcal,
+                syncedAt: syncedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$DailyActivityTable, DailyActivityRow>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $DailyActivityTable,
+                    DailyActivityRow
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$DailyActivityTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $DailyActivityTable,
+      DailyActivityRow,
+      $$DailyActivityTableFilterComposer,
+      $$DailyActivityTableOrderingComposer,
+      $$DailyActivityTableAnnotationComposer,
+      $$DailyActivityTableCreateCompanionBuilder,
+      $$DailyActivityTableUpdateCompanionBuilder,
+      (
+        DailyActivityRow,
+        BaseReferences<_$AppDatabase, $DailyActivityTable, DailyActivityRow>,
+      ),
+      DailyActivityRow,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5076,4 +5605,6 @@ class $AppDatabaseManager {
       $$PhasesTableTableManager(_db, _db.phases);
   $$ProfilesTableTableManager get profiles =>
       $$ProfilesTableTableManager(_db, _db.profiles);
+  $$DailyActivityTableTableManager get dailyActivity =>
+      $$DailyActivityTableTableManager(_db, _db.dailyActivity);
 }

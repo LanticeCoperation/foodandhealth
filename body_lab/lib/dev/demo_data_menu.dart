@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
@@ -20,6 +21,7 @@ class DemoDataMenu extends StatelessWidget {
     required this.checks,
     required this.phases,
     required this.profile,
+    required this.activity,
   });
 
   final AppDatabase db;
@@ -29,6 +31,7 @@ class DemoDataMenu extends StatelessWidget {
   final PhaseRepository phases;
   final FoodRepository food;
   final ProfileRepository profile;
+  final ActivityRepository activity;
 
   Future<void> _run(
     BuildContext context, {
@@ -83,6 +86,7 @@ class DemoDataMenu extends StatelessWidget {
             checks: checks,
             phases: phases,
             profile: profile,
+            activity: activity,
           ),
         ),
         'clear' => _run(

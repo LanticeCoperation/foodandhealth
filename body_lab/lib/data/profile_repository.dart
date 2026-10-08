@@ -27,6 +27,7 @@ class ProfileRepository {
     required ActivityLevel activity,
     required double weightKg,
     required double tdeeKcal,
+    EnergyMode energyMode = EnergyMode.watch,
   }) => _db
       .into(_db.profiles)
       .insertOnConflictUpdate(
@@ -38,6 +39,7 @@ class ProfileRepository {
           activity: activity,
           weightKg: weightKg,
           tdeeKcal: tdeeKcal,
+          energyMode: Value(energyMode),
           updatedAt: _clock(),
         ),
       );

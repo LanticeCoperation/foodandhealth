@@ -78,15 +78,25 @@ abstract interface class BodyMetricsSource {
   Future<List<BodyMetric>> fetchDailyMetrics(DateTime start);
 }
 
-class HealthService implements BodyMetricsSource {
+/// 每日活動消耗的來源（Apple Watch 等寫入的活動能量）。
+abstract interface class ActivitySource {
+  /// [start]（當地日期 00:00）到現在，每天的活動消耗 kcal。
+  /// 已依來源去重（iPhone 與手錶同時記錄不會重複加總）；沒有資料的天不會出現。
+  Future<Map<DateTime, double>> fetchDailyActiveEnergy(DateTime start);
+}
+
+class HealthService implements BodyMetricsSource, ActivitySource {
   final Health _health = Health();
   bool _configured = false;
 
-  static const _types = [
+  static const _bodyTypes = [
     HealthDataType.WEIGHT,
     HealthDataType.BODY_FAT_PERCENTAGE,
     HealthDataType.LEAN_BODY_MASS,
   ];
+
+  /// 要求讀取權限的所有類型。
+  static const _types = [..._bodyTypes, HealthDataType.ACTIVE_ENERGY_BURNED];
   static final _readOnly = List.filled(_types.length, HealthDataAccess.READ);
 
   Future<void> _configure() async {
@@ -141,7 +151,7 @@ class HealthService implements BodyMetricsSource {
     final now = DateTime.now();
 
     final points = await _health.getHealthDataFromTypes(
-      types: _types,
+      types: _bodyTypes,
       startTime: start,
       endTime: now,
     );
@@ -149,6 +159,29 @@ class HealthService implements BodyMetricsSource {
     return buildDailyMetrics(
       _health.removeDuplicates(points).map(_toSample).whereType<BodySample>(),
     );
+  }
+
+  @override
+  Future<Map<DateTime, double>> fetchDailyActiveEnergy(DateTime start) async {
+    await _configure();
+    // 區間查詢在 iOS 用 HKStatisticsCollectionQuery、在 Android 用 Health Connect
+    // 的聚合查詢，兩者都會依來源優先順序去重；直接加總原始紀錄會重複計算。
+    final points = await _health.getHealthIntervalDataFromTypes(
+      startDate: start,
+      endDate: DateTime.now(),
+      types: const [HealthDataType.ACTIVE_ENERGY_BURNED],
+      interval: const Duration(days: 1).inSeconds,
+    );
+    final result = <DateTime, double>{};
+    for (final p in points) {
+      final value = p.value;
+      if (value is! NumericHealthValue) continue;
+      final kcal = value.numericValue.toDouble();
+      if (kcal <= 0) continue; // 沒戴手錶的天當作沒有資料
+      final day = dateOnly(p.dateFrom);
+      result[day] = (result[day] ?? 0) + kcal;
+    }
+    return result;
   }
 
   BodySample? _toSample(HealthDataPoint p) {

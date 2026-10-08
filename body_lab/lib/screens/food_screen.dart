@@ -3,7 +3,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../analysis/phase_summary.dart' show kKcalTolerance;
+import '../analysis/energy.dart';
 import '../analysis/tdee.dart';
+import '../data/activity_repository.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
@@ -26,6 +28,7 @@ class FoodScreen extends StatefulWidget {
     required this.checks,
     required this.phases,
     required this.profile,
+    this.activity,
   });
 
   final FoodRepository repository;
@@ -33,6 +36,7 @@ class FoodScreen extends StatefulWidget {
   final CheckRepository checks;
   final PhaseRepository phases;
   final ProfileRepository profile;
+  final ActivityRepository? activity;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -43,6 +47,7 @@ class _FoodScreenState extends State<FoodScreen> {
   late Stream<List<FoodEntry>> _entries;
   late Stream<Set<CheckItem>> _checks;
   late Stream<Phase?> _phase;
+  late Stream<double?> _active;
   late final Stream<List<MealTemplate>> _pinned;
   late final Stream<Profile?> _profile;
 
@@ -64,6 +69,7 @@ class _FoodScreenState extends State<FoodScreen> {
     _entries = widget.repository.watchDay(day);
     _checks = widget.checks.watchDay(day);
     _phase = widget.phases.watchOn(day);
+    _active = widget.activity?.watchDay(day) ?? Stream.value(null);
   }
 
   bool get _isToday => _day == dateOnly(DateTime.now());
@@ -195,10 +201,17 @@ class _FoodScreenState extends State<FoodScreen> {
                 stream: _phase,
                 builder: (context, phaseSnap) => StreamBuilder<Profile?>(
                   stream: _profile,
-                  builder: (context, profileSnap) => _DaySummaryCard(
-                    totals: DayTotals.of(entries),
-                    phase: phaseSnap.data,
-                    tdee: profileSnap.data?.tdeeKcal,
+                  builder: (context, profileSnap) => StreamBuilder<double?>(
+                    stream: _active,
+                    builder: (context, activeSnap) => _DaySummaryCard(
+                      totals: DayTotals.of(entries),
+                      phase: phaseSnap.data,
+                      energy: profileSnap.data == null
+                          ? null
+                          : EnergyModel(profileSnap.data!),
+                      activeKcal: activeSnap.data,
+                      isToday: _isToday,
+                    ),
                   ),
                 ),
               ),
@@ -393,18 +406,30 @@ class _EntryTile extends StatelessWidget {
 
 /// 當天總量：熱量與蛋白質（有階段目標時顯示進度），以及相對固定 TDEE 的赤字 / 盈餘。
 class _DaySummaryCard extends StatelessWidget {
-  const _DaySummaryCard({required this.totals, this.phase, this.tdee});
+  const _DaySummaryCard({
+    required this.totals,
+    this.phase,
+    this.energy,
+    this.activeKcal,
+    this.isToday = false,
+  });
 
   final DayTotals totals;
   final Phase? phase;
-  final double? tdee;
+  final EnergyModel? energy;
+  final double? activeKcal;
+
+  /// 今天的活動消耗還會增加，標示「到目前」。
+  final bool isToday;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final palette = context.palette;
     final p = phase;
-    final kcalTarget = p?.targetKcal ?? tdee;
+    final e = energy;
+    final burned = e?.expenditure(activeKcal);
+    final kcalTarget = p?.targetKcal ?? burned;
     final proteinTarget = p?.targetProteinG;
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
@@ -504,13 +529,49 @@ class _DaySummaryCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (tdee != null || totals.missingKcal > 0 || totals.fatG > 0) ...[
-              const SizedBox(height: 10),
+            if (e != null && burned != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    e.fromWatch(activeKcal)
+                        ? Icons.watch_outlined
+                        : Icons.local_fire_department_outlined,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${e.usesWatch ? '消耗' : 'TDEE'} ${burned.round()} kcal'
+                          '${e.fromWatch(activeKcal) && isToday ? '（到目前）' : ''}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                        if (e.usesWatch)
+                          Text(
+                            e.fromWatch(activeKcal)
+                                ? '基礎 ${e.bmr.round()} + 活動 ${activeKcal!.round()}'
+                                : '沒有手錶資料，用 TDEE',
+                            style: muted,
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    formatBalance(totals.kcal - burned),
+                    style: theme.textTheme.labelLarge,
+                  ),
+                ],
+              ),
+            ],
+            if (totals.missingKcal > 0 || totals.fatG > 0) ...[
+              const SizedBox(height: 6),
               Text(
                 [
                   if (totals.fatG > 0) '脂肪 ${totals.fatG.round()} g',
-                  if (tdee != null)
-                    'TDEE ${tdee!.round()} · ${formatBalance(totals.kcal - tdee!)}',
                   if (totals.missingKcal > 0) '${totals.missingKcal} 筆沒填熱量',
                 ].join('　'),
                 style: muted,

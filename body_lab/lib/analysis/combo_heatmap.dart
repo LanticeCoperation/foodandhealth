@@ -24,6 +24,7 @@ class WeekSample {
     required this.foodDays,
     required this.creatineDays,
     this.kcal,
+    this.balance,
     this.proteinPerKg,
     this.phase,
     this.weightChange,
@@ -38,6 +39,9 @@ class WeekSample {
 
   /// 有紀錄天的平均；紀錄少於 [kMinFoodDaysPerWeek] 天時為 null。
   final double? kcal;
+
+  /// 有紀錄天的平均（攝取 − 當天消耗）；沒有個人資料或紀錄太少時為 null。
+  final double? balance;
 
   /// 平均蛋白質 ÷ 週末 7 日平均體重。
   final double? proteinPerKg;
@@ -54,7 +58,11 @@ class WeekSample {
 }
 
 /// 從最新一天往回切成不重疊的 7 天區塊，由舊到新。
-List<WeekSample> weeklySamples(DailyDataset ds) {
+/// [expenditureOf] 給每天的總消耗，用來算每週平均熱量差。
+List<WeekSample> weeklySamples(
+  DailyDataset ds, {
+  double? Function(DayRecord)? expenditureOf,
+}) {
   final days = ds.days;
   final byDate = {for (final d in days) d.date: d};
   final samples = <WeekSample>[];
@@ -116,6 +124,14 @@ List<WeekSample> weeklySamples(DailyDataset ds) {
             .where((d) => d.checks.contains(CheckItem.creatine))
             .length,
         kcal: kcal,
+        balance: enoughFood && expenditureOf != null
+            ? avg(
+                foodDays.map((d) {
+                  final e = expenditureOf(d);
+                  return e == null ? null : d.food!.kcal - e;
+                }),
+              )
+            : null,
         proteinPerKg: protein == null || weight == null
             ? null
             : protein / weight,
@@ -167,14 +183,10 @@ class FactorBuckets {
 /// 蛋白質 g/kg 的分界。
 const List<double> kProteinCuts = [1.2, 1.6, 2.2];
 
-/// 有固定 TDEE 時，熱量依每日赤字分組的分界（kcal）。
+/// 有每日消耗時，熱量依每日赤字分組的分界（kcal）。
 const double kDeficitCut = 500;
 
-FactorBuckets bucketsFor(
-  HeatmapFactor f,
-  List<WeekSample> samples, {
-  double? tdee,
-}) {
+FactorBuckets bucketsFor(HeatmapFactor f, List<WeekSample> samples) {
   switch (f) {
     case HeatmapFactor.none:
       return FactorBuckets(const ['全部'], (_) => 0);
@@ -205,17 +217,16 @@ FactorBuckets bucketsFor(
             : phases.indexWhere((p) => p.id == s.phase!.id) + 1,
       );
 
-    case HeatmapFactor.kcal when tdee != null:
+    case HeatmapFactor.kcal when samples.any((s) => s.balance != null):
       final cut = kDeficitCut.round();
       return FactorBuckets(['赤字 >$cut', '赤字 0–$cut', '盈餘'], (s) {
-        final v = s.kcal;
-        if (v == null) return null;
-        final balance = v - tdee;
-        return balance < -kDeficitCut ? 0 : (balance < 0 ? 1 : 2);
+        final b = s.balance;
+        if (b == null) return null;
+        return b < -kDeficitCut ? 0 : (b < 0 ? 1 : 2);
       });
 
     case HeatmapFactor.kcal:
-      // 沒有 TDEE 時用自己資料的三分位數分低 / 中 / 高。
+      // 沒有個人資料（無法算消耗）時用自己資料的三分位數分低 / 中 / 高。
       final values = samples.map((s) => s.kcal).whereType<double>().toList()
         ..sort();
       if (values.length < 3) {
@@ -289,10 +300,9 @@ Heatmap buildHeatmap(
   required HeatmapFactor x,
   required HeatmapFactor y,
   required HeatmapOutcome outcome,
-  double? tdee,
 }) {
-  final bx = bucketsFor(x, samples, tdee: tdee);
-  final by = bucketsFor(y, samples, tdee: tdee);
+  final bx = bucketsFor(x, samples);
+  final by = bucketsFor(y, samples);
   final sums = <(int, int), (double, int)>{};
   var used = 0;
 

@@ -49,6 +49,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Sex _sex = Sex.male;
   ActivityLevel _activity = ActivityLevel.light;
+  EnergyMode _mode = EnergyMode.watch;
   Profile? _saved;
   double? _recentWeight;
   bool _loading = true;
@@ -81,6 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (saved != null) {
       _sex = saved.sex;
       _activity = saved.activity;
+      _mode = saved.energyMode;
       // 之前手動調整過 TDEE（和當時的計算值不同）就保留
       final then = estimateTdee(
         sex: saved.sex,
@@ -155,11 +157,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       activity: _activity,
       weightKg: parseNum(_weight.text)!,
       tdeeKcal: parseNum(_tdee.text)!,
+      energyMode: _mode,
     );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('TDEE 已固定為 ${parseNum(_tdee.text)!.round()} kcal'),
+        content: Text(
+          _mode == EnergyMode.watch
+              ? '已儲存：每日消耗 = 基礎代謝 ${_bmr!.round()} + Apple Watch 活動消耗'
+              : 'TDEE 已固定為 ${parseNum(_tdee.text)!.round()} kcal',
+        ),
       ),
     );
     Navigator.pop(context);
@@ -194,7 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       child: Padding(
                         padding: const EdgeInsets.all(16),
                         child: Text(
-                          '目前固定 TDEE ${_saved!.tdeeKcal.round()} kcal'
+                          '${_saved!.energyMode == EnergyMode.watch ? '目前：每日消耗 = 基礎代謝 ${mifflinBmr(sex: _saved!.sex, weightKg: _saved!.weightKg, heightCm: _saved!.heightCm, age: _saved!.ageIn(_saved!.updatedAt.year)).round()} + Apple Watch 活動消耗' : '目前固定 TDEE ${_saved!.tdeeKcal.round()} kcal'}'
                           '（${_saved!.updatedAt.month}/${_saved!.updatedAt.day} '
                           '以 ${_saved!.weightKg.toStringAsFixed(1)} kg 計算）',
                           style: theme.textTheme.bodyMedium?.copyWith(
@@ -258,7 +265,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     validator: (s) => _validateRange(s, 30, 250),
                   ),
                   const SizedBox(height: 20),
-                  Text('活動量', style: theme.textTheme.titleSmall),
+                  Text(
+                    _mode == EnergyMode.watch ? '活動量（沒有手錶資料的天才用）' : '活動量',
+                    style: theme.textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 6),
                   Card(
                     child: Column(
@@ -306,6 +316,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                             decoration: InputDecoration(
                               labelText: 'TDEE（每日總消耗）',
                               suffixText: 'kcal',
+                              suffixStyle: theme.textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
                               helperText: _tdeeEdited
                                   ? '已手動調整'
                                   : '可以手動調整，例如依實際體重變化校正',
@@ -315,19 +329,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            '算好之後固定使用，不會隨每天體重變動；'
-                            '體重變化超過 2–3 kg 或活動量改變時再回來重算。',
+                            '基礎代謝和 TDEE 存下來後固定使用，不會隨每天體重變動；'
+                            '體重變化超過 2–3 kg 時再回來重算。',
                             style: muted,
                           ),
                         ],
                       ),
                     ),
                   ),
+                  const SizedBox(height: 20),
+                  Text('每日消耗怎麼算', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SegmentedButton<EnergyMode>(
+                    segments: [
+                      for (final m in EnergyMode.values)
+                        ButtonSegment(value: m, label: Text(m.label)),
+                    ],
+                    selected: {_mode},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (v) => setState(() => _mode = v.single),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _mode == EnergyMode.watch
+                        ? '每天的消耗 = 基礎代謝'
+                              '${_bmr == null ? '' : ' ${_bmr!.round()} kcal'}'
+                              ' + 當天 Apple Watch 記錄的活動消耗。'
+                              '沒戴手錶、沒有資料的天用上面的 TDEE。'
+                        : '每天都用上面的固定 TDEE，不看手錶的活動消耗'
+                              '（活動量係數已經包含運動）。',
+                    style: muted,
+                  ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
                     onPressed: _save,
-                    icon: const Icon(Icons.push_pin_outlined),
-                    label: const Text('固定 TDEE'),
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('儲存'),
                   ),
                 ],
               ),

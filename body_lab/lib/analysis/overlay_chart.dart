@@ -55,6 +55,7 @@ class OverlayData {
     required this.weightDots,
     required this.intake,
     required this.creatineX,
+    this.expenditure = const [],
     this.phaseSpans = const [],
     required this.minY,
     required this.maxY,
@@ -76,6 +77,9 @@ class OverlayData {
   /// 有吃肌酸的天。
   final List<double> creatineX;
 
+  /// 每日總消耗原始值（kcal），只在攝取顯示熱量時有。
+  final List<FlSpot> expenditure;
+
   /// 實驗階段在圖上的範圍（x 前後各延伸半天，色塊才會蓋滿整天）。
   final List<({Phase phase, double x1, double x2})> phaseSpans;
 
@@ -95,10 +99,12 @@ class OverlayData {
   bool get hasIntakeData => intake.any((s) => s != FlSpot.nullSpot);
 }
 
+/// [expenditureOf] 給每天的總消耗（kcal）；攝取顯示熱量時畫成虛線對照。
 OverlayData buildOverlay(
   DailyDataset ds, {
   required Set<BodySeries> series,
   required IntakeSeries intake,
+  double? Function(DayRecord)? expenditureOf,
 }) {
   final days = ds.days;
   final lines = <BodySeries, List<FlSpot>>{};
@@ -138,9 +144,16 @@ OverlayData buildOverlay(
         null => FlSpot.nullSpot,
       },
   ];
-  final intakeValues = intakeSpots
-      .where((s) => s != FlSpot.nullSpot)
-      .map((s) => s.y);
+  final expenditure = intake == IntakeSeries.kcal && expenditureOf != null
+      ? [
+          for (final (i, d) in days.indexed)
+            if (expenditureOf(d) case final v?) FlSpot(i.toDouble(), v),
+        ]
+      : const <FlSpot>[];
+  final intakeValues = [
+    ...intakeSpots.where((s) => s != FlSpot.nullSpot).map((s) => s.y),
+    ...expenditure.map((s) => s.y),
+  ];
   final rawMax = intakeValues.fold<double>(0, math.max);
   final intakeMax = rawMax == 0
       ? intake.roundTo
@@ -160,6 +173,7 @@ OverlayData buildOverlay(
       for (final (i, d) in days.indexed)
         if (d.checks.contains(CheckItem.creatine)) i.toDouble(),
     ],
+    expenditure: expenditure,
     phaseSpans: _phaseSpans(days),
     minY: (lo * 2).floorToDouble() / 2,
     maxY: (hi * 2).ceilToDouble() / 2,
@@ -194,6 +208,7 @@ class RangeSummary {
     this.leanMassChange,
     this.avgKcal,
     this.avgProteinG,
+    this.avgBalance,
   });
 
   final int totalDays;
@@ -207,9 +222,15 @@ class RangeSummary {
   /// 只平均有飲食紀錄的天。
   final double? avgKcal;
   final double? avgProteinG;
+
+  /// 有飲食紀錄的天，平均（攝取 − 消耗）；負數是赤字。
+  final double? avgBalance;
 }
 
-RangeSummary summarize(Iterable<DayRecord> days) {
+RangeSummary summarize(
+  Iterable<DayRecord> days, {
+  double? Function(DayRecord)? expenditureOf,
+}) {
   final list = days.toList();
 
   double? change(BodySeries s) {
@@ -237,5 +258,11 @@ RangeSummary summarize(Iterable<DayRecord> days) {
     leanMassChange: change(BodySeries.leanMass),
     avgKcal: avg((d) => d.food?.kcal),
     avgProteinG: avg((d) => d.food?.proteinG),
+    avgBalance: expenditureOf == null
+        ? null
+        : avg((d) {
+            final e = expenditureOf(d);
+            return d.food == null || e == null ? null : d.food!.kcal - e;
+          }),
   );
 }
