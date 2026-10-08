@@ -5,7 +5,7 @@ import '../data/extra_burn_repository.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/undo_snackbar.dart';
 
-/// 某一天的運動（自訂消耗）：列出已加的、可刪除，下方新增一筆。
+/// 某一天的運動（自訂消耗）：列出已加的，點一筆可編輯、可刪除；下方新增一筆。
 Future<void> showExtraBurnSheet(
   BuildContext context, {
   required ExtraBurnRepository repository,
@@ -34,6 +34,9 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
   final _note = TextEditingController();
   late final Stream<List<ExtraBurn>> _items;
 
+  /// 正在編輯的那筆；null 表示新增。
+  ExtraBurn? _editing;
+
   @override
   void initState() {
     super.initState();
@@ -47,20 +50,43 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
     super.dispose();
   }
 
-  Future<void> _add() async {
+  Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final note = _note.text.trim();
-    await widget.repository.add(
-      widget.day,
-      parseNum(_kcal.text)!,
-      note: note.isEmpty ? null : note,
-    );
+    final kcal = parseNum(_kcal.text)!;
+    final editing = _editing;
+    if (editing == null) {
+      await widget.repository.add(
+        widget.day,
+        kcal,
+        note: note.isEmpty ? null : note,
+      );
+    } else {
+      await widget.repository.update(
+        editing.id,
+        kcal,
+        note: note.isEmpty ? null : note,
+      );
+    }
+    _resetForm();
+  }
+
+  void _startEdit(ExtraBurn b) {
+    setState(() => _editing = b);
+    _kcal.text = fmtNum(b.kcal);
+    _note.text = b.note ?? '';
+  }
+
+  void _resetForm() {
     _kcal.clear();
     _note.clear();
-    if (mounted) FocusScope.of(context).unfocus();
+    if (!mounted) return;
+    setState(() => _editing = null);
+    FocusScope.of(context).unfocus();
   }
 
   Future<void> _delete(ExtraBurn b) async {
+    if (_editing?.id == b.id) _resetForm();
     await widget.repository.delete(b.id);
     if (!mounted) return;
     showUndoSnackBar(
@@ -111,6 +137,8 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
                       for (final b in items)
                         ListTile(
                           dense: true,
+                          selected: _editing?.id == b.id,
+                          onTap: () => _startEdit(b),
                           leading: const Icon(Icons.directions_run),
                           title: Text(b.note ?? '運動'),
                           trailing: Row(
@@ -165,10 +193,25 @@ class _ExtraBurnPanelState extends State<_ExtraBurnPanel> {
               ],
             ),
             const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: _add,
-              icon: const Icon(Icons.add),
-              label: const Text('加入'),
+            Row(
+              children: [
+                if (_editing != null) ...[
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _resetForm,
+                      child: const Text('取消編輯'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: _save,
+                    icon: Icon(_editing == null ? Icons.add : Icons.check),
+                    label: Text(_editing == null ? '加入' : '儲存修改'),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

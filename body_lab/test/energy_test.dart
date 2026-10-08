@@ -124,6 +124,11 @@ void main() {
         (150.0, null),
       ]);
 
+      await repo.update(id, 400, note: '游泳 1 小時');
+      expect(await repo.since(day), {day: 550.0});
+      expect((await repo.watchDay(day).first).first.note, '游泳 1 小時');
+      await repo.update(id, 300, note: '游泳');
+
       await repo.delete(id);
       expect(await repo.since(day), {day: 150.0});
       await repo.restore(items.first);

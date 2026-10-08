@@ -41,6 +41,11 @@ class ExtraBurnRepository {
         ),
       );
 
+  Future<void> update(int id, double kcal, {String? note}) =>
+      (_db.update(_db.extraBurns)..where((r) => r.id.equals(id))).write(
+        ExtraBurnsCompanion(kcal: Value(kcal), note: Value(note)),
+      );
+
   Future<void> delete(int id) =>
       (_db.delete(_db.extraBurns)..where((r) => r.id.equals(id))).go();
 

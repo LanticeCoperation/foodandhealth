@@ -188,9 +188,19 @@ void main() {
     await settle(tester);
     expect(find.text('游泳'), findsOneWidget); // 面板裡列出剛加的
 
+    // 點那筆 → 帶進表單 → 改成 450
+    await tester.tap(find.text('游泳'));
+    await settle(tester);
+    expect(find.text('儲存修改'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextFormField, '消耗'), '450');
+    await tester.tap(find.text('儲存修改'));
+    await settle(tester);
+    expect(find.text('450 kcal'), findsOneWidget);
+    expect(find.text('加入'), findsOneWidget); // 回到新增模式
+
     await tester.tapAt(const Offset(10, 10)); // 關閉面板
     await settle(tester);
-    expect(find.widgetWithText(ActionChip, '運動 · 300 kcal'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, '運動 · 450 kcal'), findsOneWidget);
 
     await close(tester);
   });
