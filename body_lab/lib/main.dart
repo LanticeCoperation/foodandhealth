@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'analysis/daily_dataset.dart';
 import 'data/body_repository.dart';
@@ -7,6 +9,7 @@ import 'data/database.dart';
 import 'data/food_repository.dart';
 import 'data/phase_repository.dart';
 import 'data/template_repository.dart';
+import 'dev/demo_data_menu.dart';
 import 'screens/body_screen.dart';
 import 'screens/food_screen.dart';
 import 'screens/analysis_screen.dart';
@@ -38,6 +41,13 @@ class AppServices {
   late final DatasetRepository dataset;
 }
 
+/// 介面全是繁體中文，固定用 zh-Hant-TW（日期 / 時間選擇器、星期、上午下午）。
+const kAppLocale = Locale.fromSubtags(
+  languageCode: 'zh',
+  scriptCode: 'Hant',
+  countryCode: 'TW',
+);
+
 class BodyLabApp extends StatelessWidget {
   const BodyLabApp({super.key, required this.services});
 
@@ -47,6 +57,9 @@ class BodyLabApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Body Lab',
+      locale: kAppLocale,
+      supportedLocales: const [kAppLocale, Locale('en')],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: ThemeData(colorSchemeSeed: Colors.teal),
       darkTheme: ThemeData(
         colorSchemeSeed: Colors.teal,
@@ -75,7 +88,20 @@ class _HomeShellState extends State<_HomeShell> {
     super.initState();
     final s = widget.services;
     _pages = [
-      BodyScreen(health: s.health, repository: s.body),
+      BodyScreen(
+        health: s.health,
+        repository: s.body,
+        extraActions: [
+          if (kDebugMode)
+            DemoDataMenu(
+              db: s.db,
+              body: s.body,
+              templates: s.templates,
+              checks: s.checks,
+              phases: s.phases,
+            ),
+        ],
+      ),
       FoodScreen(
         repository: s.food,
         templates: s.templates,

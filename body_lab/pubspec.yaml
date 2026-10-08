@@ -38,6 +38,8 @@ dependencies:
   drift: ^2.35.2
   drift_flutter: ^0.3.1
   fl_chart: ^1.2.0
+  flutter_localizations:
+    sdk: flutter
 
 dev_dependencies:
   flutter_test:

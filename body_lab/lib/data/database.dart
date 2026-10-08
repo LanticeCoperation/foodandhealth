@@ -144,14 +144,14 @@ class AppDatabase extends _$AppDatabase {
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) async {
       await m.createAll();
-      await _seedDefaultTemplates();
+      await seedDefaultTemplates();
     },
     onUpgrade: stepByStep(
       from1To2: (m, schema) async {
         await m.createTable(schema.mealTemplates);
         await m.createTable(schema.dailyChecks);
         await m.addColumn(schema.foodEntries, schema.foodEntries.templateId);
-        await _seedDefaultTemplates();
+        await seedDefaultTemplates();
       },
       from2To3: (m, schema) async {
         await m.createTable(schema.phases);
@@ -161,11 +161,19 @@ class AppDatabase extends _$AppDatabase {
 
   /// 預設釘選「蛋白粉」範本，數值可在範本管理修改。
   /// 用 SQL 寫死，避免之後 schema 再變時舊的 migration 跟著變。
-  Future<void> _seedDefaultTemplates() => customStatement(
+  Future<void> seedDefaultTemplates() => customStatement(
     "INSERT INTO meal_templates "
     "(name, default_servings, kcal, protein_g, carbs_g, fat_g, pinned) "
     "VALUES ('蛋白粉（1 匙）', 1, 120, 24, 3, 1.5, 1)",
   );
+
+  /// 清空所有資料，回到剛安裝的狀態（保留預設範本）。
+  Future<void> clearAllData() => transaction(() async {
+    for (final table in allTables) {
+      await delete(table).go();
+    }
+    await seedDefaultTemplates();
+  });
 }
 
 extension FoodEntryTotals on FoodEntry {

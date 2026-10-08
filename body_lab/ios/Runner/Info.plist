@@ -66,6 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>CFBundleLocalizations</key>
+	<array>
+		<string>zh-Hant</string>
+		<string>en</string>
+	</array>
 	<key>NSHealthShareUsageDescription</key>
 	<string>讀取體重、體脂率與除脂體重，用來計算每日身體組成與 7 日趨勢。</string>
 	<key>NSHealthUpdateUsageDescription</key>

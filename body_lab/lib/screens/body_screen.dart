@@ -10,10 +10,18 @@ import '../utils/trend.dart';
 /// 每天的體重 / 體脂 / 脂肪重 / 除脂體重 與 7 日平均。
 /// 先顯示本地快取，再背景從健康資料同步。
 class BodyScreen extends StatefulWidget {
-  const BodyScreen({super.key, required this.health, required this.repository});
+  const BodyScreen({
+    super.key,
+    required this.health,
+    required this.repository,
+    this.extraActions = const [],
+  });
 
   final HealthService health;
   final BodyRepository repository;
+
+  /// AppBar 額外的按鈕（debug 版的示範資料選單）。
+  final List<Widget> extraActions;
 
   @override
   State<BodyScreen> createState() => _BodyScreenState();
@@ -64,6 +72,7 @@ class _BodyScreenState extends State<BodyScreen> {
       appBar: AppBar(
         title: const Text('身體組成'),
         actions: [
+          ...widget.extraActions,
           if (_syncing)
             const Padding(
               padding: EdgeInsets.all(16),

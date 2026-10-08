@@ -1,15 +1,10 @@
 name: iOS build
 
-# macOS runner 在 private repo 以 10 倍計算 Actions 用量，
-# 所以只在 iOS 設定或套件變動時自動跑；其他時候到 Actions 頁手動觸發。
+# public repo 使用標準 GitHub-hosted runner 免費，每次 push / PR 都編一次 iOS。
 on:
   push:
     branches: [main]
-    paths:
-      - 'body_lab/ios/**'
-      - 'body_lab/pubspec.yaml'
-      - 'body_lab/pubspec.lock'
-      - '.github/workflows/ios.yml'
+  pull_request:
   workflow_dispatch:
 
 concurrency:
