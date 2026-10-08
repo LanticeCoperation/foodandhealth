@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:health/health.dart';
 
 import '../models/body_metric.dart';
+import '../utils/dates.dart';
 
 enum BodySampleType { weight, bodyFat, leanMass }
 
@@ -22,8 +23,7 @@ List<BodyMetric> buildDailyMetrics(Iterable<BodySample> samples) {
   final firstOfDay = <DateTime, Map<BodySampleType, BodySample>>{};
 
   for (final s in samples) {
-    final local = s.time.toLocal();
-    final day = DateTime(local.year, local.month, local.day);
+    final day = dateOnly(s.time);
     final byType = firstOfDay.putIfAbsent(day, () => {});
     final existing = byType[s.type];
     if (existing == null || s.time.isBefore(existing.time)) {
@@ -72,7 +72,13 @@ enum HealthAccess {
   denied,
 }
 
-class HealthService {
+/// 每日身體組成的來源；同步邏輯只依賴這個介面，方便測試。
+abstract interface class BodyMetricsSource {
+  /// 讀取 [start]（當地日期 00:00）到現在的每日身體組成，依日期由舊到新。
+  Future<List<BodyMetric>> fetchDailyMetrics(DateTime start);
+}
+
+class HealthService implements BodyMetricsSource {
   final Health _health = Health();
   bool _configured = false;
 
@@ -129,11 +135,10 @@ class HealthService {
 
   Future<void> installHealthConnect() => _health.installHealthConnect();
 
-  /// 讀取最近 [days] 天（含今天）的每日身體組成。
-  Future<List<BodyMetric>> fetchDailyMetrics({int days = 90}) async {
+  @override
+  Future<List<BodyMetric>> fetchDailyMetrics(DateTime start) async {
     await _configure();
     final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day - (days - 1));
 
     final points = await _health.getHealthDataFromTypes(
       types: _types,

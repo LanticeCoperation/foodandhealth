@@ -57,19 +57,38 @@ flutter run
 ```
 body_lab/
   lib/
-    main.dart
+    main.dart                     建立資料庫與服務、底部頁籤（身體 / 飲食）
     models/body_metric.dart       每日身體組成資料
     services/health_service.dart  HealthKit / Health Connect 讀取、每日取第一筆
+    data/database.dart            drift schema：健康資料快取、飲食紀錄
+    data/body_repository.dart     快取讀取、從健康資料同步
+    data/food_repository.dart     飲食紀錄 CRUD、每日總量
     utils/trend.dart              7 日移動平均、異常值判斷
-    screens/body_screen.dart      驗證用列表畫面
-  test/
-    daily_metrics_test.dart       每日取第一筆、除脂體重推算
-    trend_test.dart               移動平均、水分波動判斷
+    utils/dates.dart              當地日期、yyyy-MM-dd 日期鍵
+    screens/body_screen.dart      身體組成列表（先顯示快取再同步）
+    screens/food_screen.dart      單日飲食列表與總量
+    screens/food_entry_sheet.dart 新增 / 編輯飲食
+  test/                           單元測試 + 飲食頁 widget 測試
+```
+
+## 本地資料庫（drift）
+
+- 資料庫檔案：App 文件目錄下的 `body_lab.sqlite`
+- **健康資料快取** `daily_body_metrics`：每天一列。第一次同步抓 90 天，之後從快取最後一天
+  往前 14 天重抓，並以重抓結果取代這段範圍（健康 App 裡刪掉的天也會消失）。
+  讀到空資料時不動快取：iOS 被拒絕讀取時 HealthKit 只回傳空資料，和沒資料分不出來。
+- **飲食紀錄** `food_entries`：時間、餐別、名稱、份量倍率，以及每份的熱量 / 蛋白質 /
+  碳水 / 脂肪（都可留空），實際攝取 = 每份 × 份量。
+- 改了 `lib/data/database.dart` 之後要重新產生程式碼，並把 `schemaVersion` +1、
+  在 `migration` 加 `onUpgrade`：
+
+```bash
+dart run build_runner build
 ```
 
 ## 接下來
 
-- [ ] 本地資料庫（drift）：快取健康資料 + 存飲食紀錄
+- [x] 本地資料庫（drift）：快取健康資料 + 存飲食紀錄
 - [ ] 外食快速輸入：餐點範本、份量倍率、蛋白粉一鍵 +1、肌酸打勾
 - [ ] 疊加趨勢圖（fl_chart）
 - [ ] 階段（4 週實驗）功能

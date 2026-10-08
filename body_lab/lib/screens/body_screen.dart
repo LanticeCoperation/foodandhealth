@@ -2,55 +2,59 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../data/body_repository.dart';
 import '../services/health_service.dart';
+import '../utils/dates.dart';
 import '../utils/trend.dart';
 
-/// 驗證用列表：每天的體重 / 體脂 / 脂肪重 / 除脂體重 與 7 日平均。
+/// 每天的體重 / 體脂 / 脂肪重 / 除脂體重 與 7 日平均。
+/// 先顯示本地快取，再背景從健康資料同步。
 class BodyScreen extends StatefulWidget {
-  const BodyScreen({super.key, required this.service});
+  const BodyScreen({super.key, required this.health, required this.repository});
 
-  final HealthService service;
+  final HealthService health;
+  final BodyRepository repository;
 
   @override
   State<BodyScreen> createState() => _BodyScreenState();
 }
 
 class _BodyScreenState extends State<BodyScreen> {
-  bool _loading = true;
+  late final Stream<List<TrendPoint>> _trend;
+  bool _syncing = false;
   HealthAccess? _access;
   Object? _error;
-  List<TrendPoint> _points = const [];
 
   @override
   void initState() {
     super.initState();
-    _load();
+    // 多抓 6 天，讓最舊那天的 7 日平均也是完整的。
+    final from = addDays(
+      dateOnly(DateTime.now()),
+      -(BodyRepository.initialDays - 1 + kMovingAverageDays - 1),
+    );
+    _trend = widget.repository
+        .watchSince(from)
+        .map((metrics) => computeTrend(metrics).reversed.toList());
+    _sync();
   }
 
-  Future<void> _load() async {
+  Future<void> _sync() async {
+    if (_syncing) return;
     setState(() {
-      _loading = true;
+      _syncing = true;
       _error = null;
     });
     try {
-      final access = await widget.service.ensureAccess();
-      var points = const <TrendPoint>[];
-      if (access == HealthAccess.granted) {
-        final metrics = await widget.service.fetchDailyMetrics();
-        points = computeTrend(metrics).reversed.toList();
-      }
+      final access = await widget.health.ensureAccess();
+      if (access == HealthAccess.granted) await widget.repository.sync();
       if (!mounted) return;
-      setState(() {
-        _access = access;
-        _points = points;
-        _loading = false;
-      });
+      setState(() => _access = access);
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e;
-        _loading = false;
-      });
+      setState(() => _error = e);
+    } finally {
+      if (mounted) setState(() => _syncing = false);
     }
   }
 
@@ -60,76 +64,114 @@ class _BodyScreenState extends State<BodyScreen> {
       appBar: AppBar(
         title: const Text('身體組成'),
         actions: [
-          IconButton(
-            onPressed: _loading ? null : _load,
-            icon: const Icon(Icons.refresh),
-            tooltip: '重新讀取',
-          ),
+          if (_syncing)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              onPressed: _sync,
+              icon: const Icon(Icons.sync),
+              tooltip: '從健康資料同步',
+            ),
         ],
       ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-
-    if (_error != null) {
-      return _Message(
-        icon: Icons.error_outline,
-        text: '讀取失敗：$_error',
-        action: FilledButton(onPressed: _load, child: const Text('重試')),
-      );
-    }
-
-    switch (_access) {
-      case HealthAccess.healthConnectMissing:
-      case HealthAccess.healthConnectUpdateRequired:
-        final missing = _access == HealthAccess.healthConnectMissing;
-        return _Message(
-          icon: Icons.health_and_safety_outlined,
-          text: missing
-              ? '這支手機沒有 Health Connect。\nAndroid 13 以下請從 Play 商店安裝。'
-              : 'Health Connect 需要更新。',
-          action: FilledButton(
-            onPressed: () async {
-              await widget.service.installHealthConnect();
-            },
-            child: Text(missing ? '安裝 Health Connect' : '更新 Health Connect'),
-          ),
-        );
-      case HealthAccess.denied:
-        return _Message(
-          icon: Icons.lock_outline,
-          text: '需要體重、體脂、除脂體重的讀取權限。',
-          action: FilledButton(onPressed: _load, child: const Text('再次要求權限')),
-        );
-      case HealthAccess.granted:
-      case null:
-        break;
-    }
-
-    if (_points.isEmpty) {
-      return _Message(
-        icon: Icons.monitor_weight_outlined,
-        text: Platform.isIOS
-            ? '最近 90 天沒有體重資料。\n若健康 App 裡有資料，請到 設定 → 健康 → 資料存取與裝置 '
-                  '確認已允許本 App 讀取。'
-            : '最近 90 天沒有體重資料。\n請確認體脂計 App 有寫入 Health Connect。',
-        action: FilledButton(onPressed: _load, child: const Text('重新讀取')),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _points.length,
-        separatorBuilder: (_, _) => const Divider(height: 1),
-        itemBuilder: (_, i) => _DayRow(point: _points[i]),
+      body: StreamBuilder<List<TrendPoint>>(
+        stream: _trend,
+        builder: (context, snapshot) {
+          final points = snapshot.data;
+          if (points == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (points.isEmpty) {
+            return _syncing
+                ? const Center(child: CircularProgressIndicator())
+                : _problem(fullScreen: true) ?? _noData();
+          }
+          final banner = _problem(fullScreen: false);
+          return RefreshIndicator(
+            onRefresh: _sync,
+            child: ListView.separated(
+              padding: const EdgeInsets.only(bottom: 8),
+              itemCount: points.length + 1,
+              separatorBuilder: (_, i) =>
+                  i == 0 ? const SizedBox.shrink() : const Divider(height: 1),
+              itemBuilder: (_, i) => i == 0
+                  ? (banner ?? const SizedBox(height: 8))
+                  : _DayRow(point: points[i - 1]),
+            ),
+          );
+        },
       ),
     );
   }
+
+  /// 同步失敗或沒權限時的提示；有快取時顯示成列表上方的橫幅。
+  Widget? _problem({required bool fullScreen}) {
+    final String text;
+    final Widget action;
+
+    if (_error != null) {
+      text = '同步失敗：$_error';
+      action = TextButton(onPressed: _sync, child: const Text('重試'));
+    } else {
+      switch (_access) {
+        case HealthAccess.healthConnectMissing:
+        case HealthAccess.healthConnectUpdateRequired:
+          final missing = _access == HealthAccess.healthConnectMissing;
+          text = missing
+              ? '這支手機沒有 Health Connect。Android 13 以下請從 Play 商店安裝。'
+              : 'Health Connect 需要更新。';
+          action = TextButton(
+            onPressed: widget.health.installHealthConnect,
+            child: Text(missing ? '安裝' : '更新'),
+          );
+        case HealthAccess.denied:
+          text = '需要體重、體脂、除脂體重的讀取權限。';
+          action = TextButton(onPressed: _sync, child: const Text('再次要求'));
+        case HealthAccess.granted:
+        case null:
+          return null;
+      }
+    }
+
+    if (fullScreen) {
+      return _Message(icon: Icons.info_outline, text: text, action: action);
+    }
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      padding: const EdgeInsets.fromLTRB(16, 4, 4, 4),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '$text（顯示的是上次同步的資料）',
+              style: TextStyle(color: scheme.onSecondaryContainer),
+            ),
+          ),
+          action,
+        ],
+      ),
+    );
+  }
+
+  Widget _noData() => _Message(
+    icon: Icons.monitor_weight_outlined,
+    text: Platform.isIOS
+        ? '最近 90 天沒有體重資料。\n若健康 App 裡有資料，請到 設定 → 健康 → 資料存取與裝置 '
+              '確認已允許本 App 讀取。'
+        : '最近 90 天沒有體重資料。\n請確認體脂計 App 有寫入 Health Connect。',
+    action: FilledButton(onPressed: _sync, child: const Text('重新同步')),
+  );
 }
 
 class _DayRow extends StatelessWidget {
