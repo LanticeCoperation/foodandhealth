@@ -1977,8 +1977,17 @@ class $DailyChecksTable extends DailyChecks
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
   @override
-  List<GeneratedColumn> get $columns => [day, item, checkedAt];
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [day, item, checkedAt, amount];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2007,6 +2016,12 @@ class $DailyChecksTable extends DailyChecks
     } else if (isInserting) {
       context.missing(_checkedAtMeta);
     }
+    if (data.containsKey('amount')) {
+      context.handle(
+        _amountMeta,
+        amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
+      );
+    }
     return context;
   }
 
@@ -2030,6 +2045,10 @@ class $DailyChecksTable extends DailyChecks
         DriftSqlType.dateTime,
         data['${effectivePrefix}checked_at'],
       )!,
+      amount: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}amount'],
+      ),
     );
   }
 
@@ -2047,10 +2066,14 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
   final String day;
   final CheckItem item;
   final DateTime checkedAt;
+
+  /// 劑量（v7，單位見 [CheckItem.unit]）；舊紀錄沒有劑量。
+  final double? amount;
   const DailyCheck({
     required this.day,
     required this.item,
     required this.checkedAt,
+    this.amount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2062,6 +2085,9 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
       );
     }
     map['checked_at'] = Variable<DateTime>(checkedAt);
+    if (!nullToAbsent || amount != null) {
+      map['amount'] = Variable<double>(amount);
+    }
     return map;
   }
 
@@ -2070,6 +2096,9 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
       day: Value(day),
       item: Value(item),
       checkedAt: Value(checkedAt),
+      amount: amount == null && nullToAbsent
+          ? const Value.absent()
+          : Value(amount),
     );
   }
 
@@ -2084,6 +2113,7 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
         serializer.fromJson<String>(json['item']),
       ),
       checkedAt: serializer.fromJson<DateTime>(json['checkedAt']),
+      amount: serializer.fromJson<double?>(json['amount']),
     );
   }
   @override
@@ -2095,20 +2125,27 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
         $DailyChecksTable.$converteritem.toJson(item),
       ),
       'checkedAt': serializer.toJson<DateTime>(checkedAt),
+      'amount': serializer.toJson<double?>(amount),
     };
   }
 
-  DailyCheck copyWith({String? day, CheckItem? item, DateTime? checkedAt}) =>
-      DailyCheck(
-        day: day ?? this.day,
-        item: item ?? this.item,
-        checkedAt: checkedAt ?? this.checkedAt,
-      );
+  DailyCheck copyWith({
+    String? day,
+    CheckItem? item,
+    DateTime? checkedAt,
+    Value<double?> amount = const Value.absent(),
+  }) => DailyCheck(
+    day: day ?? this.day,
+    item: item ?? this.item,
+    checkedAt: checkedAt ?? this.checkedAt,
+    amount: amount.present ? amount.value : this.amount,
+  );
   DailyCheck copyWithCompanion(DailyChecksCompanion data) {
     return DailyCheck(
       day: data.day.present ? data.day.value : this.day,
       item: data.item.present ? data.item.value : this.item,
       checkedAt: data.checkedAt.present ? data.checkedAt.value : this.checkedAt,
+      amount: data.amount.present ? data.amount.value : this.amount,
     );
   }
 
@@ -2117,37 +2154,42 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
     return (StringBuffer('DailyCheck(')
           ..write('day: $day, ')
           ..write('item: $item, ')
-          ..write('checkedAt: $checkedAt')
+          ..write('checkedAt: $checkedAt, ')
+          ..write('amount: $amount')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(day, item, checkedAt);
+  int get hashCode => Object.hash(day, item, checkedAt, amount);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is DailyCheck &&
           other.day == this.day &&
           other.item == this.item &&
-          other.checkedAt == this.checkedAt);
+          other.checkedAt == this.checkedAt &&
+          other.amount == this.amount);
 }
 
 class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
   final Value<String> day;
   final Value<CheckItem> item;
   final Value<DateTime> checkedAt;
+  final Value<double?> amount;
   final Value<int> rowid;
   const DailyChecksCompanion({
     this.day = const Value.absent(),
     this.item = const Value.absent(),
     this.checkedAt = const Value.absent(),
+    this.amount = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DailyChecksCompanion.insert({
     required String day,
     required CheckItem item,
     required DateTime checkedAt,
+    this.amount = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : day = Value(day),
        item = Value(item),
@@ -2156,12 +2198,14 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     Expression<String>? day,
     Expression<String>? item,
     Expression<DateTime>? checkedAt,
+    Expression<double>? amount,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
       if (day != null) 'day': day,
       if (item != null) 'item': item,
       if (checkedAt != null) 'checked_at': checkedAt,
+      if (amount != null) 'amount': amount,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2170,12 +2214,14 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     Value<String>? day,
     Value<CheckItem>? item,
     Value<DateTime>? checkedAt,
+    Value<double?>? amount,
     Value<int>? rowid,
   }) {
     return DailyChecksCompanion(
       day: day ?? this.day,
       item: item ?? this.item,
       checkedAt: checkedAt ?? this.checkedAt,
+      amount: amount ?? this.amount,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2194,6 +2240,9 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     if (checkedAt.present) {
       map['checked_at'] = Variable<DateTime>(checkedAt.value);
     }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2206,6 +2255,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
           ..write('day: $day, ')
           ..write('item: $item, ')
           ..write('checkedAt: $checkedAt, ')
+          ..write('amount: $amount, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -5011,6 +5061,7 @@ typedef $$DailyChecksTableCreateCompanionBuilder =
       required String day,
       required CheckItem item,
       required DateTime checkedAt,
+      Value<double?> amount,
       Value<int> rowid,
     });
 typedef $$DailyChecksTableUpdateCompanionBuilder =
@@ -5018,6 +5069,7 @@ typedef $$DailyChecksTableUpdateCompanionBuilder =
       Value<String> day,
       Value<CheckItem> item,
       Value<DateTime> checkedAt,
+      Value<double?> amount,
       Value<int> rowid,
     });
 
@@ -5045,6 +5097,11 @@ class $$DailyChecksTableFilterComposer
     column: $table.checkedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$DailyChecksTableOrderingComposer
@@ -5070,6 +5127,11 @@ class $$DailyChecksTableOrderingComposer
     column: $table.checkedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get amount => $composableBuilder(
+    column: $table.amount,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DailyChecksTableAnnotationComposer
@@ -5089,6 +5151,9 @@ class $$DailyChecksTableAnnotationComposer
 
   GeneratedColumn<DateTime> get checkedAt =>
       $composableBuilder(column: $table.checkedAt, builder: (column) => column);
+
+  GeneratedColumn<double> get amount =>
+      $composableBuilder(column: $table.amount, builder: (column) => column);
 }
 
 class $$DailyChecksTableTableManager
@@ -5125,11 +5190,13 @@ class $$DailyChecksTableTableManager
                 Value<String> day = const Value.absent(),
                 Value<CheckItem> item = const Value.absent(),
                 Value<DateTime> checkedAt = const Value.absent(),
+                Value<double?> amount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DailyChecksCompanion(
                 day: day,
                 item: item,
                 checkedAt: checkedAt,
+                amount: amount,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -5137,11 +5204,13 @@ class $$DailyChecksTableTableManager
                 required String day,
                 required CheckItem item,
                 required DateTime checkedAt,
+                Value<double?> amount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DailyChecksCompanion.insert(
                 day: day,
                 item: item,
                 checkedAt: checkedAt,
+                amount: amount,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

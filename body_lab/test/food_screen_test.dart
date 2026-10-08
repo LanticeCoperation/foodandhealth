@@ -133,12 +133,38 @@ void main() {
     await settle(tester);
     expect(find.text('已加入「蛋白粉（1 匙）」'), findsNothing);
 
-    // 肌酸打勾
+    // 肌酸打勾：第一次預設 5 g
     final creatine = find.widgetWithText(FilterChip, '肌酸');
     expect(tester.widget<FilterChip>(creatine).selected, isFalse);
     await tester.tap(creatine);
     await settle(tester);
-    expect(tester.widget<FilterChip>(creatine).selected, isTrue);
+    final checked5 = find.widgetWithText(FilterChip, '肌酸 5g');
+    expect(tester.widget<FilterChip>(checked5).selected, isTrue);
+
+    // 長按改成 3 g
+    await tester.longPress(checked5);
+    await settle(tester);
+    await tester.enterText(find.byType(TextField).last, '3');
+    await tester.tap(find.text('儲存'));
+    await settle(tester);
+    expect(find.widgetWithText(FilterChip, '肌酸 3g'), findsOneWidget);
+
+    // 另一天打勾：沿用上次記下的 3 g
+    await tester.tap(find.byTooltip('前一天'));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(FilterChip, '肌酸'));
+    await settle(tester);
+    expect(find.widgetWithText(FilterChip, '肌酸 3g'), findsOneWidget);
+
+    // 長按「取消今天的紀錄」
+    await tester.longPress(find.widgetWithText(FilterChip, '肌酸 3g'));
+    await settle(tester);
+    await tester.tap(find.text('取消今天的紀錄'));
+    await settle(tester);
+    expect(
+      tester.widget<FilterChip>(find.widgetWithText(FilterChip, '肌酸')).selected,
+      isFalse,
+    );
 
     await close(tester);
   });

@@ -86,10 +86,18 @@ class MealTemplates extends Table {
 
 /// 每日打勾項目，存成文字。
 enum CheckItem {
-  creatine('肌酸');
+  creatine('肌酸', defaultAmount: 5, unit: 'g');
 
-  const CheckItem(this.label);
+  const CheckItem(
+    this.label, {
+    required this.defaultAmount,
+    required this.unit,
+  });
   final String label;
+
+  /// 第一次打勾的預設劑量；之後沿用上一次的劑量。
+  final double defaultAmount;
+  final String unit;
 }
 
 /// 每日打勾（v2）：有紀錄 = 當天有做。
@@ -98,6 +106,9 @@ class DailyChecks extends Table {
   TextColumn get day => text()();
   TextColumn get item => textEnum<CheckItem>()();
   DateTimeColumn get checkedAt => dateTime()();
+
+  /// 劑量（v7，單位見 [CheckItem.unit]）；舊紀錄沒有劑量。
+  RealColumn get amount => real().nullable()();
 
   @override
   Set<Column> get primaryKey => {day, item};
@@ -226,7 +237,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -255,6 +266,9 @@ class AppDatabase extends _$AppDatabase {
       },
       from5To6: (m, schema) async {
         await m.createTable(schema.extraBurns);
+      },
+      from6To7: (m, schema) async {
+        await m.addColumn(schema.dailyChecks, schema.dailyChecks.amount);
       },
     ),
   );

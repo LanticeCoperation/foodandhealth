@@ -127,4 +127,24 @@ void main() {
     await checks.set(day, CheckItem.creatine, false);
     expect(await checks.watchDay(day).first, isEmpty);
   });
+
+  test('肌酸劑量：預設 5 g、指定劑量、之後沿用上次', () async {
+    final checks = CheckRepository(db);
+    final d1 = DateTime(2026, 10, 1);
+    final d2 = DateTime(2026, 10, 2);
+    final d3 = DateTime(2026, 10, 3);
+
+    expect(await checks.nextAmount(CheckItem.creatine), 5);
+    await checks.set(d1, CheckItem.creatine, true);
+    expect(await checks.watchDayAmounts(d1).first, {CheckItem.creatine: 5.0});
+
+    await checks.set(d2, CheckItem.creatine, true, amount: 3);
+    await checks.set(d3, CheckItem.creatine, true);
+    expect(await checks.watchDayAmounts(d3).first, {CheckItem.creatine: 3.0});
+
+    // 改劑量是覆蓋同一天
+    await checks.set(d3, CheckItem.creatine, true, amount: 10);
+    expect(await checks.watchDayAmounts(d3).first, {CheckItem.creatine: 10.0});
+    expect(await checks.since(d1), hasLength(3));
+  });
 }

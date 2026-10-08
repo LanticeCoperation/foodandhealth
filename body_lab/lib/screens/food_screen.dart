@@ -52,7 +52,7 @@ class FoodScreen extends StatefulWidget {
 class _FoodScreenState extends State<FoodScreen> {
   late DateTime _day;
   late Stream<List<FoodEntry>> _entries;
-  late Stream<Set<CheckItem>> _checks;
+  late Stream<Map<CheckItem, double?>> _checks;
   late Stream<Phase?> _phase;
   late Stream<double?> _active;
   late Stream<List<ExtraBurn>> _extra;
@@ -75,7 +75,7 @@ class _FoodScreenState extends State<FoodScreen> {
   void _setDay(DateTime day) {
     _day = day;
     _entries = widget.repository.watchDay(day);
-    _checks = widget.checks.watchDay(day);
+    _checks = widget.checks.watchDayAmounts(day);
     _phase = widget.phases.watchOn(day);
     _active = widget.activity?.watchDay(day) ?? Stream.value(null);
     // 總量卡片和快速列都會聽這個 stream，備用值要能重複監聽
@@ -260,6 +260,23 @@ class _FoodScreenState extends State<FoodScreen> {
     );
   }
 
+  /// 修改當天劑量；也可以取消當天的紀錄。
+  Future<void> _editDose(CheckItem item, double? current) async {
+    final initial = current ?? await widget.checks.nextAmount(item);
+    if (!mounted) return;
+    final result = await showDialog<double>(
+      context: context,
+      builder: (_) => _DoseDialog(item: item, initial: initial),
+    );
+    if (result == null) return;
+    await widget.checks.set(
+      _day,
+      item,
+      result > 0,
+      amount: result > 0 ? result : null,
+    );
+  }
+
   void _openExercise() =>
       showExtraBurnSheet(context, repository: widget.extraBurns!, day: _day);
 
@@ -267,13 +284,13 @@ class _FoodScreenState extends State<FoodScreen> {
   Widget _buildQuickRow(List<FoodEntry> entries) {
     return StreamBuilder<List<MealTemplate>>(
       stream: _pinned,
-      builder: (context, pinnedSnap) => StreamBuilder<Set<CheckItem>>(
+      builder: (context, pinnedSnap) => StreamBuilder<Map<CheckItem, double?>>(
         stream: _checks,
         builder: (context, checkSnap) => StreamBuilder<List<ExtraBurn>>(
           stream: _extra,
           builder: (context, extraSnap) {
             final pinned = pinnedSnap.data ?? const [];
-            final checked = checkSnap.data ?? const {};
+            final checked = checkSnap.data ?? const <CheckItem, double?>{};
             final exercise = (extraSnap.data ?? const []).fold<double>(
               0,
               (s, b) => s + b.kcal,
@@ -296,11 +313,20 @@ class _FoodScreenState extends State<FoodScreen> {
                     ),
                     onPressed: _openExercise,
                   ),
+                // 點一下打勾（沿用上次劑量，第一次 5 g）/ 取消；長按改劑量
                 for (final item in CheckItem.values)
-                  FilterChip(
-                    label: Text(item.label),
-                    selected: checked.contains(item),
-                    onSelected: (v) => widget.checks.set(_day, item, v),
+                  GestureDetector(
+                    onLongPress: () => _editDose(item, checked[item]),
+                    child: FilterChip(
+                      label: Text(
+                        checked.containsKey(item)
+                            ? '${item.label} ${fmtNum(checked[item])}${checked[item] == null ? '' : item.unit}'
+                                  .trim()
+                            : item.label,
+                      ),
+                      selected: checked.containsKey(item),
+                      onSelected: (v) => widget.checks.set(_day, item, v),
+                    ),
                   ),
               ],
             );
@@ -651,6 +677,56 @@ class _DaySummaryCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 修改劑量的對話框；回傳新劑量，-1 表示取消當天紀錄，null 表示放棄。
+/// controller 由對話框自己管理，關閉動畫期間不會被提早釋放。
+class _DoseDialog extends StatefulWidget {
+  const _DoseDialog({required this.item, required this.initial});
+
+  final CheckItem item;
+  final double initial;
+
+  @override
+  State<_DoseDialog> createState() => _DoseDialogState();
+}
+
+class _DoseDialogState extends State<_DoseDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: fmtNum(widget.initial),
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('${widget.item.label}劑量'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        keyboardType: numberKeyboard,
+        decoration: InputDecoration(suffixText: widget.item.unit),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, -1.0),
+          child: const Text('取消今天的紀錄'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final v = parseNum(_controller.text);
+            if (v != null && v > 0) Navigator.pop(context, v);
+          },
+          child: const Text('儲存'),
+        ),
+      ],
     );
   }
 }
