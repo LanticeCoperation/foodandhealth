@@ -1,15 +1,28 @@
 import 'package:flutter/material.dart';
 
+import '../data/check_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
+import '../data/template_repository.dart';
 import '../utils/dates.dart';
+import '../widgets/nutrition_fields.dart';
 import 'food_entry_sheet.dart';
+import 'quick_add_sheet.dart';
+import 'templates_screen.dart';
 
-/// 單日飲食紀錄：當日總量、依餐別分組的列表，可新增 / 編輯 / 滑動刪除。
+/// 單日飲食紀錄：當日總量、快速列（釘選範本 +1、每日打勾）、依餐別分組的列表。
+/// 新增走範本快速輸入；可編輯、長按存成範本、滑動刪除。
 class FoodScreen extends StatefulWidget {
-  const FoodScreen({super.key, required this.repository});
+  const FoodScreen({
+    super.key,
+    required this.repository,
+    required this.templates,
+    required this.checks,
+  });
 
   final FoodRepository repository;
+  final TemplateRepository templates;
+  final CheckRepository checks;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -18,6 +31,8 @@ class FoodScreen extends StatefulWidget {
 class _FoodScreenState extends State<FoodScreen> {
   late DateTime _day;
   late Stream<List<FoodEntry>> _entries;
+  late Stream<Set<CheckItem>> _checks;
+  late final Stream<List<MealTemplate>> _pinned;
 
   /// 滑掉的項目要立刻從畫面消失（Dismissible 的要求），不等資料庫 stream 更新。
   final _hidden = <int>{};
@@ -27,12 +42,14 @@ class _FoodScreenState extends State<FoodScreen> {
   @override
   void initState() {
     super.initState();
+    _pinned = widget.templates.watchPinned();
     _setDay(dateOnly(DateTime.now()));
   }
 
   void _setDay(DateTime day) {
     _day = day;
     _entries = widget.repository.watchDay(day);
+    _checks = widget.checks.watchDay(day);
   }
 
   bool get _isToday => _day == dateOnly(DateTime.now());
@@ -54,20 +71,113 @@ class _FoodScreenState extends State<FoodScreen> {
   }
 
   Future<void> _add() async {
-    final entry = await showFoodEntrySheet(
+    final result = await showQuickAddSheet(
+      context,
+      templates: widget.templates,
+      eatenAt: _defaultTime(),
+    );
+    switch (result) {
+      case AddedFromTemplate(:final entryId, :final name):
+        _showUndoAdd(entryId, name);
+      case WantsCustom(:final name):
+        if (mounted) await _addCustom(name);
+      case null:
+        break;
+    }
+  }
+
+  Future<void> _addCustom(String? name) async {
+    final result = await showFoodEntrySheet(
       context,
       defaultTime: _defaultTime(),
+      initialName: name,
     );
-    if (entry != null) await widget.repository.add(entry);
+    if (result == null) return;
+    await widget.repository.add(result.entry);
+    if (result.saveAsTemplate) {
+      await widget.templates.addFromEntry(result.entry);
+    }
+  }
+
+  Future<void> _quickAdd(MealTemplate t) async {
+    final id = await widget.templates.addEntryFromTemplate(
+      t,
+      eatenAt: _defaultTime(),
+    );
+    _showUndoAdd(id, t.name);
+  }
+
+  void _showUndoAdd(int entryId, String name) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('已加入「$name」'),
+          action: SnackBarAction(
+            label: '復原',
+            onPressed: () => widget.repository.delete(entryId),
+          ),
+        ),
+      );
   }
 
   Future<void> _edit(FoodEntry e) async {
-    final entry = await showFoodEntrySheet(
+    final result = await showFoodEntrySheet(
       context,
       defaultTime: e.eatenAt,
       initial: e,
     );
-    if (entry != null) await widget.repository.save(entry);
+    if (result != null) await widget.repository.save(result.entry);
+  }
+
+  Future<void> _showEntryMenu(FoodEntry e) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.bookmark_add_outlined),
+              title: const Text('存成範本'),
+              onTap: () => Navigator.pop(context, 'template'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('編輯'),
+              onTap: () => Navigator.pop(context, 'edit'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline),
+              title: const Text('刪除'),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    switch (action) {
+      case 'template':
+        await widget.templates.addFromEntry(e.toCompanion(true));
+        if (!mounted) return;
+        ScaffoldMessenger.of(context)
+          ..hideCurrentSnackBar()
+          ..showSnackBar(SnackBar(content: Text('已存成範本「${e.name}」')));
+      case 'edit':
+        await _edit(e);
+      case 'delete':
+        await _delete(e);
+    }
+  }
+
+  void _openTemplates() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => TemplatesScreen(repository: widget.templates),
+      ),
+    );
   }
 
   Future<void> _delete(FoodEntry e) async {
@@ -99,6 +209,13 @@ class _FoodScreenState extends State<FoodScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('飲食'),
+        actions: [
+          IconButton(
+            onPressed: _openTemplates,
+            icon: const Icon(Icons.bookmarks_outlined),
+            tooltip: '餐點範本',
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Row(
@@ -138,6 +255,7 @@ class _FoodScreenState extends State<FoodScreen> {
             padding: const EdgeInsets.only(bottom: 88),
             children: [
               _TotalsCard(totals: DayTotals.of(entries)),
+              _buildQuickRow(entries),
               if (entries.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(32),
@@ -184,33 +302,86 @@ class _FoodScreenState extends State<FoodScreen> {
             ),
           ),
           onDismissed: (_) => _delete(e),
-          child: _EntryTile(entry: e, onTap: () => _edit(e)),
+          child: _EntryTile(
+            entry: e,
+            onTap: () => _edit(e),
+            onLongPress: () => _showEntryMenu(e),
+          ),
         ),
     ];
+  }
+
+  /// 釘選範本一鍵 +1（顯示當天已吃幾份）與每日打勾。
+  Widget _buildQuickRow(List<FoodEntry> entries) {
+    return StreamBuilder<List<MealTemplate>>(
+      stream: _pinned,
+      builder: (context, pinnedSnap) => StreamBuilder<Set<CheckItem>>(
+        stream: _checks,
+        builder: (context, checkSnap) {
+          final pinned = pinnedSnap.data ?? const [];
+          final checked = checkSnap.data ?? const {};
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                for (final t in pinned)
+                  ActionChip(
+                    avatar: const Icon(Icons.add),
+                    label: Text(_pinnedLabel(t, entries)),
+                    onPressed: () => _quickAdd(t),
+                  ),
+                for (final item in CheckItem.values)
+                  FilterChip(
+                    label: Text(item.label),
+                    selected: checked.contains(item),
+                    onSelected: (v) => widget.checks.set(_day, item, v),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  static String _pinnedLabel(MealTemplate t, List<FoodEntry> entries) {
+    final count = entries
+        .where((e) => e.templateId == t.id)
+        .fold<double>(0, (sum, e) => sum + e.servings);
+    return count == 0 ? t.name : '${t.name} · ${fmtNum(count, maxDecimals: 2)}';
   }
 }
 
 class _EntryTile extends StatelessWidget {
-  const _EntryTile({required this.entry, required this.onTap});
+  const _EntryTile({
+    required this.entry,
+    required this.onTap,
+    required this.onLongPress,
+  });
 
   final FoodEntry entry;
   final VoidCallback onTap;
-
-  static String _num(double v) =>
-      v == v.roundToDouble() ? v.toInt().toString() : v.toStringAsFixed(1);
+  final VoidCallback onLongPress;
 
   @override
   Widget build(BuildContext context) {
     final e = entry;
     final time = TimeOfDay.fromDateTime(e.eatenAt).format(context);
     final macros = [
-      if (e.totalProteinG != null) '蛋白質 ${_num(e.totalProteinG!)}g',
-      if (e.totalCarbsG != null) '碳水 ${_num(e.totalCarbsG!)}g',
-      if (e.totalFatG != null) '脂肪 ${_num(e.totalFatG!)}g',
+      if (e.totalProteinG != null) '蛋白質 ${fmtNum(e.totalProteinG!)}g',
+      if (e.totalCarbsG != null) '碳水 ${fmtNum(e.totalCarbsG!)}g',
+      if (e.totalFatG != null) '脂肪 ${fmtNum(e.totalFatG!)}g',
     ];
     return ListTile(
       onTap: onTap,
-      title: Text(e.servings == 1 ? e.name : '${e.name} ×${_num(e.servings)}'),
+      onLongPress: onLongPress,
+      title: Text(
+        e.servings == 1
+            ? e.name
+            : '${e.name} ×${fmtNum(e.servings, maxDecimals: 2)}',
+      ),
       subtitle: Text(
         [time, ...macros, if (e.note != null) e.note!].join(' · '),
       ),

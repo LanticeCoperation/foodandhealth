@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'data/body_repository.dart';
+import 'data/check_repository.dart';
 import 'data/database.dart';
 import 'data/food_repository.dart';
+import 'data/template_repository.dart';
 import 'screens/body_screen.dart';
 import 'screens/food_screen.dart';
 import 'services/health_service.dart';
@@ -15,6 +17,8 @@ void main() {
       health: health,
       bodyRepository: BodyRepository(db, health),
       foodRepository: FoodRepository(db),
+      templateRepository: TemplateRepository(db),
+      checkRepository: CheckRepository(db),
     ),
   );
 }
@@ -25,11 +29,15 @@ class BodyLabApp extends StatelessWidget {
     required this.health,
     required this.bodyRepository,
     required this.foodRepository,
+    required this.templateRepository,
+    required this.checkRepository,
   });
 
   final HealthService health;
   final BodyRepository bodyRepository;
   final FoodRepository foodRepository;
+  final TemplateRepository templateRepository;
+  final CheckRepository checkRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +50,11 @@ class BodyLabApp extends StatelessWidget {
       ),
       home: _HomeShell(
         body: BodyScreen(health: health, repository: bodyRepository),
-        food: FoodScreen(repository: foodRepository),
+        food: FoodScreen(
+          repository: foodRepository,
+          templates: templateRepository,
+          checks: checkRepository,
+        ),
       ),
     );
   }

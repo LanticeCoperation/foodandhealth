@@ -2,35 +2,40 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
+import '../widgets/nutrition_fields.dart';
 
-/// 依時間猜餐別。
-MealType mealForTime(DateTime t) {
-  final h = t.hour;
-  if (h < 10) return MealType.breakfast;
-  if (h < 14) return MealType.lunch;
-  if (h >= 17 && h < 21) return MealType.dinner;
-  return MealType.snack;
-}
+typedef FoodEntryResult = ({FoodEntriesCompanion entry, bool saveAsTemplate});
 
 /// 新增或編輯一筆飲食紀錄。按儲存回傳 companion（編輯時含原本的 id），取消回傳 null。
-Future<FoodEntriesCompanion?> showFoodEntrySheet(
+/// 新增時可勾「同時存成範本」。
+Future<FoodEntryResult?> showFoodEntrySheet(
   BuildContext context, {
   required DateTime defaultTime,
   FoodEntry? initial,
+  String? initialName,
 }) {
-  return showModalBottomSheet<FoodEntriesCompanion>(
+  return showModalBottomSheet<FoodEntryResult>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => _FoodEntryForm(defaultTime: defaultTime, initial: initial),
+    builder: (_) => _FoodEntryForm(
+      defaultTime: defaultTime,
+      initial: initial,
+      initialName: initialName,
+    ),
   );
 }
 
 class _FoodEntryForm extends StatefulWidget {
-  const _FoodEntryForm({required this.defaultTime, this.initial});
+  const _FoodEntryForm({
+    required this.defaultTime,
+    this.initial,
+    this.initialName,
+  });
 
   final DateTime defaultTime;
   final FoodEntry? initial;
+  final String? initialName;
 
   @override
   State<_FoodEntryForm> createState() => _FoodEntryFormState();
@@ -42,46 +47,38 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
   late MealType _meal;
   late final TextEditingController _name;
   late final TextEditingController _servings;
-  late final TextEditingController _kcal;
-  late final TextEditingController _protein;
-  late final TextEditingController _carbs;
-  late final TextEditingController _fat;
+  late final NutritionControllers _nutrition;
   late final TextEditingController _note;
+  bool _saveAsTemplate = false;
+
+  bool get _isNew => widget.initial == null;
 
   @override
   void initState() {
     super.initState();
     final e = widget.initial;
     _eatenAt = e?.eatenAt ?? widget.defaultTime;
-    _meal = e?.meal ?? mealForTime(_eatenAt);
-    _name = TextEditingController(text: e?.name);
-    _servings = TextEditingController(text: _fmt(e?.servings ?? 1));
-    _kcal = TextEditingController(text: _fmt(e?.kcal));
-    _protein = TextEditingController(text: _fmt(e?.proteinG));
-    _carbs = TextEditingController(text: _fmt(e?.carbsG));
-    _fat = TextEditingController(text: _fmt(e?.fatG));
+    _meal = e?.meal ?? MealType.forTime(_eatenAt);
+    _name = TextEditingController(text: e?.name ?? widget.initialName);
+    _servings = TextEditingController(
+      text: fmtNum(e?.servings ?? 1, maxDecimals: 2),
+    );
+    _nutrition = NutritionControllers(
+      kcal: e?.kcal,
+      protein: e?.proteinG,
+      carbs: e?.carbsG,
+      fat: e?.fatG,
+    );
     _note = TextEditingController(text: e?.note);
   }
 
   @override
   void dispose() {
-    for (final c in [_name, _servings, _kcal, _protein, _carbs, _fat, _note]) {
+    for (final c in [_name, _servings, _note]) {
       c.dispose();
     }
+    _nutrition.dispose();
     super.dispose();
-  }
-
-  static String _fmt(double? v) {
-    if (v == null) return '';
-    return v == v.roundToDouble() ? v.toInt().toString() : v.toString();
-  }
-
-  static double? _parse(String s) => double.tryParse(s.trim());
-
-  String? _validateOptionalNumber(String? s) {
-    if (s == null || s.trim().isEmpty) return null;
-    final v = _parse(s);
-    return v == null || v < 0 ? '請輸入數字' : null;
   }
 
   Future<void> _pickTime() async {
@@ -105,40 +102,32 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     if (!_formKey.currentState!.validate()) return;
     final note = _note.text.trim();
     final initial = widget.initial;
-    Navigator.pop(
-      context,
-      FoodEntriesCompanion(
-        id: initial == null ? const Value.absent() : Value(initial.id),
-        createdAt: initial == null
-            ? const Value.absent()
-            : Value(initial.createdAt),
-        eatenAt: Value(_eatenAt),
-        meal: Value(_meal),
-        name: Value(_name.text.trim()),
-        servings: Value(_parse(_servings.text)!),
-        kcal: Value(_parse(_kcal.text)),
-        proteinG: Value(_parse(_protein.text)),
-        carbsG: Value(_parse(_carbs.text)),
-        fatG: Value(_parse(_fat.text)),
-        note: Value(note.isEmpty ? null : note),
-      ),
+    final entry = FoodEntriesCompanion(
+      // 編輯時整筆覆蓋，所以原本的 id / createdAt / templateId 都要帶回去。
+      id: initial == null ? const Value.absent() : Value(initial.id),
+      createdAt: initial == null
+          ? const Value.absent()
+          : Value(initial.createdAt),
+      templateId: Value(initial?.templateId),
+      eatenAt: Value(_eatenAt),
+      meal: Value(_meal),
+      name: Value(_name.text.trim()),
+      servings: Value(parseNum(_servings.text)!),
+      kcal: Value(_nutrition.kcalValue),
+      proteinG: Value(_nutrition.proteinValue),
+      carbsG: Value(_nutrition.carbsValue),
+      fatG: Value(_nutrition.fatValue),
+      note: Value(note.isEmpty ? null : note),
     );
+    Navigator.pop(context, (
+      entry: entry,
+      saveAsTemplate: _isNew && _saveAsTemplate,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     final time = TimeOfDay.fromDateTime(_eatenAt).format(context);
-    const numberKeyboard = TextInputType.numberWithOptions(decimal: true);
-
-    Widget numberField(TextEditingController c, String label, String unit) =>
-        Expanded(
-          child: TextFormField(
-            controller: c,
-            keyboardType: numberKeyboard,
-            decoration: InputDecoration(labelText: label, suffixText: unit),
-            validator: _validateOptionalNumber,
-          ),
-        );
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -155,7 +144,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                widget.initial == null ? '新增飲食' : '編輯飲食',
+                _isNew ? '自訂飲食' : '編輯飲食',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 12),
@@ -174,7 +163,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
                   Expanded(
                     child: TextFormField(
                       controller: _name,
-                      autofocus: widget.initial == null,
+                      autofocus: _isNew && widget.initialName == null,
                       maxLength: 100,
                       decoration: const InputDecoration(
                         labelText: '名稱',
@@ -194,34 +183,25 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
                         labelText: '份量',
                         suffixText: '份',
                       ),
-                      validator: (s) {
-                        final v = _parse(s ?? '');
-                        return v == null || v <= 0 ? '>0' : null;
-                      },
+                      validator: validateServings,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
-              Text('每份營養（可留空）', style: Theme.of(context).textTheme.labelMedium),
-              Row(
-                children: [
-                  numberField(_kcal, '熱量', 'kcal'),
-                  const SizedBox(width: 12),
-                  numberField(_protein, '蛋白質', 'g'),
-                ],
-              ),
-              Row(
-                children: [
-                  numberField(_carbs, '碳水', 'g'),
-                  const SizedBox(width: 12),
-                  numberField(_fat, '脂肪', 'g'),
-                ],
-              ),
+              NutritionFields(controllers: _nutrition),
               TextFormField(
                 controller: _note,
                 decoration: const InputDecoration(labelText: '備註'),
               ),
+              if (_isNew)
+                CheckboxListTile(
+                  value: _saveAsTemplate,
+                  onChanged: (v) => setState(() => _saveAsTemplate = v!),
+                  title: const Text('同時存成範本'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                ),
               const SizedBox(height: 8),
               Row(
                 children: [

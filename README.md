@@ -63,12 +63,19 @@ body_lab/
     data/database.dart            drift schema：健康資料快取、飲食紀錄
     data/body_repository.dart     快取讀取、從健康資料同步
     data/food_repository.dart     飲食紀錄 CRUD、每日總量
+    data/template_repository.dart 餐點範本、從範本加入
+    data/check_repository.dart    每日打勾（肌酸）
     utils/trend.dart              7 日移動平均、異常值判斷
     utils/dates.dart              當地日期、yyyy-MM-dd 日期鍵
     screens/body_screen.dart      身體組成列表（先顯示快取再同步）
     screens/food_screen.dart      單日飲食列表與總量
-    screens/food_entry_sheet.dart 新增 / 編輯飲食
-  test/                           單元測試 + 飲食頁 widget 測試
+    screens/food_entry_sheet.dart 自訂輸入 / 編輯飲食
+    screens/quick_add_sheet.dart  範本快速新增（搜尋、份量倍率、餐別）
+    screens/templates_screen.dart 範本管理（釘選、編輯、封存）
+    widgets/nutrition_fields.dart 營養素輸入欄、數字格式
+  test/                           單元測試 + widget 測試
+    drift/                        schema migration 測試（make-migrations 產生）
+  drift_schemas/                  各版 schema 快照
 ```
 
 ## 本地資料庫（drift）
@@ -78,18 +85,41 @@ body_lab/
   往前 14 天重抓，並以重抓結果取代這段範圍（健康 App 裡刪掉的天也會消失）。
   讀到空資料時不動快取：iOS 被拒絕讀取時 HealthKit 只回傳空資料，和沒資料分不出來。
 - **飲食紀錄** `food_entries`：時間、餐別、名稱、份量倍率，以及每份的熱量 / 蛋白質 /
-  碳水 / 脂肪（都可留空），實際攝取 = 每份 × 份量。
-- 改了 `lib/data/database.dart` 之後要重新產生程式碼，並把 `schemaVersion` +1、
-  在 `migration` 加 `onUpgrade`：
+  碳水 / 脂肪（都可留空），實際攝取 = 每份 × 份量。從範本加入時記錄 `template_id`，
+  營養素仍複製一份，之後改範本不影響舊紀錄。
+- **餐點範本** `meal_templates`（v2）：每份營養、預設份量與餐別、釘選、使用次數。
+  新資料庫預設有一個釘選的「蛋白粉（1 匙）」範本（120 kcal / 24 g 蛋白質），
+  數值請依自己的蛋白粉在範本管理修改。刪除範本只做封存。
+- **每日打勾** `daily_checks`（v2）：目前只有肌酸，有紀錄 = 當天有吃。
+
+### 改 schema 的流程
+
+1. 改 `lib/data/database.dart`，`schemaVersion` +1
+2. 產生程式碼與新版 schema 快照：
 
 ```bash
 dart run build_runner build
 ```
 
+```bash
+dart run drift_dev make-migrations
+```
+
+3. 在 `migration` 的 `stepByStep` 補上新的 `fromNToN+1`
+4. `flutter test test/drift` 驗證 migration
+
+## 飲食頁怎麼用
+
+- **+ 按鈕**：搜尋範本 → 選份量（−/+ 0.5 或 ×0.5 / ×1 / ×1.5 / ×2）與餐別 → 加入。
+  找不到就按「自訂輸入」，可勾「同時存成範本」。
+- **快速列**：釘選的範本一鍵 +1（後面的數字是當天已吃幾份），肌酸點一下打勾。
+- **長按紀錄**：存成範本 / 編輯 / 刪除。往左滑也能刪除，都可以復原。
+- 右上角書籤圖示進入範本管理：釘選、編輯、往左滑刪除。
+
 ## 接下來
 
 - [x] 本地資料庫（drift）：快取健康資料 + 存飲食紀錄
-- [ ] 外食快速輸入：餐點範本、份量倍率、蛋白粉一鍵 +1、肌酸打勾
+- [x] 外食快速輸入：餐點範本、份量倍率、蛋白粉一鍵 +1、肌酸打勾
 - [ ] 疊加趨勢圖（fl_chart）
 - [ ] 階段（4 週實驗）功能
 - [ ] 組合分析熱力圖

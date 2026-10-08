@@ -1,5 +1,7 @@
+import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
+import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/screens/food_screen.dart';
 import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
@@ -31,37 +33,88 @@ void main() {
     }
   }
 
-  testWidgets('新增一筆後出現在列表與總量，滑動刪除可復原', (tester) async {
+  Future<void> open(WidgetTester tester) async {
     await tester.pumpWidget(
-      MaterialApp(home: FoodScreen(repository: FoodRepository(db))),
+      MaterialApp(
+        home: FoodScreen(
+          repository: FoodRepository(db),
+          templates: TemplateRepository(db),
+          checks: CheckRepository(db),
+        ),
+      ),
     );
     await settle(tester);
+  }
+
+  Future<void> close(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(db.close);
+  }
+
+  testWidgets('自訂輸入一筆後出現在列表與總量，滑動刪除可復原', (tester) async {
+    await open(tester);
     expect(find.text('這天還沒有紀錄，按 + 新增。'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.add));
+    await tester.tap(find.byIcon(Icons.add).last);
     await settle(tester);
-    await tester.enterText(find.widgetWithText(TextFormField, '名稱'), '蛋白粉');
+    await tester.tap(find.text('自訂輸入'));
+    await settle(tester);
+    await tester.enterText(find.widgetWithText(TextFormField, '名稱'), '鮭魚飯糰');
     await tester.enterText(find.widgetWithText(TextFormField, '份量'), '2');
-    await tester.enterText(find.widgetWithText(TextFormField, '熱量'), '120');
-    await tester.enterText(find.widgetWithText(TextFormField, '蛋白質'), '24');
+    await tester.enterText(find.widgetWithText(TextFormField, '熱量'), '200');
+    await tester.enterText(find.widgetWithText(TextFormField, '蛋白質'), '8');
     await tester.tap(find.text('儲存'));
     await settle(tester);
 
-    expect(find.text('蛋白粉 ×2'), findsOneWidget);
-    expect(find.text('240 kcal'), findsWidgets);
-    expect(find.text('240'), findsOneWidget); // 熱量總計
-    expect(find.text('48'), findsOneWidget); // 蛋白質總計
+    expect(find.text('鮭魚飯糰 ×2'), findsOneWidget);
+    expect(find.text('400 kcal'), findsWidgets);
+    expect(find.text('400'), findsOneWidget); // 熱量總計
+    expect(find.text('16'), findsOneWidget); // 蛋白質總計
 
-    await tester.drag(find.text('蛋白粉 ×2'), const Offset(-500, 0));
+    await tester.drag(find.text('鮭魚飯糰 ×2'), const Offset(-500, 0));
     await settle(tester);
-    expect(find.text('蛋白粉 ×2'), findsNothing);
-    expect(find.text('已刪除「蛋白粉」'), findsOneWidget);
+    expect(find.text('鮭魚飯糰 ×2'), findsNothing);
+    expect(find.text('已刪除「鮭魚飯糰」'), findsOneWidget);
 
     await tester.tap(find.text('復原'));
     await settle(tester);
-    expect(find.text('蛋白粉 ×2'), findsOneWidget);
+    expect(find.text('鮭魚飯糰 ×2'), findsOneWidget);
 
-    await tester.pumpWidget(const SizedBox());
-    await tester.runAsync(db.close);
+    await close(tester);
+  });
+
+  testWidgets('從範本加入、蛋白粉一鍵 +1、肌酸打勾', (tester) async {
+    await open(tester);
+
+    // 預設的蛋白粉範本釘選在快速列
+    final powderChip = find.widgetWithText(ActionChip, '蛋白粉（1 匙）');
+    expect(powderChip, findsOneWidget);
+
+    // 從快速新增面板選範本，份量 ×2
+    await tester.tap(find.byType(FloatingActionButton));
+    await settle(tester);
+    await tester.tap(find.text('蛋白粉（1 匙）').last);
+    await settle(tester);
+    await tester.tap(find.text('×2'));
+    await settle(tester);
+    await tester.tap(find.textContaining('加入 · 240 kcal'));
+    await settle(tester);
+    expect(find.text('蛋白粉（1 匙） ×2'), findsOneWidget);
+    expect(find.text('蛋白粉（1 匙） · 2'), findsOneWidget);
+
+    // 一鍵 +1
+    await tester.tap(find.text('蛋白粉（1 匙） · 2'));
+    await settle(tester);
+    expect(find.text('蛋白粉（1 匙） · 3'), findsOneWidget);
+    expect(find.text('72'), findsOneWidget); // 蛋白質總計 24 × 3
+
+    // 肌酸打勾
+    final creatine = find.widgetWithText(FilterChip, '肌酸');
+    expect(tester.widget<FilterChip>(creatine).selected, isFalse);
+    await tester.tap(creatine);
+    await settle(tester);
+    expect(tester.widget<FilterChip>(creatine).selected, isTrue);
+
+    await close(tester);
   });
 }
