@@ -5,6 +5,7 @@ import 'package:drift/drift.dart';
 import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../data/check_repository.dart';
+import '../data/extra_burn_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
@@ -22,6 +23,7 @@ class DayRecord {
     this.checks = const {},
     this.phase,
     this.activeKcal,
+    this.extraKcal = 0,
   });
 
   final DateTime date;
@@ -42,6 +44,9 @@ class DayRecord {
 
   /// 當天手錶記錄的活動消耗（kcal）。
   final double? activeKcal;
+
+  /// 當天自訂消耗的總和（kcal）。
+  final double extraKcal;
 }
 
 /// 連續日期的每日資料，由舊到新，每天都有一筆。
@@ -72,6 +77,7 @@ DailyDataset buildDataset({
   required Map<DateTime, Set<CheckItem>> checks,
   List<Phase> phases = const [],
   Map<DateTime, double> activity = const {},
+  Map<DateTime, double> extraBurns = const {},
 }) {
   final byDay = {for (final m in metrics) m.date: m};
   final averages = rollingAverages(metrics, from: from, to: to);
@@ -85,6 +91,7 @@ DailyDataset buildDataset({
         checks: checks[d] ?? const {},
         phase: phases.where((p) => p.contains(d)).firstOrNull,
         activeKcal: activity[d],
+        extraKcal: extraBurns[d] ?? 0,
       ),
   ]);
 }
@@ -97,6 +104,7 @@ class DatasetRepository {
     this._checks,
     this._phases, {
     this.activity,
+    this.extraBurns,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
 
@@ -108,6 +116,9 @@ class DatasetRepository {
 
   /// 每日活動消耗（沒有時每日消耗退回固定 TDEE）。
   final ActivityRepository? activity;
+
+  /// 自訂消耗。
+  final ExtraBurnRepository? extraBurns;
   final DateTime Function() _clock;
 
   DateTime get today => dateOnly(_clock());
@@ -118,12 +129,13 @@ class DatasetRepository {
 
   /// [from]～[to]（含頭尾）。
   Future<DailyDataset> loadRange(DateTime from, DateTime to) async {
-    final (metrics, food, checks, phases, active) = await (
+    final (metrics, food, checks, phases, active, extra) = await (
       _body.since(addDays(from, -(kMovingAverageDays - 1))),
       _food.dailyTotalsSince(from),
       _checks.since(from),
       _phases.all(),
       activity?.since(from) ?? Future.value(<DateTime, double>{}),
+      extraBurns?.since(from) ?? Future.value(<DateTime, double>{}),
     ).wait;
     return buildDataset(
       from: from,
@@ -133,6 +145,7 @@ class DatasetRepository {
       checks: checks,
       phases: phases,
       activity: active,
+      extraBurns: extra,
     );
   }
 
@@ -188,6 +201,7 @@ class DatasetRepository {
         _db.dailyChecks,
         _db.phases,
         _db.dailyActivity,
+        _db.extraBurns,
       ]),
     );
     await for (final _ in updates) {

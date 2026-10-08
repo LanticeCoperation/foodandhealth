@@ -5,7 +5,10 @@ import 'package:drift/drift.dart';
 import 'database.dart';
 
 /// 備份檔格式版本；改了內容結構就 +1，並在 [BackupService.restore] 處理舊版。
-const int kBackupFormat = 1;
+///
+/// - 1：飲食、一鍵項目、打勾、階段、個人資料
+/// - 2：加入自訂消耗（extraBurns）；讀 1 版時視為沒有
+const int kBackupFormat = 2;
 
 class BackupFormatException implements Exception {
   BackupFormatException(this.message);
@@ -23,6 +26,7 @@ class BackupCounts {
     required this.checks,
     required this.phases,
     required this.hasProfile,
+    this.extraBurns = 0,
   });
 
   final int foodEntries;
@@ -30,14 +34,16 @@ class BackupCounts {
   final int checks;
   final int phases;
   final bool hasProfile;
+  final int extraBurns;
 
   @override
   String toString() =>
       '飲食 $foodEntries 筆、一鍵項目 $templates 個、打勾 $checks 天、'
-      '階段 $phases 個${hasProfile ? '、個人資料' : ''}';
+      '階段 $phases 個${extraBurns > 0 ? '、自訂消耗 $extraBurns 筆' : ''}'
+      '${hasProfile ? '、個人資料' : ''}';
 }
 
-/// 使用者自己輸入的資料備份成 JSON：飲食、一鍵項目、每日打勾、實驗階段、個人資料。
+/// 使用者自己輸入的資料備份成 JSON：飲食、一鍵項目、每日打勾、實驗階段、個人資料、自訂消耗。
 ///
 /// 身體組成與活動消耗的快取不備份，正本在 Apple 健康，重新同步就會回來。
 class BackupService {
@@ -53,6 +59,7 @@ class BackupService {
     final checks = await _db.select(_db.dailyChecks).get();
     final phases = await _db.select(_db.phases).get();
     final profile = await _db.select(_db.profiles).getSingleOrNull();
+    final extra = await _db.select(_db.extraBurns).get();
     return {
       'app': 'body_lab',
       'format': kBackupFormat,
@@ -63,6 +70,7 @@ class BackupService {
       'dailyChecks': [for (final c in checks) c.toJson()],
       'phases': [for (final p in phases) p.toJson()],
       'profile': profile?.toJson(),
+      'extraBurns': [for (final e in extra) e.toJson()],
     };
   }
 
@@ -79,6 +87,7 @@ class BackupService {
       checks: list('dailyChecks').length,
       phases: list('phases').length,
       hasProfile: json['profile'] != null,
+      extraBurns: list('extraBurns').length,
     );
   }
 
@@ -95,6 +104,7 @@ class BackupService {
     final List<DailyCheck> checks;
     final List<Phase> phases;
     final Profile? profile;
+    final List<ExtraBurn> extra;
     try {
       food = list('foodEntries').map(FoodEntry.fromJson).toList();
       templates = list('mealTemplates').map(MealTemplate.fromJson).toList();
@@ -102,6 +112,7 @@ class BackupService {
       phases = list('phases').map(Phase.fromJson).toList();
       final p = json['profile'];
       profile = p == null ? null : Profile.fromJson(p as Map<String, dynamic>);
+      extra = list('extraBurns').map(ExtraBurn.fromJson).toList();
     } catch (e) {
       throw BackupFormatException('備份檔內容有誤：$e');
     }
@@ -113,6 +124,7 @@ class BackupService {
         _db.dailyChecks,
         _db.phases,
         _db.profiles,
+        _db.extraBurns,
       ]) {
         await _db.delete(table).go();
       }
@@ -122,6 +134,7 @@ class BackupService {
         b.insertAll(_db.dailyChecks, checks);
         b.insertAll(_db.phases, phases);
         if (profile != null) b.insert(_db.profiles, profile);
+        b.insertAll(_db.extraBurns, extra);
       });
     });
     return counts;

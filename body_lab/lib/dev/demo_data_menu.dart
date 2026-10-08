@@ -4,6 +4,7 @@ import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
+import '../data/extra_burn_repository.dart';
 import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
 import '../data/profile_repository.dart';
@@ -22,6 +23,7 @@ class DemoDataMenu extends StatelessWidget {
     required this.phases,
     required this.profile,
     required this.activity,
+    required this.extraBurns,
   });
 
   final AppDatabase db;
@@ -32,6 +34,7 @@ class DemoDataMenu extends StatelessWidget {
   final FoodRepository food;
   final ProfileRepository profile;
   final ActivityRepository activity;
+  final ExtraBurnRepository extraBurns;
 
   Future<void> _run(
     BuildContext context, {
@@ -76,7 +79,7 @@ class DemoDataMenu extends StatelessWidget {
         'seed' => _run(
           context,
           title: '產生示範資料？',
-          message: '會先清空所有資料（飲食、一鍵項目、階段、個人資料、快取），再產生 12 週示範資料。',
+          message: '會先清空所有資料（飲食、一鍵項目、階段、個人資料、自訂消耗、快取），再產生 12 週示範資料。',
           done: '已產生 12 週示範資料',
           action: () => seedDemoData(
             db: db,
@@ -87,6 +90,7 @@ class DemoDataMenu extends StatelessWidget {
             phases: phases,
             profile: profile,
             activity: activity,
+            extraBurns: extraBurns,
           ),
         ),
         'clear' => _run(

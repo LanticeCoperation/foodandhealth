@@ -173,6 +173,17 @@ class DailyActivity extends Table {
   Set<Column> get primaryKey => {day};
 }
 
+/// 自訂消耗（v6）：手錶沒記錄到的活動（例如沒戴錶的運動），加進當天的每日消耗。
+class ExtraBurns extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// 當地日期 yyyy-MM-dd。
+  TextColumn get day => text()();
+  RealColumn get kcal => real()();
+  TextColumn get note => text().nullable()();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
 /// 個人資料（v4），只有一列（id = 1）。TDEE 算好後固定存下來，
 /// 不隨每天體重變動；體重變化大時再到個人資料頁重算。
 class Profiles extends Table {
@@ -206,6 +217,7 @@ class Profiles extends Table {
     Phases,
     Profiles,
     DailyActivity,
+    ExtraBurns,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -214,7 +226,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -240,6 +252,9 @@ class AppDatabase extends _$AppDatabase {
       from4To5: (m, schema) async {
         await m.createTable(schema.dailyActivity);
         await m.addColumn(schema.profiles, schema.profiles.energyMode);
+      },
+      from5To6: (m, schema) async {
+        await m.createTable(schema.extraBurns);
       },
     ),
   );

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:body_lab/data/backup_service.dart';
 import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
+import 'package:body_lab/data/extra_burn_repository.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
@@ -57,6 +58,7 @@ void main() {
         creatine: const Value(true),
       ),
     );
+    await ExtraBurnRepository(db).add(DateTime(2026, 10, 8), 350, note: '爬山');
     await ProfileRepository(db).save(
       sex: Sex.male,
       birthYear: 1991,
@@ -87,6 +89,7 @@ void main() {
     expect(counts.checks, 1);
     expect(counts.phases, 1);
     expect(counts.hasProfile, isTrue);
+    expect(counts.extraBurns, 1);
 
     Future<List<dynamic>> rows(AppDatabase db) async => [
       await db.select(db.foodEntries).get(),
@@ -94,6 +97,7 @@ void main() {
       await db.select(db.dailyChecks).get(),
       await db.select(db.phases).get(),
       await db.select(db.profiles).get(),
+      await db.select(db.extraBurns).get(),
     ];
     expect(await rows(target), await rows(source));
   });
@@ -143,11 +147,22 @@ void main() {
     expect(await target.select(target.profiles).getSingleOrNull(), isNotNull);
   });
 
+  test('讀得懂舊版（1 版）備份：沒有自訂消耗', () async {
+    await seed(source);
+    final json = await BackupService(source).export();
+    json['format'] = 1;
+    json.remove('extraBurns');
+    final counts = await BackupService(target).restore(json);
+    expect(counts.extraBurns, 0);
+    expect(await target.select(target.extraBurns).get(), isEmpty);
+    expect(await target.select(target.foodEntries).get(), hasLength(2));
+  });
+
   test('inspect 只看內容不寫入', () async {
     await seed(source);
     final json = await BackupService(source).export();
     final counts = BackupService(target).inspect(json);
-    expect(counts.toString(), '飲食 2 筆、一鍵項目 1 個、打勾 1 天、階段 1 個、個人資料');
+    expect(counts.toString(), '飲食 2 筆、一鍵項目 1 個、打勾 1 天、階段 1 個、自訂消耗 1 筆、個人資料');
     // target 只有預設的蛋白粉項目，沒有紀錄
     expect(await target.select(target.foodEntries).get(), isEmpty);
   });

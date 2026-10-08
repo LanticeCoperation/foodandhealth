@@ -76,6 +76,8 @@ package、iOS Bundle Identifier）。
   - **固定 TDEE**：每天都用 TDEE（活動量係數已包含運動，不再加手錶消耗，避免重複計算）
 - 活動消耗用 HealthKit 統計查詢 / Health Connect 聚合查詢讀取每日總和，已依來源去重
   （iPhone 與手錶同時記錄不會加兩次）。
+- **自訂消耗**：飲食頁總量卡片的「＋ 自訂消耗」，加手錶沒記錄到的活動（例如沒戴錶的游泳、爬山），
+  兩種模式都會加進當天的消耗（卡片顯示「基礎 + 活動 + 自訂」）。手錶已記錄的運動不要再加。
 
 ### 資料備份（iPhone）
 
@@ -84,7 +86,7 @@ package、iOS Bundle Identifier）。
 - **匯出**：產生 `body_lab_backup_日期.json`，分享選單選「儲存到檔案 → iCloud Drive」
   （或 Google Drive 等任何地方）。
 - **從檔案匯入**：從「檔案」App 選備份檔，確認後**取代**目前的飲食紀錄、一鍵項目、打勾、
-  階段與個人資料；身體組成與活動消耗不在備份內，會從 Apple 健康重新同步。
+  階段、個人資料與自訂消耗；身體組成與活動消耗不在備份內，會從 Apple 健康重新同步。
 - iPhone 開著 iCloud 備份時，App 資料庫本身也會一起備份（換新手機從 iCloud 還原就會回來），
   但刪掉 App 重裝不會，所以建議定期匯出。
 - 正式版只在 iOS 顯示；debug 版的 Android 也顯示，方便在模擬器測試。
@@ -155,6 +157,7 @@ body_lab/
     data/profile_repository.dart  個人資料（只有一列）
     data/activity_repository.dart 每日活動消耗快取、同步
     data/backup_service.dart      JSON 備份匯出 / 匯入（帶格式版本）
+    data/extra_burn_repository.dart 自訂消耗
     analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食、打勾、階段）
     analysis/overlay_chart.dart   身體組成變化圖資料、區間摘要
     analysis/intake_chart.dart    攝取圖資料（熱量 / 蛋白質 / 脂肪 7 日平均、肌酸、消耗）
@@ -169,6 +172,7 @@ body_lab/
     screens/food_entry_sheet.dart 自訂輸入 / 編輯飲食
     screens/templates_screen.dart 一鍵 +1 項目
     screens/profile_screen.dart   個人資料與每日消耗設定
+    screens/extra_burn_sheet.dart 自訂消耗（新增 / 刪除）
     screens/trend_screen.dart     疊加趨勢圖（fl_chart）與區間摘要
     screens/analysis_screen.dart  分析頁（實驗階段 / 組合分析）
     screens/phases_screen.dart    實驗階段列表、詳情、比較、表單
@@ -187,7 +191,7 @@ body_lab/
 
 ## 本地資料庫（drift）
 
-資料庫檔案在 App 文件目錄下的 `body_lab.sqlite`，目前 schema v5。
+資料庫檔案在 App 文件目錄下的 `body_lab.sqlite`，目前 schema v6。
 
 - **健康資料快取** `daily_body_metrics`：每天一列。第一次同步抓 90 天，之後從快取最後一天
   往前 14 天重抓，並以重抓結果取代這段範圍（健康 App 裡刪掉的天也會消失）。
@@ -200,6 +204,7 @@ body_lab/
 - **實驗階段** `phases`（v3）：名稱、起訖日、假設、熱量 / 蛋白質目標、是否吃肌酸、心得。
 - **個人資料** `profiles`（v4，只有一列）：性別、出生年、身高、活動量、計算時體重、固定 TDEE，
   每日消耗算法 `energy_mode`（v5）。
+- **自訂消耗** `extra_burns`（v6）：日期、熱量、備註。
 - **活動消耗快取** `daily_activity`（v5）：每天一列。首次同步 90 天，之後從最後一天往前 3 天重抓
   （今天的消耗會持續增加）；讀到空資料時不動快取。
 

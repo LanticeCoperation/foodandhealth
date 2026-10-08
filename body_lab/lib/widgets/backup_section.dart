@@ -90,7 +90,7 @@ class _BackupSectionState extends State<BackupSection> {
           '${exportedAt == null ? '' : '備份時間：${exportedAt.year}/${exportedAt.month}/${exportedAt.day} '
                     '${exportedAt.hour.toString().padLeft(2, '0')}:${exportedAt.minute.toString().padLeft(2, '0')}\n'}'
           '內容：$counts\n\n'
-          '目前的飲食紀錄、一鍵項目、打勾、階段與個人資料都會被取代。'
+          '目前的飲食紀錄、一鍵項目、打勾、階段、個人資料與自訂消耗都會被取代。'
           '身體組成與活動消耗不受影響（會從 Apple 健康重新同步）。',
         ),
         actions: [
@@ -166,7 +166,7 @@ class _BackupSectionState extends State<BackupSection> {
               ],
             ),
             const SizedBox(height: 8),
-            Text('備份內容：飲食紀錄、一鍵項目、肌酸打勾、實驗階段、個人資料。', style: muted),
+            Text('備份內容：飲食紀錄、一鍵項目、肌酸打勾、實驗階段、個人資料、自訂消耗。', style: muted),
           ],
         ),
       ),

@@ -6,6 +6,7 @@ import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
 import '../analysis/tdee.dart';
 import '../data/check_repository.dart';
+import '../data/extra_burn_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
@@ -98,6 +99,7 @@ Future<void> seedDemoData({
   required PhaseRepository phases,
   required ProfileRepository profile,
   required ActivityRepository activity,
+  required ExtraBurnRepository extraBurns,
   DateTime? today,
 }) async {
   final end = dateOnly(today ?? DateTime.now());
@@ -266,6 +268,11 @@ Future<void> seedDemoData({
       final workout = const {1, 3, 5}.contains(day.weekday) ? 280 : 0;
       final noise = (activityRandom.nextDouble() - 0.5) * 240;
       active[day] = (420 + workout + noise).roundToDouble();
+    }
+
+    // 週六沒戴錶去爬山，手動加自訂消耗
+    if (day.weekday == DateTime.saturday) {
+      await extraBurns.add(day, 350, note: '爬山');
     }
 
     if (p.creatine && random.nextDouble() > 0.1) {

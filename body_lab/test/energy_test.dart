@@ -4,6 +4,7 @@ import 'package:body_lab/analysis/energy.dart';
 import 'package:body_lab/analysis/overlay_chart.dart';
 import 'package:body_lab/data/activity_repository.dart';
 import 'package:body_lab/data/database.dart';
+import 'package:body_lab/data/extra_burn_repository.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
 import 'package:body_lab/services/health_service.dart';
@@ -99,6 +100,34 @@ void main() {
       expect(e.fromWatch(450), isTrue);
       expect(e.expenditure(null), 2760);
       expect(e.fromWatch(null), isFalse);
+    });
+
+    test('自訂消耗加在兩種模式上', () async {
+      final watch = await model(EnergyMode.watch);
+      expect(watch.expenditure(450, extraKcal: 300), 2530);
+      expect(watch.expenditure(null, extraKcal: 300), 3060);
+      final fixed = await model(EnergyMode.fixed);
+      expect(fixed.expenditure(450, extraKcal: 300), 3060);
+    });
+
+    test('自訂消耗：同一天多筆加總、刪除、復原', () async {
+      final repo = ExtraBurnRepository(db);
+      final day = DateTime(2026, 10, 8);
+      final id = await repo.add(day, 300, note: '游泳');
+      await repo.add(day, 150);
+      await repo.add(DateTime(2026, 10, 1), 200);
+
+      expect(await repo.since(DateTime(2026, 10, 2)), {day: 450.0});
+      final items = await repo.watchDay(day).first;
+      expect(items.map((b) => (b.kcal, b.note)), [
+        (300.0, '游泳'),
+        (150.0, null),
+      ]);
+
+      await repo.delete(id);
+      expect(await repo.since(day), {day: 150.0});
+      await repo.restore(items.first);
+      expect(await repo.since(day), {day: 450.0});
     });
 
     test('固定模式：一律 TDEE', () async {

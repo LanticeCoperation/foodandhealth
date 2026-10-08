@@ -71,7 +71,8 @@ class _TrendScreenState extends State<TrendScreen> {
   }
 
   Widget _buildBody(DailyDataset ds, EnergyModel? energy) {
-    double? expenditureOf(DayRecord d) => energy?.expenditure(d.activeKcal);
+    double? expenditureOf(DayRecord d) =>
+        energy?.expenditure(d.activeKcal, extraKcal: d.extraKcal);
     final overlay = buildOverlay(
       ds,
       series: _series,

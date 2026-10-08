@@ -7,6 +7,7 @@ import '../analysis/energy.dart';
 import '../analysis/tdee.dart';
 import '../data/activity_repository.dart';
 import '../data/check_repository.dart';
+import '../data/extra_burn_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
@@ -16,6 +17,7 @@ import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/undo_snackbar.dart';
+import 'extra_burn_sheet.dart';
 import 'food_entry_sheet.dart';
 import 'templates_screen.dart';
 
@@ -29,6 +31,7 @@ class FoodScreen extends StatefulWidget {
     required this.phases,
     required this.profile,
     this.activity,
+    this.extraBurns,
   });
 
   final FoodRepository repository;
@@ -37,6 +40,9 @@ class FoodScreen extends StatefulWidget {
   final PhaseRepository phases;
   final ProfileRepository profile;
   final ActivityRepository? activity;
+
+  /// 自訂消耗（手錶沒記錄到的活動）。
+  final ExtraBurnRepository? extraBurns;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -48,6 +54,7 @@ class _FoodScreenState extends State<FoodScreen> {
   late Stream<Set<CheckItem>> _checks;
   late Stream<Phase?> _phase;
   late Stream<double?> _active;
+  late Stream<List<ExtraBurn>> _extra;
   late final Stream<List<MealTemplate>> _pinned;
   late final Stream<Profile?> _profile;
 
@@ -70,6 +77,7 @@ class _FoodScreenState extends State<FoodScreen> {
     _checks = widget.checks.watchDay(day);
     _phase = widget.phases.watchOn(day);
     _active = widget.activity?.watchDay(day) ?? Stream.value(null);
+    _extra = widget.extraBurns?.watchDay(day) ?? Stream.value(const []);
   }
 
   bool get _isToday => _day == dateOnly(DateTime.now());
@@ -203,15 +211,28 @@ class _FoodScreenState extends State<FoodScreen> {
                   stream: _profile,
                   builder: (context, profileSnap) => StreamBuilder<double?>(
                     stream: _active,
-                    builder: (context, activeSnap) => _DaySummaryCard(
-                      totals: DayTotals.of(entries),
-                      phase: phaseSnap.data,
-                      energy: profileSnap.data == null
-                          ? null
-                          : EnergyModel(profileSnap.data!),
-                      activeKcal: activeSnap.data,
-                      isToday: _isToday,
-                    ),
+                    builder: (context, activeSnap) =>
+                        StreamBuilder<List<ExtraBurn>>(
+                          stream: _extra,
+                          builder: (context, extraSnap) => _DaySummaryCard(
+                            totals: DayTotals.of(entries),
+                            phase: phaseSnap.data,
+                            energy: profileSnap.data == null
+                                ? null
+                                : EnergyModel(profileSnap.data!),
+                            activeKcal: activeSnap.data,
+                            extraKcal: (extraSnap.data ?? const [])
+                                .fold<double>(0, (s, b) => s + b.kcal),
+                            isToday: _isToday,
+                            onExtraBurns: widget.extraBurns == null
+                                ? null
+                                : () => showExtraBurnSheet(
+                                    context,
+                                    repository: widget.extraBurns!,
+                                    day: _day,
+                                  ),
+                          ),
+                        ),
                   ),
                 ),
               ),
@@ -438,7 +459,9 @@ class _DaySummaryCard extends StatelessWidget {
     this.phase,
     this.energy,
     this.activeKcal,
+    this.extraKcal = 0,
     this.isToday = false,
+    this.onExtraBurns,
   });
 
   final DayTotals totals;
@@ -446,8 +469,14 @@ class _DaySummaryCard extends StatelessWidget {
   final EnergyModel? energy;
   final double? activeKcal;
 
+  /// 當天自訂消耗的總和。
+  final double extraKcal;
+
   /// 今天的活動消耗還會增加，標示「到目前」。
   final bool isToday;
+
+  /// 開啟自訂消耗；null 時不顯示按鈕。
+  final VoidCallback? onExtraBurns;
 
   @override
   Widget build(BuildContext context) {
@@ -455,7 +484,7 @@ class _DaySummaryCard extends StatelessWidget {
     final palette = context.palette;
     final p = phase;
     final e = energy;
-    final burned = e?.expenditure(activeKcal);
+    final burned = e?.expenditure(activeKcal, extraKcal: extraKcal);
     final kcalTarget = p?.targetKcal ?? burned;
     final proteinTarget = p?.targetProteinG;
     final muted = theme.textTheme.bodySmall?.copyWith(
@@ -573,15 +602,21 @@ class _DaySummaryCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '${e.usesWatch ? '消耗' : 'TDEE'} ${burned.round()} kcal'
+                          '${e.usesWatch || extraKcal > 0 ? '消耗' : 'TDEE'} ${burned.round()} kcal'
                           '${e.fromWatch(activeKcal) && isToday ? '（到目前）' : ''}',
                           style: theme.textTheme.bodyMedium,
                         ),
-                        if (e.usesWatch)
+                        if (e.usesWatch || extraKcal > 0)
                           Text(
-                            e.fromWatch(activeKcal)
-                                ? '基礎 ${e.bmr.round()} + 活動 ${activeKcal!.round()}'
-                                : '沒有手錶資料，用 TDEE',
+                            [
+                              if (e.fromWatch(activeKcal))
+                                '基礎 ${e.bmr.round()} + 活動 ${activeKcal!.round()}'
+                              else if (e.usesWatch)
+                                'TDEE ${e.profile.tdeeKcal.round()}（沒有手錶資料）'
+                              else
+                                'TDEE ${e.profile.tdeeKcal.round()}',
+                              if (extraKcal > 0) '自訂 ${extraKcal.round()}',
+                            ].join(' + '),
                             style: muted,
                           ),
                       ],
@@ -593,6 +628,19 @@ class _DaySummaryCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (onExtraBurns != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: onExtraBurns,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: Text(extraKcal > 0 ? '自訂消耗（編輯）' : '自訂消耗'),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                    ),
+                  ),
+                ),
             ],
             if (totals.missingKcal > 0 || totals.fatG > 0) ...[
               const SizedBox(height: 6),

@@ -3670,6 +3670,345 @@ class DailyActivityCompanion extends UpdateCompanion<DailyActivityRow> {
   }
 }
 
+class $ExtraBurnsTable extends ExtraBurns
+    with TableInfo<$ExtraBurnsTable, ExtraBurn> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ExtraBurnsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'PRIMARY KEY AUTOINCREMENT',
+    ),
+  );
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<String> day = GeneratedColumn<String>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _kcalMeta = const VerificationMeta('kcal');
+  @override
+  late final GeneratedColumn<double> kcal = GeneratedColumn<double>(
+    'kcal',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, day, kcal, note, createdAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'extra_burns';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<ExtraBurn> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('day')) {
+      context.handle(
+        _dayMeta,
+        day.isAcceptableOrUnknown(data['day']!, _dayMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_dayMeta);
+    }
+    if (data.containsKey('kcal')) {
+      context.handle(
+        _kcalMeta,
+        kcal.isAcceptableOrUnknown(data['kcal']!, _kcalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_kcalMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(
+        _noteMeta,
+        note.isAcceptableOrUnknown(data['note']!, _noteMeta),
+      );
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  ExtraBurn map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return ExtraBurn(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      day: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}day'],
+      )!,
+      kcal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}kcal'],
+      )!,
+      note: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}note'],
+      ),
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}created_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ExtraBurnsTable createAlias(String alias) {
+    return $ExtraBurnsTable(attachedDatabase, alias);
+  }
+}
+
+class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
+  final int id;
+
+  /// 當地日期 yyyy-MM-dd。
+  final String day;
+  final double kcal;
+  final String? note;
+  final DateTime createdAt;
+  const ExtraBurn({
+    required this.id,
+    required this.day,
+    required this.kcal,
+    this.note,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['day'] = Variable<String>(day);
+    map['kcal'] = Variable<double>(kcal);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  ExtraBurnsCompanion toCompanion(bool nullToAbsent) {
+    return ExtraBurnsCompanion(
+      id: Value(id),
+      day: Value(day),
+      kcal: Value(kcal),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory ExtraBurn.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return ExtraBurn(
+      id: serializer.fromJson<int>(json['id']),
+      day: serializer.fromJson<String>(json['day']),
+      kcal: serializer.fromJson<double>(json['kcal']),
+      note: serializer.fromJson<String?>(json['note']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'day': serializer.toJson<String>(day),
+      'kcal': serializer.toJson<double>(kcal),
+      'note': serializer.toJson<String?>(note),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  ExtraBurn copyWith({
+    int? id,
+    String? day,
+    double? kcal,
+    Value<String?> note = const Value.absent(),
+    DateTime? createdAt,
+  }) => ExtraBurn(
+    id: id ?? this.id,
+    day: day ?? this.day,
+    kcal: kcal ?? this.kcal,
+    note: note.present ? note.value : this.note,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  ExtraBurn copyWithCompanion(ExtraBurnsCompanion data) {
+    return ExtraBurn(
+      id: data.id.present ? data.id.value : this.id,
+      day: data.day.present ? data.day.value : this.day,
+      kcal: data.kcal.present ? data.kcal.value : this.kcal,
+      note: data.note.present ? data.note.value : this.note,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExtraBurn(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('kcal: $kcal, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, day, kcal, note, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is ExtraBurn &&
+          other.id == this.id &&
+          other.day == this.day &&
+          other.kcal == this.kcal &&
+          other.note == this.note &&
+          other.createdAt == this.createdAt);
+}
+
+class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
+  final Value<int> id;
+  final Value<String> day;
+  final Value<double> kcal;
+  final Value<String?> note;
+  final Value<DateTime> createdAt;
+  const ExtraBurnsCompanion({
+    this.id = const Value.absent(),
+    this.day = const Value.absent(),
+    this.kcal = const Value.absent(),
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  ExtraBurnsCompanion.insert({
+    this.id = const Value.absent(),
+    required String day,
+    required double kcal,
+    this.note = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : day = Value(day),
+       kcal = Value(kcal);
+  static Insertable<ExtraBurn> custom({
+    Expression<int>? id,
+    Expression<String>? day,
+    Expression<double>? kcal,
+    Expression<String>? note,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (day != null) 'day': day,
+      if (kcal != null) 'kcal': kcal,
+      if (note != null) 'note': note,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  ExtraBurnsCompanion copyWith({
+    Value<int>? id,
+    Value<String>? day,
+    Value<double>? kcal,
+    Value<String?>? note,
+    Value<DateTime>? createdAt,
+  }) {
+    return ExtraBurnsCompanion(
+      id: id ?? this.id,
+      day: day ?? this.day,
+      kcal: kcal ?? this.kcal,
+      note: note ?? this.note,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (day.present) {
+      map['day'] = Variable<String>(day.value);
+    }
+    if (kcal.present) {
+      map['kcal'] = Variable<double>(kcal.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ExtraBurnsCompanion(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('kcal: $kcal, ')
+          ..write('note: $note, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -3682,6 +4021,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $PhasesTable phases = $PhasesTable(this);
   late final $ProfilesTable profiles = $ProfilesTable(this);
   late final $DailyActivityTable dailyActivity = $DailyActivityTable(this);
+  late final $ExtraBurnsTable extraBurns = $ExtraBurnsTable(this);
   late final Index foodEntriesEatenAt = Index(
     'food_entries_eaten_at',
     'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
@@ -3698,6 +4038,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     phases,
     profiles,
     dailyActivity,
+    extraBurns,
     foodEntriesEatenAt,
   ];
 }
@@ -5589,6 +5930,204 @@ typedef $$DailyActivityTableProcessedTableManager =
       DailyActivityRow,
       PrefetchHooks Function()
     >;
+typedef $$ExtraBurnsTableCreateCompanionBuilder = ExtraBurnsCompanion Function({
+  Value<int> id,
+  required String day,
+  required double kcal,
+  Value<String?> note,
+  Value<DateTime> createdAt,
+});
+typedef $$ExtraBurnsTableUpdateCompanionBuilder = ExtraBurnsCompanion Function({
+  Value<int> id,
+  Value<String> day,
+  Value<double> kcal,
+  Value<String?> note,
+  Value<DateTime> createdAt,
+});
+
+class $$ExtraBurnsTableFilterComposer
+    extends Composer<_$AppDatabase, $ExtraBurnsTable> {
+  $$ExtraBurnsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get kcal => $composableBuilder(
+    column: $table.kcal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ExtraBurnsTableOrderingComposer
+    extends Composer<_$AppDatabase, $ExtraBurnsTable> {
+  $$ExtraBurnsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get day => $composableBuilder(
+    column: $table.day,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get kcal => $composableBuilder(
+    column: $table.kcal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get note => $composableBuilder(
+    column: $table.note,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ExtraBurnsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ExtraBurnsTable> {
+  $$ExtraBurnsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get day =>
+      $composableBuilder(column: $table.day, builder: (column) => column);
+
+  GeneratedColumn<double> get kcal =>
+      $composableBuilder(column: $table.kcal, builder: (column) => column);
+
+  GeneratedColumn<String> get note =>
+      $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+}
+
+class $$ExtraBurnsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ExtraBurnsTable,
+          ExtraBurn,
+          $$ExtraBurnsTableFilterComposer,
+          $$ExtraBurnsTableOrderingComposer,
+          $$ExtraBurnsTableAnnotationComposer,
+          $$ExtraBurnsTableCreateCompanionBuilder,
+          $$ExtraBurnsTableUpdateCompanionBuilder,
+          (
+            ExtraBurn,
+            BaseReferences<_$AppDatabase, $ExtraBurnsTable, ExtraBurn>,
+          ),
+          ExtraBurn,
+          PrefetchHooks Function()
+        > {
+  $$ExtraBurnsTableTableManager(_$AppDatabase db, $ExtraBurnsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ExtraBurnsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ExtraBurnsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ExtraBurnsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> day = const Value.absent(),
+                Value<double> kcal = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => ExtraBurnsCompanion(
+                id: id,
+                day: day,
+                kcal: kcal,
+                note: note,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String day,
+                required double kcal,
+                Value<String?> note = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => ExtraBurnsCompanion.insert(
+                id: id,
+                day: day,
+                kcal: kcal,
+                note: note,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ExtraBurnsTable, ExtraBurn>(table),
+                  BaseReferences<_$AppDatabase, $ExtraBurnsTable, ExtraBurn>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ExtraBurnsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ExtraBurnsTable,
+      ExtraBurn,
+      $$ExtraBurnsTableFilterComposer,
+      $$ExtraBurnsTableOrderingComposer,
+      $$ExtraBurnsTableAnnotationComposer,
+      $$ExtraBurnsTableCreateCompanionBuilder,
+      $$ExtraBurnsTableUpdateCompanionBuilder,
+      (ExtraBurn, BaseReferences<_$AppDatabase, $ExtraBurnsTable, ExtraBurn>),
+      ExtraBurn,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -5607,4 +6146,6 @@ class $AppDatabaseManager {
       $$ProfilesTableTableManager(_db, _db.profiles);
   $$DailyActivityTableTableManager get dailyActivity =>
       $$DailyActivityTableTableManager(_db, _db.dailyActivity);
+  $$ExtraBurnsTableTableManager get extraBurns =>
+      $$ExtraBurnsTableTableManager(_db, _db.extraBurns);
 }

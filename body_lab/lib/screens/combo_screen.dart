@@ -56,7 +56,7 @@ class _ComboScreenState extends State<ComboScreen> {
       ds,
       expenditureOf: energy == null
           ? null
-          : (d) => energy.expenditure(d.activeKcal),
+          : (d) => energy.expenditure(d.activeKcal, extraKcal: d.extraKcal),
     );
     final heatmap = buildHeatmap(samples, x: _x, y: _y, outcome: _outcome);
     return ListView(

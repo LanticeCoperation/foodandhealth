@@ -447,7 +447,8 @@ class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
   Widget _buildBody(Phase p, DailyDataset ds, EnergyModel? energy) {
     final theme = Theme.of(context);
     final today = dateOnly(DateTime.now());
-    double? expenditureOf(DayRecord d) => energy?.expenditure(d.activeKcal);
+    double? expenditureOf(DayRecord d) =>
+        energy?.expenditure(d.activeKcal, extraKcal: d.extraKcal);
     final s = summarizePhase(
       p,
       ds,

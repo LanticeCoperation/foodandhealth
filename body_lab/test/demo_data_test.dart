@@ -5,6 +5,7 @@ import 'package:body_lab/data/activity_repository.dart';
 import 'package:body_lab/data/body_repository.dart';
 import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
+import 'package:body_lab/data/extra_burn_repository.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
@@ -77,6 +78,7 @@ void main() {
       phases: phases,
       profile: profile,
       activity: activity,
+      extraBurns: ExtraBurnRepository(db),
       today: today,
     );
   });

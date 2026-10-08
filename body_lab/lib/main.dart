@@ -7,6 +7,7 @@ import 'data/activity_repository.dart';
 import 'data/backup_service.dart';
 import 'data/body_repository.dart';
 import 'data/check_repository.dart';
+import 'data/extra_burn_repository.dart';
 import 'data/database.dart';
 import 'data/food_repository.dart';
 import 'data/phase_repository.dart';
@@ -35,7 +36,8 @@ class AppServices {
       phases = PhaseRepository(db),
       profile = ProfileRepository(db),
       activity = ActivityRepository(db, health),
-      backup = BackupService(db) {
+      backup = BackupService(db),
+      extraBurns = ExtraBurnRepository(db) {
     dataset = DatasetRepository(
       db,
       body,
@@ -43,6 +45,7 @@ class AppServices {
       checks,
       phases,
       activity: activity,
+      extraBurns: extraBurns,
     );
   }
 
@@ -56,6 +59,7 @@ class AppServices {
   final ProfileRepository profile;
   final ActivityRepository activity;
   final BackupService backup;
+  final ExtraBurnRepository extraBurns;
   late final DatasetRepository dataset;
 }
 
@@ -119,6 +123,7 @@ class _HomeShellState extends State<_HomeShell> {
               phases: s.phases,
               profile: s.profile,
               activity: s.activity,
+              extraBurns: s.extraBurns,
             ),
         ],
       ),
@@ -129,6 +134,7 @@ class _HomeShellState extends State<_HomeShell> {
         phases: s.phases,
         profile: s.profile,
         activity: s.activity,
+        extraBurns: s.extraBurns,
       ),
       TrendScreen(dataset: s.dataset, profile: s.profile),
       AnalysisScreen(phases: s.phases, dataset: s.dataset, profile: s.profile),
