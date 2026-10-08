@@ -6,7 +6,7 @@
     <!-- 讀取超過 30 天的歷史資料 -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY"/>
     <application
-        android:label="body_lab"
+        android:label="Body Lab"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
