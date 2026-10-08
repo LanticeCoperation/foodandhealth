@@ -5,15 +5,18 @@ import 'package:flutter/material.dart';
 
 import '../analysis/daily_dataset.dart';
 import '../analysis/energy.dart';
+import '../analysis/intake_chart.dart';
 import '../analysis/tdee.dart' show formatBalance;
 import '../analysis/overlay_chart.dart';
 import '../data/database.dart';
 import '../data/profile_repository.dart';
 import '../widgets/nutrition_fields.dart';
 import '../theme/app_theme.dart';
+import '../widgets/intake_chart.dart';
 import '../widgets/phase_style.dart';
 
-/// 疊加趨勢圖：身體組成 7 日平均的變化 + 每日攝取 + 肌酸，下方是區間摘要。
+/// 趨勢：上圖是身體組成（體重、體脂率…）的變化，下圖是攝取（熱量、蛋白質、脂肪、
+/// 肌酸、每日消耗），兩張圖共用日期軸上下對齊；最下方是區間摘要。
 class TrendScreen extends StatefulWidget {
   const TrendScreen({super.key, required this.dataset, required this.profile});
 
@@ -30,8 +33,7 @@ class _TrendScreenState extends State<TrendScreen> {
   int _range = 30;
   late Stream<DailyDataset> _stream;
   late final Stream<Profile?> _profile;
-  Set<BodySeries> _series = BodySeries.values.toSet();
-  IntakeSeries _intake = IntakeSeries.kcal;
+  Set<BodySeries> _series = {BodySeries.weight, BodySeries.bodyFatPercent};
 
   @override
   void initState() {
@@ -73,34 +75,70 @@ class _TrendScreenState extends State<TrendScreen> {
     final overlay = buildOverlay(
       ds,
       series: _series,
-      intake: _intake,
+      intake: IntakeSeries.none,
+    );
+    final intake = buildIntakeChart(
+      ds,
       expenditureOf: energy == null ? null : expenditureOf,
     );
+    final theme = Theme.of(context);
+    final annotations = phaseAnnotations(context, overlay);
+
+    Widget section(String title, Widget chart, Widget legend) => Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 8, bottom: 8),
+              child: Text(title, style: theme.textTheme.titleSmall),
+            ),
+            chart,
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: legend,
+            ),
+          ],
+        ),
+      ),
+    );
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
       children: [
         _buildControls(),
-        const SizedBox(height: 12),
-        SizedBox(
-          height: 300,
-          child: overlay.hasBodyData || overlay.hasIntakeData
-              ? OverlayChart(
-                  data: overlay,
-                  intake: _intake,
-                  rangeAnnotations: phaseAnnotations(context, overlay),
-                )
-              : const Center(child: Text('這段期間沒有資料')),
+        const SizedBox(height: 8),
+        section(
+          '身體',
+          SizedBox(
+            height: 240,
+            child: overlay.hasBodyData
+                ? OverlayChart(
+                    data: overlay,
+                    intake: IntakeSeries.none,
+                    rangeAnnotations: annotations,
+                    showCreatine: false,
+                  )
+                : const Center(child: Text('這段期間沒有身體資料')),
+          ),
+          _Legend(series: _series, overlay: overlay),
+        ),
+        section(
+          '攝取',
+          SizedBox(
+            height: 220,
+            child: intake.isEmpty
+                ? const Center(child: Text('這段期間沒有飲食紀錄'))
+                : IntakeChart(data: intake, rangeAnnotations: annotations),
+          ),
+          IntakeLegend(
+            hasExpenditure: intake.expenditure.isNotEmpty,
+            hasFat: intake.fat.isNotEmpty,
+          ),
         ),
         const SizedBox(height: 8),
-        _Legend(
-          series: _series,
-          intake: _intake,
-          overlay: overlay,
-          referenceLabel: overlay.expenditure.isEmpty
-              ? null
-              : (energy!.usesWatch ? '每日消耗' : 'TDEE'),
-        ),
-        const SizedBox(height: 16),
         SummaryCard(
           summary: summarize(
             ds.days,
@@ -140,21 +178,6 @@ class _TrendScreenState extends State<TrendScreen> {
                   v ? _series.add(s) : _series.remove(s);
                 }),
               ),
-            const SizedBox(width: 8),
-            DropdownButton<IntakeSeries>(
-              value: _intake,
-              underline: const SizedBox.shrink(),
-              items: [
-                for (final i in IntakeSeries.values)
-                  DropdownMenuItem(
-                    value: i,
-                    child: Text(
-                      i == IntakeSeries.none ? '攝取：不顯示' : '攝取：${i.label}',
-                    ),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _intake = v!),
-            ),
           ],
         ),
       ],
@@ -165,6 +188,7 @@ class _TrendScreenState extends State<TrendScreen> {
 /// 各線顏色（來自主題的 AppPalette，深淺色模式各一套）。
 Color seriesColor(BuildContext context, BodySeries s) => switch (s) {
   BodySeries.weight => context.palette.weight,
+  BodySeries.bodyFatPercent => context.palette.bodyFat,
   BodySeries.fatMass => context.palette.fatMass,
   BodySeries.leanMass => context.palette.leanMass,
 };
@@ -181,6 +205,7 @@ class OverlayChart extends StatelessWidget {
     this.rangeAnnotations = const [],
     this.intakeReference,
     this.intakeReferenceLabel,
+    this.showCreatine = true,
   });
 
   final OverlayData data;
@@ -192,6 +217,9 @@ class OverlayChart extends StatelessWidget {
   /// 攝取量的參考虛線（例如 TDEE、階段目標），單位同 [intake]。
   final double? intakeReference;
   final String? intakeReferenceLabel;
+
+  /// 趨勢頁把肌酸畫在攝取圖，身體圖就不畫。
+  final bool showCreatine;
 
   @override
   Widget build(BuildContext context) {
@@ -268,7 +296,7 @@ class OverlayChart extends StatelessWidget {
       labels.add(
         (s) => base == null
             ? null
-            : '${series.label} ${(base + s.y).toStringAsFixed(1)} kg '
+            : '${series.label} ${(base + s.y).toStringAsFixed(1)} ${series.unit} '
                   '(${_signed(s.y)})',
       );
     }
@@ -293,7 +321,7 @@ class OverlayChart extends StatelessWidget {
       labels.add((s) => '當天 ${(base + s.y).toStringAsFixed(1)} kg');
     }
 
-    if (o.creatineX.isNotEmpty) {
+    if (showCreatine && o.creatineX.isNotEmpty) {
       final color = creatineColor(context);
       bars.add(
         LineChartBarData(
@@ -438,19 +466,10 @@ class OverlayChart extends StatelessWidget {
 }
 
 class _Legend extends StatelessWidget {
-  const _Legend({
-    required this.series,
-    required this.intake,
-    required this.overlay,
-    this.referenceLabel,
-  });
+  const _Legend({required this.series, required this.overlay});
 
   final Set<BodySeries> series;
-  final IntakeSeries intake;
   final OverlayData overlay;
-
-  /// 攝取量參考虛線的名稱（例如 TDEE）。
-  final String? referenceLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -470,12 +489,6 @@ class _Legend extends StatelessWidget {
       children: [
         for (final s in BodySeries.values.where(series.contains))
           item(seriesColor(context, s), '${s.label} 7 日平均'),
-        if (intake != IntakeSeries.none)
-          item(
-            intakeColor(context),
-            '每日${intake.label}（灰柱${referenceLabel == null ? '' : '，虛線 = $referenceLabel'}）',
-          ),
-        item(creatineColor(context), '肌酸', square: true),
         for (final p in {
           for (final s in overlay.phaseSpans) s.phase.id: s.phase,
         }.values)
@@ -484,7 +497,7 @@ class _Legend extends StatelessWidget {
             '階段：${p.name}',
             square: true,
           ),
-        Text('左軸：相對區間起點的變化 kg', style: small),
+        Text('左軸：相對區間起點的變化（kg；體脂率為百分點）', style: small),
       ],
     );
   }
@@ -526,11 +539,18 @@ class SummaryCard extends StatelessWidget {
             Text(title, style: theme.textTheme.titleMedium),
             const SizedBox(height: 8),
             row('體重變化（7 日平均）', kg(s.weightChange)),
+            row(
+              '體脂率變化',
+              s.bodyFatChange == null
+                  ? '—'
+                  : '${s.bodyFatChange! > 0 ? '+' : ''}${s.bodyFatChange!.toStringAsFixed(1)} %',
+            ),
             row('脂肪重變化', kg(s.fatMassChange)),
             row('除脂體重變化', kg(s.leanMassChange)),
             const Divider(),
             row('平均熱量', num(s.avgKcal, 'kcal')),
             row('平均蛋白質', num(s.avgProteinG, 'g')),
+            if (s.avgFatG != null) row('平均脂肪', num(s.avgFatG, 'g')),
             if (s.avgBalance != null)
               row('平均熱量差（攝取 − 消耗）', formatBalance(s.avgBalance!)),
             const Divider(),

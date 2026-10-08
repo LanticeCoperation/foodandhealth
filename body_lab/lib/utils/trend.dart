@@ -73,12 +73,16 @@ class RollingAverage {
   const RollingAverage({
     required this.windowCount,
     required this.weight,
+    this.bodyFatPercent,
     this.fatMass,
     this.leanMass,
   });
 
   final int windowCount;
   final double weight;
+
+  /// 0–100。
+  final double? bodyFatPercent;
   final double? fatMass;
   final double? leanMass;
 }
@@ -108,6 +112,7 @@ Map<DateTime, RollingAverage> rollingAverages(
     result[day] = RollingAverage(
       windowCount: window.length,
       weight: _average(window.map((m) => m.weightKg))!,
+      bodyFatPercent: _average(window.map((m) => m.bodyFatPercent)),
       fatMass: _average(window.map((m) => m.fatMassKg)),
       leanMass: _average(window.map((m) => m.leanMassKg)),
     );

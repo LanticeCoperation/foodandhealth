@@ -6,15 +6,20 @@ import '../data/database.dart';
 import 'daily_dataset.dart';
 
 enum BodySeries {
-  weight('體重'),
-  fatMass('脂肪重'),
-  leanMass('除脂體重');
+  weight('體重', 'kg'),
+  bodyFatPercent('體脂率', '%'),
+  fatMass('脂肪重', 'kg'),
+  leanMass('除脂體重', 'kg');
 
-  const BodySeries(this.label);
+  const BodySeries(this.label, this.unit);
   final String label;
+
+  /// 體脂率畫的是百分點的變化，和 kg 放在同一個左軸。
+  final String unit;
 
   double? averageOf(DayRecord d) => switch (this) {
     weight => d.average?.weight,
+    bodyFatPercent => d.average?.bodyFatPercent,
     fatMass => d.average?.fatMass,
     leanMass => d.average?.leanMass,
   };
@@ -204,10 +209,12 @@ class RangeSummary {
     required this.foodDays,
     required this.creatineDays,
     this.weightChange,
+    this.bodyFatChange,
     this.fatMassChange,
     this.leanMassChange,
     this.avgKcal,
     this.avgProteinG,
+    this.avgFatG,
     this.avgBalance,
   });
 
@@ -216,12 +223,18 @@ class RangeSummary {
   final int foodDays;
   final int creatineDays;
   final double? weightChange;
+
+  /// 體脂率變化（百分點）。
+  final double? bodyFatChange;
   final double? fatMassChange;
   final double? leanMassChange;
 
   /// 只平均有飲食紀錄的天。
   final double? avgKcal;
   final double? avgProteinG;
+
+  /// 只平均有填脂肪的天。
+  final double? avgFatG;
 
   /// 有飲食紀錄的天，平均（攝取 − 消耗）；負數是赤字。
   final double? avgBalance;
@@ -254,10 +267,14 @@ RangeSummary summarize(
         .where((d) => d.checks.contains(CheckItem.creatine))
         .length,
     weightChange: change(BodySeries.weight),
+    bodyFatChange: change(BodySeries.bodyFatPercent),
     fatMassChange: change(BodySeries.fatMass),
     leanMassChange: change(BodySeries.leanMass),
     avgKcal: avg((d) => d.food?.kcal),
     avgProteinG: avg((d) => d.food?.proteinG),
+    avgFatG: avg(
+      (d) => d.food == null || d.food!.fatG == 0 ? null : d.food!.fatG,
+    ),
     avgBalance: expenditureOf == null
         ? null
         : avg((d) {

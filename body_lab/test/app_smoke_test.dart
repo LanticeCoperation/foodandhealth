@@ -41,7 +41,7 @@ void main() {
 
     await tester.tap(find.text('趨勢'));
     await settle();
-    expect(find.text('最近 30 天'), findsOneWidget);
+    expect(find.text('攝取'), findsOneWidget);
 
     await tester.tap(find.text('分析'));
     await settle();

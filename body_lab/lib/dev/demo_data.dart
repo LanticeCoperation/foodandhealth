@@ -30,8 +30,8 @@ class _Period {
   final double fatPerDay;
   final double leanPerDay;
 
-  /// （餐別, 熱量, 蛋白質, 幾點吃）
-  final List<(MealType, double, double, int)> meals;
+  /// （餐別, 熱量, 蛋白質, 脂肪, 幾點吃）
+  final List<(MealType, double, double, double, int)> meals;
   final int powderScoops;
   final bool creatine;
 }
@@ -43,10 +43,10 @@ const _maintenance = _Period(
   creatine: false,
   powderScoops: 0,
   meals: [
-    (MealType.breakfast, 600, 17, 8),
-    (MealType.lunch, 850, 35, 12),
-    (MealType.snack, 200, 3, 15),
-    (MealType.dinner, 700, 35, 19),
+    (MealType.breakfast, 600, 17, 22, 8),
+    (MealType.lunch, 850, 35, 32, 12),
+    (MealType.snack, 200, 3, 9, 15),
+    (MealType.dinner, 700, 35, 28, 19),
   ],
 );
 
@@ -57,10 +57,10 @@ const _highProtein = _Period(
   creatine: true,
   powderScoops: 2,
   meals: [
-    (MealType.breakfast, 280, 38, 7),
-    (MealType.lunch, 850, 35, 12),
-    (MealType.snack, 200, 3, 15),
-    (MealType.dinner, 350, 52, 19),
+    (MealType.breakfast, 280, 38, 12, 7),
+    (MealType.lunch, 850, 35, 30, 12),
+    (MealType.snack, 200, 3, 1, 15),
+    (MealType.dinner, 350, 52, 12, 19),
   ],
 );
 
@@ -71,10 +71,10 @@ const _cut = _Period(
   creatine: true,
   powderScoops: 2,
   meals: [
-    (MealType.breakfast, 280, 38, 7),
-    (MealType.lunch, 350, 40, 12),
-    (MealType.snack, 100, 1, 15),
-    (MealType.dinner, 680, 40, 19),
+    (MealType.breakfast, 280, 38, 12, 7),
+    (MealType.lunch, 350, 40, 14, 12),
+    (MealType.snack, 100, 1, 0, 15),
+    (MealType.dinner, 680, 40, 26, 19),
   ],
 );
 
@@ -227,7 +227,9 @@ Future<void> seedDemoData({
     }
 
     if (random.nextDouble() > 0.15) {
-      for (final (meal, kcal, protein, hour) in p.meals) {
+      // 脂肪是選填，約 20% 的天沒填（獨立亂數，不影響其他資料）
+      final logFat = activityRandom.nextDouble() > 0.2;
+      for (final (meal, kcal, protein, fat, hour) in p.meals) {
         // 每餐熱量上下浮動約 15%，偶爾沒填蛋白質
         final factor = 1 + gaussian() * 0.15;
         await food.add(
@@ -242,6 +244,9 @@ Future<void> seedDemoData({
               random.nextDouble() < 0.1
                   ? null
                   : (protein * factor).roundToDouble(),
+            ),
+            fatG: Value(
+              logFat && fat > 0 ? (fat * factor).roundToDouble() : null,
             ),
           ),
         );

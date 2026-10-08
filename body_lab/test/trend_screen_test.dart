@@ -97,13 +97,22 @@ void main() {
     );
     await settle(tester);
 
-    expect(find.byType(LineChart), findsOneWidget);
+    expect(find.byType(LineChart), findsNWidgets(2)); // 身體 + 攝取
+    expect(find.text('攝取'), findsOneWidget);
+
+    // 摘要在兩張圖下面，捲過去再檢查
+    await tester.scrollUntilVisible(find.text('有吃肌酸'), 300);
+    await settle(tester);
     expect(find.text('最近 30 天'), findsOneWidget);
     expect(find.text('2000 kcal'), findsOneWidget); // 平均熱量
     expect(find.text('21 / 30 天'), findsOneWidget); // 有量體重
     expect(find.text('1 / 30 天'), findsOneWidget); // 肌酸
 
+    await tester.scrollUntilVisible(find.text('90 天'), -300);
+    await settle(tester);
     await tester.tap(find.text('90 天'));
+    await settle(tester);
+    await tester.scrollUntilVisible(find.text('有吃肌酸'), 300);
     await settle(tester);
     expect(find.text('最近 90 天'), findsOneWidget);
 

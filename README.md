@@ -100,11 +100,18 @@ package、iOS Bundle Identifier）。
 
 ### 趨勢
 
-- 左軸：體重 / 脂肪重 / 除脂體重的 7 日平均，相對區間第一天的變化（kg）。
-  三條線同一尺度，看得出體重下降是脂肪還是除脂體重。淡色點是當天實際量到的體重。
-- 下半部：每日熱量或蛋白質（灰柱）；顯示熱量時虛線是每日消耗，灰柱低於虛線就是赤字。
-- 底部紫色方塊：有吃肌酸的天；背景色塊：實驗階段。
-- 點圖表看當天數值；下方摘要是區間內的變化、平均攝取與平均熱量差（只算有紀錄的天）、紀錄天數。
+上下兩張圖共用日期軸，對照「吃了什麼」和「身體怎麼變」；背景色塊是實驗階段。
+
+- **身體**：7 日平均相對區間第一天的變化。預設顯示體重（kg）與**體脂率**（百分點），
+  脂肪重 / 除脂體重可另外打開。健康 App 不一定有肌肉量，體脂率最能反映組成變化。
+  淡色點是當天實際量到的體重。
+- **攝取**：
+  - 左軸 kcal：每日熱量（柱）、熱量 7 日平均（線）、每日消耗（虛線階梯，灰柱低於虛線就是赤字）
+  - 右軸 g：蛋白質與脂肪的每日值（點）與 7 日平均（線；脂肪是虛線），只算有填的天
+  - 底部紫色方塊：有吃肌酸的天
+  - 7 日平均要視窗內至少 3 天有紀錄才畫
+- 點圖表看當天數值；最下方摘要是區間內的體重 / 體脂率 / 脂肪重 / 除脂體重變化、
+  平均熱量 / 蛋白質 / 脂肪、平均熱量差與紀錄天數。
 
 ### 分析 → 實驗階段
 
@@ -148,7 +155,8 @@ body_lab/
     data/activity_repository.dart 每日活動消耗快取、同步
     data/backup_service.dart      JSON 備份匯出 / 匯入（帶格式版本）
     analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食、打勾、階段）
-    analysis/overlay_chart.dart   疊加圖資料、區間摘要
+    analysis/overlay_chart.dart   身體組成變化圖資料、區間摘要
+    analysis/intake_chart.dart    攝取圖資料（熱量 / 蛋白質 / 脂肪 7 日平均、肌酸、消耗）
     analysis/phase_summary.dart   階段進度、執行率、每週變化
     analysis/combo_heatmap.dart   週樣本、因子分組、熱力圖
     analysis/tdee.dart            Mifflin-St Jeor 基礎代謝、TDEE
@@ -166,6 +174,7 @@ body_lab/
     screens/combo_screen.dart     組合分析熱力圖
     widgets/nutrition_fields.dart 營養素輸入欄、數字格式
     widgets/phase_style.dart      階段顏色、圖表色塊
+    widgets/intake_chart.dart     攝取圖（左軸 kcal、右軸 g）
     widgets/undo_snackbar.dart    4 秒自動消失的復原提示
     widgets/backup_section.dart   備份區塊（分享選單匯出、檔案選擇器匯入）
     theme/app_theme.dart          主題與 AppPalette（圖表 / 語意用色，深淺色各一套）

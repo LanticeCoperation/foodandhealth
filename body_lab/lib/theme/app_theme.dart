@@ -6,9 +6,12 @@ import 'package:flutter/material.dart';
 class AppPalette extends ThemeExtension<AppPalette> {
   const AppPalette({
     required this.weight,
+    required this.bodyFat,
     required this.fatMass,
     required this.leanMass,
     required this.intake,
+    required this.intakeLine,
+    required this.protein,
     required this.creatine,
     required this.good,
     required this.bad,
@@ -17,9 +20,16 @@ class AppPalette extends ThemeExtension<AppPalette> {
   });
 
   final Color weight;
+
+  /// 體脂率。
+  final Color bodyFat;
   final Color fatMass;
   final Color leanMass;
   final Color intake;
+
+  /// 熱量 7 日平均線。
+  final Color intakeLine;
+  final Color protein;
   final Color creatine;
 
   /// 達標、往好的方向（脂肪下降、除脂上升）。
@@ -36,9 +46,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   static const light = AppPalette(
     weight: Color(0xFF1F6B5A),
+    bodyFat: Color(0xFFB7791F),
     fatMass: Color(0xFFDD6B4D),
     leanMass: Color(0xFF3B78B5),
-    intake: Color(0xFFB9A88E),
+    intake: Color(0xFFC8B89E),
+    intakeLine: Color(0xFF8A6A3F),
+    protein: Color(0xFF0F7F8C),
     creatine: Color(0xFF8B6CC4),
     good: Color(0xFF23936F),
     bad: Color(0xFFD45D43),
@@ -60,9 +73,12 @@ class AppPalette extends ThemeExtension<AppPalette> {
 
   static const dark = AppPalette(
     weight: Color(0xFF7ED3BA),
+    bodyFat: Color(0xFFE8C26E),
     fatMass: Color(0xFFF4A28A),
     leanMass: Color(0xFF8FBAEA),
-    intake: Color(0xFF8E816D),
+    intake: Color(0xFF6E6352),
+    intakeLine: Color(0xFFE0C49A),
+    protein: Color(0xFF6FD3DC),
     creatine: Color(0xFFBCA6EC),
     good: Color(0xFF5ED0A8),
     bad: Color(0xFFF2876C),
