@@ -1,0 +1,39 @@
+name: iOS build
+
+# macOS runner 在 private repo 以 10 倍計算 Actions 用量，
+# 所以只在 iOS 設定或套件變動時自動跑；其他時候到 Actions 頁手動觸發。
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'body_lab/ios/**'
+      - 'body_lab/pubspec.yaml'
+      - 'body_lab/pubspec.lock'
+      - '.github/workflows/ios.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: flutter build ios --no-codesign
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: body_lab
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.4
+          cache: true
+
+      - run: flutter pub get
+
+      # 不簽名，只確認 iOS 端（HealthKit 外掛、Info.plist、entitlements、部署目標）能編譯。
+      - run: flutter build ios --no-codesign --debug
