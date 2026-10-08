@@ -127,8 +127,57 @@ class Phases extends Table {
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
 }
 
+enum Sex {
+  male('男'),
+  female('女');
+
+  const Sex(this.label);
+  final String label;
+}
+
+/// 活動量係數（TDEE = 基礎代謝 × 係數）。
+enum ActivityLevel {
+  sedentary('久坐', 1.2, '幾乎不運動、坐辦公室'),
+  light('輕度', 1.375, '每週運動 1–3 天'),
+  moderate('中度', 1.55, '每週運動 3–5 天'),
+  high('高度', 1.725, '每週運動 6–7 天'),
+  athlete('非常高', 1.9, '勞力工作或一天兩練');
+
+  const ActivityLevel(this.label, this.factor, this.description);
+  final String label;
+  final double factor;
+  final String description;
+}
+
+/// 個人資料（v4），只有一列（id = 1）。TDEE 算好後固定存下來，
+/// 不隨每天體重變動；體重變化大時再到個人資料頁重算。
+class Profiles extends Table {
+  IntColumn get id => integer()();
+  TextColumn get sex => textEnum<Sex>()();
+  IntColumn get birthYear => integer()();
+  RealColumn get heightCm => real()();
+  TextColumn get activity => textEnum<ActivityLevel>()();
+
+  /// 計算 TDEE 時用的體重。
+  RealColumn get weightKg => real()();
+
+  /// 固定的每日總消耗（kcal），可手動調整。
+  RealColumn get tdeeKcal => real()();
+  DateTimeColumn get updatedAt => dateTime()();
+
+  @override
+  Set<Column> get primaryKey => {id};
+}
+
 @DriftDatabase(
-  tables: [DailyBodyMetrics, FoodEntries, MealTemplates, DailyChecks, Phases],
+  tables: [
+    DailyBodyMetrics,
+    FoodEntries,
+    MealTemplates,
+    DailyChecks,
+    Phases,
+    Profiles,
+  ],
 )
 class AppDatabase extends _$AppDatabase {
   /// 不傳 [executor] 時使用 App 文件目錄下的 body_lab.sqlite；測試可傳記憶體資料庫。
@@ -136,7 +185,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -155,6 +204,9 @@ class AppDatabase extends _$AppDatabase {
       },
       from2To3: (m, schema) async {
         await m.createTable(schema.phases);
+      },
+      from3To4: (m, schema) async {
+        await m.createTable(schema.profiles);
       },
     ),
   );

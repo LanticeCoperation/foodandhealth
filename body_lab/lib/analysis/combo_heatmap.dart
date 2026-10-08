@@ -167,7 +167,14 @@ class FactorBuckets {
 /// 蛋白質 g/kg 的分界。
 const List<double> kProteinCuts = [1.2, 1.6, 2.2];
 
-FactorBuckets bucketsFor(HeatmapFactor f, List<WeekSample> samples) {
+/// 有固定 TDEE 時，熱量依每日赤字分組的分界（kcal）。
+const double kDeficitCut = 500;
+
+FactorBuckets bucketsFor(
+  HeatmapFactor f,
+  List<WeekSample> samples, {
+  double? tdee,
+}) {
   switch (f) {
     case HeatmapFactor.none:
       return FactorBuckets(const ['全部'], (_) => 0);
@@ -198,8 +205,17 @@ FactorBuckets bucketsFor(HeatmapFactor f, List<WeekSample> samples) {
             : phases.indexWhere((p) => p.id == s.phase!.id) + 1,
       );
 
+    case HeatmapFactor.kcal when tdee != null:
+      final cut = kDeficitCut.round();
+      return FactorBuckets(['赤字 >$cut', '赤字 0–$cut', '盈餘'], (s) {
+        final v = s.kcal;
+        if (v == null) return null;
+        final balance = v - tdee;
+        return balance < -kDeficitCut ? 0 : (balance < 0 ? 1 : 2);
+      });
+
     case HeatmapFactor.kcal:
-      // 用自己資料的三分位數分低 / 中 / 高（沒有可靠的維持熱量當基準）。
+      // 沒有 TDEE 時用自己資料的三分位數分低 / 中 / 高。
       final values = samples.map((s) => s.kcal).whereType<double>().toList()
         ..sort();
       if (values.length < 3) {
@@ -273,9 +289,10 @@ Heatmap buildHeatmap(
   required HeatmapFactor x,
   required HeatmapFactor y,
   required HeatmapOutcome outcome,
+  double? tdee,
 }) {
-  final bx = bucketsFor(x, samples);
-  final by = bucketsFor(y, samples);
+  final bx = bucketsFor(x, samples, tdee: tdee);
+  final by = bucketsFor(y, samples, tdee: tdee);
   final sums = <(int, int), (double, int)>{};
   var used = 0;
 

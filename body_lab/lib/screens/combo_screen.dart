@@ -2,13 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../analysis/combo_heatmap.dart';
 import '../analysis/daily_dataset.dart';
+import '../data/database.dart';
+import '../data/profile_repository.dart';
+import '../theme/app_theme.dart';
 import '../widgets/nutrition_fields.dart';
 
 /// 組合分析熱力圖：兩個因子交叉，看每週身體組成變化的平均。
 class ComboScreen extends StatefulWidget {
-  const ComboScreen({super.key, required this.dataset});
+  const ComboScreen({super.key, required this.dataset, required this.profile});
 
   final DatasetRepository dataset;
+  final ProfileRepository profile;
 
   @override
   State<ComboScreen> createState() => _ComboScreenState();
@@ -16,6 +20,7 @@ class ComboScreen extends StatefulWidget {
 
 class _ComboScreenState extends State<ComboScreen> {
   late final Stream<DailyDataset> _all;
+  late final Stream<Profile?> _profile;
   HeatmapFactor _x = HeatmapFactor.protein;
   HeatmapFactor _y = HeatmapFactor.creatine;
   HeatmapOutcome _outcome = HeatmapOutcome.fatMass;
@@ -24,40 +29,53 @@ class _ComboScreenState extends State<ComboScreen> {
   void initState() {
     super.initState();
     _all = widget.dataset.watchAll();
+    _profile = widget.profile.watch();
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<DailyDataset>(
-      stream: _all,
-      builder: (context, snapshot) {
-        final ds = snapshot.data;
-        if (ds == null) return const Center(child: CircularProgressIndicator());
-        final samples = weeklySamples(ds);
-        final heatmap = buildHeatmap(samples, x: _x, y: _y, outcome: _outcome);
-        return ListView(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
-          children: [
-            _buildControls(),
-            const SizedBox(height: 16),
-            if (heatmap.used == 0)
-              _EmptyHeatmap(total: samples.length)
-            else ...[
-              _HeatmapGrid(
-                heatmap: heatmap,
-                xTitle: _x.label,
-                yTitle: _y.label,
-              ),
-              const SizedBox(height: 8),
-              _ColorLegend(outcome: _outcome),
-            ],
-            const SizedBox(height: 12),
-            _Notes(heatmap: heatmap),
-            const SizedBox(height: 8),
-            _WeekList(samples: samples),
-          ],
-        );
-      },
+    return StreamBuilder<Profile?>(
+      stream: _profile,
+      builder: (context, profileSnap) => StreamBuilder<DailyDataset>(
+        stream: _all,
+        builder: (context, snapshot) {
+          final ds = snapshot.data;
+          if (ds == null) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final tdee = profileSnap.data?.tdeeKcal;
+          return _buildBody(ds, tdee);
+        },
+      ),
+    );
+  }
+
+  Widget _buildBody(DailyDataset ds, double? tdee) {
+    final samples = weeklySamples(ds);
+    final heatmap = buildHeatmap(
+      samples,
+      x: _x,
+      y: _y,
+      outcome: _outcome,
+      tdee: tdee,
+    );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 24),
+      children: [
+        _buildControls(),
+        const SizedBox(height: 16),
+        if (heatmap.used == 0)
+          _EmptyHeatmap(total: samples.length)
+        else ...[
+          _HeatmapGrid(heatmap: heatmap, xTitle: _x.label, yTitle: _y.label),
+          const SizedBox(height: 8),
+          _ColorLegend(outcome: _outcome),
+        ],
+        const SizedBox(height: 12),
+        _Notes(heatmap: heatmap, tdee: tdee),
+        const SizedBox(height: 8),
+        _WeekList(samples: samples),
+      ],
     );
   }
 
@@ -125,15 +143,6 @@ class _ComboScreenState extends State<ComboScreen> {
   }
 }
 
-/// 分數 -1（差）～ 1（好）對應的底色。
-Color heatColor(BuildContext context, double score, {bool faded = false}) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  final good = dark ? Colors.tealAccent.shade400 : Colors.teal;
-  final bad = dark ? Colors.deepOrangeAccent.shade200 : Colors.deepOrange;
-  final alpha = (0.12 + 0.68 * score.abs()) * (faded ? 0.4 : 1);
-  return (score >= 0 ? good : bad).withValues(alpha: alpha);
-}
-
 class _HeatmapGrid extends StatelessWidget {
   const _HeatmapGrid({
     required this.heatmap,
@@ -174,7 +183,7 @@ class _HeatmapGrid extends StatelessWidget {
         height: 56,
         margin: const EdgeInsets.all(2),
         decoration: BoxDecoration(
-          color: heatColor(context, h.score(c), faded: faded),
+          color: context.palette.heat(h.score(c), faded: faded),
           borderRadius: BorderRadius.circular(6),
         ),
         alignment: Alignment.center,
@@ -256,7 +265,7 @@ class _ColorLegend extends StatelessWidget {
         Text('較差', style: small),
         const SizedBox(width: 6),
         for (final s in [-1.0, -0.5, 0.0, 0.5, 1.0])
-          Container(width: 24, height: 12, color: heatColor(context, s)),
+          Container(width: 24, height: 12, color: context.palette.heat(s)),
         const SizedBox(width: 6),
         Text('較好（$goodText）', style: small),
       ],
@@ -288,16 +297,17 @@ class _EmptyHeatmap extends StatelessWidget {
 }
 
 class _Notes extends StatelessWidget {
-  const _Notes({required this.heatmap});
+  const _Notes({required this.heatmap, this.tdee});
 
   final Heatmap heatmap;
+  final double? tdee;
 
   @override
   Widget build(BuildContext context) {
     return Text(
       '每格是落在該組合的週，${heatmap.outcome.label} 7 日平均每週變化的平均。'
       '共 ${heatmap.total} 週，可用 ${heatmap.used} 週。'
-      '熱量依自己資料的三分位分成低 / 中 / 高；肌酸一週 $kCreatineDaysPerWeek 天以上算有；'
+      '${tdee == null ? '熱量依自己資料的三分位分成低 / 中 / 高（在身體頁右上角設定 TDEE 後改為依赤字分組）' : '熱量依平均每日赤字（相對固定 TDEE ${tdee!.round()} kcal）分組'}；肌酸一週 $kCreatineDaysPerWeek 天以上算有；'
       '階段以一週有 4 天以上在該階段為準。\n'
       '這是相關不是因果：同一組合的週可能還有其他差異（睡眠、訓練量），樣本少時參考就好。',
       style: Theme.of(context).textTheme.bodySmall,

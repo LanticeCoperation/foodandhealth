@@ -4,6 +4,7 @@ import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
+import 'package:body_lab/data/profile_repository.dart';
 import 'package:body_lab/models/body_metric.dart';
 import 'package:body_lab/screens/combo_screen.dart';
 import 'package:body_lab/services/health_service.dart';
@@ -98,6 +99,7 @@ void main() {
               checks,
               PhaseRepository(db),
             ),
+            profile: ProfileRepository(db),
           ),
         ),
       ),

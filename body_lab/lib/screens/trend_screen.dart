@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../analysis/daily_dataset.dart';
 import '../analysis/overlay_chart.dart';
 import '../widgets/nutrition_fields.dart';
+import '../theme/app_theme.dart';
 import '../widgets/phase_style.dart';
 
 /// 疊加趨勢圖：身體組成 7 日平均的變化 + 每日攝取 + 肌酸，下方是區間摘要。
@@ -62,7 +63,7 @@ class _TrendScreenState extends State<TrendScreen> {
                     ? OverlayChart(
                         data: overlay,
                         intake: _intake,
-                        rangeAnnotations: phaseAnnotations(overlay),
+                        rangeAnnotations: phaseAnnotations(context, overlay),
                       )
                     : const Center(child: Text('這段期間沒有資料')),
               ),
@@ -127,23 +128,16 @@ class _TrendScreenState extends State<TrendScreen> {
   }
 }
 
-/// 各線顏色，深淺色模式都要看得清楚。
-Color seriesColor(BuildContext context, BodySeries s) {
-  final dark = Theme.of(context).brightness == Brightness.dark;
-  return switch (s) {
-    BodySeries.weight => Theme.of(context).colorScheme.primary,
-    BodySeries.fatMass => dark ? Colors.orange.shade300 : Colors.deepOrange,
-    BodySeries.leanMass => dark ? Colors.lightBlue.shade200 : Colors.indigo,
-  };
-}
+/// 各線顏色（來自主題的 AppPalette，深淺色模式各一套）。
+Color seriesColor(BuildContext context, BodySeries s) => switch (s) {
+  BodySeries.weight => context.palette.weight,
+  BodySeries.fatMass => context.palette.fatMass,
+  BodySeries.leanMass => context.palette.leanMass,
+};
 
-Color intakeColor(BuildContext context) =>
-    Theme.of(context).colorScheme.outline;
+Color intakeColor(BuildContext context) => context.palette.intake;
 
-Color creatineColor(BuildContext context) =>
-    Theme.of(context).brightness == Brightness.dark
-    ? Colors.purple.shade200
-    : Colors.purple;
+Color creatineColor(BuildContext context) => context.palette.creatine;
 
 class OverlayChart extends StatelessWidget {
   const OverlayChart({
@@ -424,7 +418,7 @@ class _Legend extends StatelessWidget {
           for (final s in overlay.phaseSpans) s.phase.id: s.phase,
         }.values)
           item(
-            phaseColor(p).withValues(alpha: 0.4),
+            phaseColor(context, p).withValues(alpha: 0.5),
             '階段：${p.name}',
             square: true,
           ),

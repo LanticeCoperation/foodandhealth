@@ -6,6 +6,7 @@ import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
+import 'package:body_lab/data/profile_repository.dart';
 import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/dev/demo_data.dart';
 import 'package:body_lab/models/body_metric.dart';
@@ -18,6 +19,9 @@ class _NoSource implements BodyMetricsSource {
   Future<List<BodyMetric>> fetchDailyMetrics(DateTime start) async => [];
 }
 
+DateTime addDaysForTest(DateTime d, int n) =>
+    DateTime(d.year, d.month, d.day + n);
+
 void main() {
   final today = DateTime(2026, 10, 8);
 
@@ -27,6 +31,7 @@ void main() {
   late TemplateRepository templates;
   late CheckRepository checks;
   late PhaseRepository phases;
+  late ProfileRepository profile;
   late DatasetRepository dataset;
 
   setUp(() async {
@@ -36,6 +41,7 @@ void main() {
     templates = TemplateRepository(db);
     checks = CheckRepository(db);
     phases = PhaseRepository(db);
+    profile = ProfileRepository(db);
     dataset = DatasetRepository(
       db,
       body,
@@ -57,9 +63,11 @@ void main() {
     await seedDemoData(
       db: db,
       body: body,
+      food: food,
       templates: templates,
       checks: checks,
       phases: phases,
+      profile: profile,
       today: today,
     );
   });
@@ -79,11 +87,22 @@ void main() {
     expect(weighDays, inInclusiveRange(65, 84));
     expect(foodDays, inInclusiveRange(60, 84));
 
-    // 範本：預設蛋白粉 + 10 個示範範本，有使用次數
+    // 只有預設的蛋白粉一鍵項目且有使用；其他紀錄都只是「餐別 + 熱量」
     final list = await templates.watchTemplates().first;
-    expect(list, hasLength(11));
-    expect(list.first.name, '蛋白粉（1 匙）');
-    expect(list.first.useCount, greaterThan(0));
+    expect(list.single.name, '蛋白粉（1 匙）');
+    expect(list.single.useCount, greaterThan(0));
+    final meals = await food.watchDay(addDaysForTest(today, -1)).first;
+    expect(meals, isNotEmpty);
+    expect(
+      meals
+          .where((e) => e.templateId == null)
+          .every((e) => e.name == e.meal.label),
+      isTrue,
+    );
+
+    final p = (await profile.get())!;
+    expect(p.sex, Sex.male);
+    expect(p.tdeeKcal, closeTo(2320, 20));
   });
 
   test('階段結果符合設計：維持期脂肪微升、之後兩階段脂肪下降', () async {

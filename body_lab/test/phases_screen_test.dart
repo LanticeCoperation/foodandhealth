@@ -4,6 +4,7 @@ import 'package:body_lab/data/check_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
+import 'package:body_lab/data/profile_repository.dart';
 import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/models/body_metric.dart';
 import 'package:body_lab/screens/food_screen.dart';
@@ -142,14 +143,15 @@ void main() {
           templates: TemplateRepository(db),
           checks: CheckRepository(db),
           phases: phases,
+          profile: ProfileRepository(db),
         ),
       ),
     );
     await settle(tester);
 
     expect(find.text('階段：減脂'), findsOneWidget);
-    expect(find.text('0 / 1800'), findsOneWidget);
-    expect(find.text('0 / 140'), findsOneWidget);
+    expect(find.text('0 / 1800 kcal'), findsOneWidget);
+    expect(find.text('0 / 140 g'), findsOneWidget);
 
     await close(tester);
   });

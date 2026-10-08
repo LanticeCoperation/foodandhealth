@@ -4,9 +4,20 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../data/template_repository.dart';
 import '../widgets/nutrition_fields.dart';
-import 'quick_add_sheet.dart' show templateSummary;
+import '../widgets/undo_snackbar.dart';
 
-/// 餐點範本管理：新增、編輯、釘選（飲食頁一鍵 +1）、滑動封存。
+/// 項目的一行摘要：每份營養、預設份量、使用次數。
+String templateSummary(MealTemplate t) {
+  return [
+    if (t.kcal != null) '${fmtNum(t.kcal)} kcal',
+    if (t.proteinG != null) '蛋白質 ${fmtNum(t.proteinG)}g',
+    if (t.defaultServings != 1)
+      '預設 ${fmtNum(t.defaultServings, maxDecimals: 2)} 份',
+    if (t.useCount > 0) '用過 ${t.useCount} 次',
+  ].join(' · ');
+}
+
+/// 一鍵 +1 項目（例如蛋白粉）：新增、編輯、釘選到飲食頁、滑動刪除。
 class TemplatesScreen extends StatefulWidget {
   const TemplatesScreen({super.key, required this.repository});
 
@@ -40,30 +51,24 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
     setState(() => _hidden.add(t.id));
     await widget.repository.archive(t.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('已刪除範本「${t.name}」'),
-          action: SnackBarAction(
-            label: '復原',
-            onPressed: () async {
-              await widget.repository.unarchive(t.id);
-              if (mounted) setState(() => _hidden.remove(t.id));
-            },
-          ),
-        ),
-      );
+    showUndoSnackBar(
+      context,
+      '已刪除「${t.name}」',
+      onUndo: () async {
+        await widget.repository.unarchive(t.id);
+        if (mounted) setState(() => _hidden.remove(t.id));
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('餐點範本')),
+      appBar: AppBar(title: const Text('一鍵 +1 項目')),
       floatingActionButton: FloatingActionButton(
         onPressed: _add,
-        tooltip: '新增範本',
+        tooltip: '新增項目',
         child: const Icon(Icons.add),
       ),
       body: StreamBuilder<List<MealTemplate>>(
@@ -75,7 +80,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
           }
           final list = data.where((t) => !_hidden.contains(t.id)).toList();
           if (list.isEmpty) {
-            return const Center(child: Text('還沒有範本，按 + 新增。'));
+            return const Center(child: Text('還沒有項目，按 + 新增。'));
           }
           return ListView(
             padding: const EdgeInsets.only(bottom: 88),
@@ -83,7 +88,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                 child: Text(
-                  '釘選的範本會出現在飲食頁頂端，一鍵 +1。',
+                  '釘選的項目會出現在飲食頁，按一下就記一份（例如蛋白粉）。',
                   style: theme.textTheme.bodySmall,
                 ),
               ),
@@ -151,8 +156,6 @@ class _TemplateFormState extends State<_TemplateForm> {
   late final TextEditingController _servings;
   late final NutritionControllers _nutrition;
 
-  /// null = 依加入時間判斷。
-  MealType? _meal;
   late bool _pinned;
 
   @override
@@ -169,7 +172,6 @@ class _TemplateFormState extends State<_TemplateForm> {
       carbs: t?.carbsG,
       fat: t?.fatG,
     );
-    _meal = t?.meal;
     _pinned = t?.pinned ?? false;
   }
 
@@ -187,7 +189,8 @@ class _TemplateFormState extends State<_TemplateForm> {
       context,
       MealTemplatesCompanion(
         name: Value(_name.text.trim()),
-        meal: Value(_meal),
+        // 一鍵 +1 一律依加入時間判斷餐別
+        meal: const Value(null),
         defaultServings: Value(parseNum(_servings.text)!),
         kcal: Value(_nutrition.kcalValue),
         proteinG: Value(_nutrition.proteinValue),
@@ -215,7 +218,7 @@ class _TemplateFormState extends State<_TemplateForm> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                widget.initial == null ? '新增範本' : '編輯範本',
+                widget.initial == null ? '新增項目' : '編輯項目',
                 style: Theme.of(context).textTheme.titleLarge,
               ),
               const SizedBox(height: 8),
@@ -247,25 +250,6 @@ class _TemplateFormState extends State<_TemplateForm> {
                       validator: validateServings,
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text('預設餐別', style: Theme.of(context).textTheme.labelMedium),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: 6,
-                children: [
-                  ChoiceChip(
-                    label: const Text('依時間'),
-                    selected: _meal == null,
-                    onSelected: (_) => setState(() => _meal = null),
-                  ),
-                  for (final m in MealType.values)
-                    ChoiceChip(
-                      label: Text(m.label),
-                      selected: _meal == m,
-                      onSelected: (_) => setState(() => _meal = m),
-                    ),
                 ],
               ),
               const SizedBox(height: 8),

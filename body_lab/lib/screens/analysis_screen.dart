@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../analysis/daily_dataset.dart';
 import '../data/phase_repository.dart';
+import '../data/profile_repository.dart';
 import 'combo_screen.dart';
 import 'phases_screen.dart';
 
@@ -11,10 +12,12 @@ class AnalysisScreen extends StatelessWidget {
     super.key,
     required this.phases,
     required this.dataset,
+    required this.profile,
   });
 
   final PhaseRepository phases;
   final DatasetRepository dataset;
+  final ProfileRepository profile;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +36,7 @@ class AnalysisScreen extends StatelessWidget {
         body: TabBarView(
           children: [
             PhasesScreen(phases: phases, dataset: dataset),
-            ComboScreen(dataset: dataset),
+            ComboScreen(dataset: dataset, profile: profile),
           ],
         ),
       ),

@@ -153,7 +153,9 @@ class _PhaseCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            border: Border(left: BorderSide(color: phaseColor(p), width: 6)),
+            border: Border(
+              left: BorderSide(color: phaseColor(context, p), width: 6),
+            ),
           ),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           child: Column(
@@ -287,7 +289,7 @@ class _ComparisonTable extends StatelessWidget {
                               Container(
                                 width: 8,
                                 height: 8,
-                                color: phaseColor(s.phase),
+                                color: phaseColor(context, s.phase),
                               ),
                               const SizedBox(width: 6),
                               Text(s.phase.name),
@@ -472,7 +474,7 @@ class _PhaseDetailScreenState extends State<PhaseDetailScreen> {
             child: OverlayChart(
               data: overlay,
               intake: _intake,
-              rangeAnnotations: phaseAnnotations(overlay),
+              rangeAnnotations: phaseAnnotations(context, overlay),
             ),
           ),
           Text(

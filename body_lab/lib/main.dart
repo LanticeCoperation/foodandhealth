@@ -8,13 +8,16 @@ import 'data/check_repository.dart';
 import 'data/database.dart';
 import 'data/food_repository.dart';
 import 'data/phase_repository.dart';
+import 'data/profile_repository.dart';
 import 'data/template_repository.dart';
 import 'dev/demo_data_menu.dart';
 import 'screens/body_screen.dart';
 import 'screens/food_screen.dart';
+import 'screens/profile_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/trend_screen.dart';
 import 'services/health_service.dart';
+import 'theme/app_theme.dart';
 
 void main() {
   runApp(BodyLabApp(services: AppServices(AppDatabase(), HealthService())));
@@ -27,7 +30,8 @@ class AppServices {
       food = FoodRepository(db),
       templates = TemplateRepository(db),
       checks = CheckRepository(db),
-      phases = PhaseRepository(db) {
+      phases = PhaseRepository(db),
+      profile = ProfileRepository(db) {
     dataset = DatasetRepository(db, body, food, checks, phases);
   }
 
@@ -38,6 +42,7 @@ class AppServices {
   final TemplateRepository templates;
   final CheckRepository checks;
   final PhaseRepository phases;
+  final ProfileRepository profile;
   late final DatasetRepository dataset;
 }
 
@@ -60,11 +65,8 @@ class BodyLabApp extends StatelessWidget {
       locale: kAppLocale,
       supportedLocales: const [kAppLocale, Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
-      theme: ThemeData(colorSchemeSeed: Colors.teal),
-      darkTheme: ThemeData(
-        colorSchemeSeed: Colors.teal,
-        brightness: Brightness.dark,
-      ),
+      theme: buildAppTheme(Brightness.light),
+      darkTheme: buildAppTheme(Brightness.dark),
       home: _HomeShell(services: services),
     );
   }
@@ -92,13 +94,16 @@ class _HomeShellState extends State<_HomeShell> {
         health: s.health,
         repository: s.body,
         extraActions: [
+          ProfileButton(profile: s.profile, body: s.body),
           if (kDebugMode)
             DemoDataMenu(
               db: s.db,
               body: s.body,
+              food: s.food,
               templates: s.templates,
               checks: s.checks,
               phases: s.phases,
+              profile: s.profile,
             ),
         ],
       ),
@@ -107,9 +112,10 @@ class _HomeShellState extends State<_HomeShell> {
         templates: s.templates,
         checks: s.checks,
         phases: s.phases,
+        profile: s.profile,
       ),
       TrendScreen(dataset: s.dataset),
-      AnalysisScreen(phases: s.phases, dataset: s.dataset),
+      AnalysisScreen(phases: s.phases, dataset: s.dataset, profile: s.profile),
     ];
   }
 

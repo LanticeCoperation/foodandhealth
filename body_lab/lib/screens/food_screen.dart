@@ -1,20 +1,23 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
+import '../analysis/phase_summary.dart' show kKcalTolerance;
+import '../analysis/tdee.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
-import '../analysis/phase_summary.dart' show kKcalTolerance;
 import '../data/phase_repository.dart';
+import '../data/profile_repository.dart';
 import '../data/template_repository.dart';
+import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
-import '../widgets/phase_style.dart';
+import '../widgets/undo_snackbar.dart';
 import 'food_entry_sheet.dart';
-import 'quick_add_sheet.dart';
 import 'templates_screen.dart';
 
-/// 單日飲食紀錄：當日總量、快速列（釘選範本 +1、每日打勾）、依餐別分組的列表。
-/// 新增走範本快速輸入；可編輯、長按存成範本、滑動刪除。
+/// 單日飲食：總量（對照階段目標與 TDEE）、一鍵 +1 與打勾、依餐別分組的紀錄。
 class FoodScreen extends StatefulWidget {
   const FoodScreen({
     super.key,
@@ -22,12 +25,14 @@ class FoodScreen extends StatefulWidget {
     required this.templates,
     required this.checks,
     required this.phases,
+    required this.profile,
   });
 
   final FoodRepository repository;
   final TemplateRepository templates;
   final CheckRepository checks;
   final PhaseRepository phases;
+  final ProfileRepository profile;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -39,6 +44,7 @@ class _FoodScreenState extends State<FoodScreen> {
   late Stream<Set<CheckItem>> _checks;
   late Stream<Phase?> _phase;
   late final Stream<List<MealTemplate>> _pinned;
+  late final Stream<Profile?> _profile;
 
   /// 滑掉的項目要立刻從畫面消失（Dismissible 的要求），不等資料庫 stream 更新。
   final _hidden = <int>{};
@@ -49,6 +55,7 @@ class _FoodScreenState extends State<FoodScreen> {
   void initState() {
     super.initState();
     _pinned = widget.templates.watchPinned();
+    _profile = widget.profile.watch();
     _setDay(dateOnly(DateTime.now()));
   }
 
@@ -78,105 +85,48 @@ class _FoodScreenState extends State<FoodScreen> {
   }
 
   Future<void> _add() async {
-    final result = await showQuickAddSheet(
-      context,
-      templates: widget.templates,
-      eatenAt: _defaultTime(),
-    );
-    switch (result) {
-      case AddedFromTemplate(:final entryId, :final name):
-        _showUndoAdd(entryId, name);
-      case WantsCustom(:final name):
-        if (mounted) await _addCustom(name);
-      case null:
-        break;
-    }
-  }
-
-  Future<void> _addCustom(String? name) async {
-    final result = await showFoodEntrySheet(
+    final entry = await showFoodEntrySheet(
       context,
       defaultTime: _defaultTime(),
-      initialName: name,
     );
-    if (result == null) return;
-    await widget.repository.add(result.entry);
-    if (result.saveAsTemplate) {
-      await widget.templates.addFromEntry(result.entry);
-    }
+    if (entry != null) await widget.repository.add(entry);
+  }
+
+  Future<void> _edit(FoodEntry e) async {
+    final entry = await showFoodEntrySheet(
+      context,
+      defaultTime: e.eatenAt,
+      initial: e,
+    );
+    if (entry != null) await widget.repository.save(entry);
   }
 
   Future<void> _quickAdd(MealTemplate t) async {
     final id = await widget.templates.addEntryFromTemplate(
       t,
       eatenAt: _defaultTime(),
+      meal: MealType.forTime(_defaultTime()),
     );
-    _showUndoAdd(id, t.name);
-  }
-
-  void _showUndoAdd(int entryId, String name) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('已加入「$name」'),
-          action: SnackBarAction(
-            label: '復原',
-            onPressed: () => widget.repository.delete(entryId),
-          ),
-        ),
-      );
-  }
-
-  Future<void> _edit(FoodEntry e) async {
-    final result = await showFoodEntrySheet(
+    showUndoSnackBar(
       context,
-      defaultTime: e.eatenAt,
-      initial: e,
+      '已加入「${t.name}」',
+      onUndo: () => widget.repository.delete(id),
     );
-    if (result != null) await widget.repository.save(result.entry);
   }
 
-  Future<void> _showEntryMenu(FoodEntry e) async {
-    final action = await showModalBottomSheet<String>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.bookmark_add_outlined),
-              title: const Text('存成範本'),
-              onTap: () => Navigator.pop(context, 'template'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit_outlined),
-              title: const Text('編輯'),
-              onTap: () => Navigator.pop(context, 'edit'),
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline),
-              title: const Text('刪除'),
-              onTap: () => Navigator.pop(context, 'delete'),
-            ),
-          ],
-        ),
-      ),
+  Future<void> _delete(FoodEntry e) async {
+    setState(() => _hidden.add(e.id));
+    await widget.repository.delete(e.id);
+    if (!mounted) return;
+    showUndoSnackBar(
+      context,
+      '已刪除 ${e.meal.label} ${e.totalKcal?.round() ?? ''} kcal',
+      onUndo: () async {
+        await widget.repository.restore(e);
+        if (mounted) setState(() => _hidden.remove(e.id));
+      },
     );
-    switch (action) {
-      case 'template':
-        await widget.templates.addFromEntry(e.toCompanion(true));
-        if (!mounted) return;
-        ScaffoldMessenger.of(context)
-          ..hideCurrentSnackBar()
-          ..showSnackBar(SnackBar(content: Text('已存成範本「${e.name}」')));
-      case 'edit':
-        await _edit(e);
-      case 'delete':
-        await _delete(e);
-    }
   }
 
   void _openTemplates() {
@@ -187,31 +137,11 @@ class _FoodScreenState extends State<FoodScreen> {
     );
   }
 
-  Future<void> _delete(FoodEntry e) async {
-    setState(() => _hidden.add(e.id));
-    await widget.repository.delete(e.id);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('已刪除「${e.name}」'),
-          action: SnackBarAction(
-            label: '復原',
-            onPressed: () async {
-              await widget.repository.restore(e);
-              if (mounted) setState(() => _hidden.remove(e.id));
-            },
-          ),
-        ),
-      );
-  }
-
   @override
   Widget build(BuildContext context) {
     final d = _day;
     final title =
-        '${d.month}/${d.day}（${_weekdays[d.weekday - 1]}）${_isToday ? ' 今天' : ''}';
+        '${d.month}/${d.day}（${_weekdays[d.weekday - 1]}）${_isToday ? ' · 今天' : ''}';
 
     return Scaffold(
       appBar: AppBar(
@@ -219,8 +149,8 @@ class _FoodScreenState extends State<FoodScreen> {
         actions: [
           IconButton(
             onPressed: _openTemplates,
-            icon: const Icon(Icons.bookmarks_outlined),
-            tooltip: '餐點範本',
+            icon: const Icon(Icons.bolt_outlined),
+            tooltip: '一鍵 +1 項目',
           ),
         ],
         bottom: PreferredSize(
@@ -245,10 +175,10 @@ class _FoodScreenState extends State<FoodScreen> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
-        tooltip: '新增',
-        child: const Icon(Icons.add),
+        icon: const Icon(Icons.add),
+        label: const Text('記錄'),
       ),
       body: StreamBuilder<List<FoodEntry>>(
         stream: _entries,
@@ -259,26 +189,41 @@ class _FoodScreenState extends State<FoodScreen> {
           }
           final entries = data.where((e) => !_hidden.contains(e.id)).toList();
           return ListView(
-            padding: const EdgeInsets.only(bottom: 88),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: [
               StreamBuilder<Phase?>(
                 stream: _phase,
-                builder: (context, phaseSnap) => _TotalsCard(
-                  totals: DayTotals.of(entries),
-                  phase: phaseSnap.data,
+                builder: (context, phaseSnap) => StreamBuilder<Profile?>(
+                  stream: _profile,
+                  builder: (context, profileSnap) => _DaySummaryCard(
+                    totals: DayTotals.of(entries),
+                    phase: phaseSnap.data,
+                    tdee: profileSnap.data?.tdeeKcal,
+                  ),
                 ),
               ),
+              const SizedBox(height: 8),
               _buildQuickRow(entries),
+              const SizedBox(height: 8),
               if (entries.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(32),
-                  child: Text('這天還沒有紀錄，按 + 新增。', textAlign: TextAlign.center),
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    '這天還沒有紀錄。\n按「記錄」選餐別、輸入熱量就好。',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
               for (final meal in MealType.values)
-                ..._mealSection(
-                  meal,
-                  entries.where((e) => e.meal == meal).toList(),
-                ),
+                if (entries.any((e) => e.meal == meal))
+                  _MealCard(
+                    meal: meal,
+                    entries: entries.where((e) => e.meal == meal).toList(),
+                    onTap: _edit,
+                    onDismissed: _delete,
+                  ),
             ],
           );
         },
@@ -286,45 +231,7 @@ class _FoodScreenState extends State<FoodScreen> {
     );
   }
 
-  List<Widget> _mealSection(MealType meal, List<FoodEntry> entries) {
-    if (entries.isEmpty) return const [];
-    final theme = Theme.of(context);
-    final kcal = DayTotals.of(entries).kcal;
-    return [
-      Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-        child: Row(
-          children: [
-            Text(meal.label, style: theme.textTheme.titleSmall),
-            const Spacer(),
-            Text('${kcal.round()} kcal', style: theme.textTheme.bodySmall),
-          ],
-        ),
-      ),
-      for (final e in entries)
-        Dismissible(
-          key: ValueKey(e.id),
-          direction: DismissDirection.endToStart,
-          background: Container(
-            color: theme.colorScheme.errorContainer,
-            alignment: Alignment.centerRight,
-            padding: const EdgeInsets.only(right: 24),
-            child: Icon(
-              Icons.delete_outline,
-              color: theme.colorScheme.onErrorContainer,
-            ),
-          ),
-          onDismissed: (_) => _delete(e),
-          child: _EntryTile(
-            entry: e,
-            onTap: () => _edit(e),
-            onLongPress: () => _showEntryMenu(e),
-          ),
-        ),
-    ];
-  }
-
-  /// 釘選範本一鍵 +1（顯示當天已吃幾份）與每日打勾。
+  /// 釘選項目一鍵 +1（顯示當天已幾份）與每日打勾。
   Widget _buildQuickRow(List<FoodEntry> entries) {
     return StreamBuilder<List<MealTemplate>>(
       stream: _pinned,
@@ -333,26 +240,23 @@ class _FoodScreenState extends State<FoodScreen> {
         builder: (context, checkSnap) {
           final pinned = pinnedSnap.data ?? const [];
           final checked = checkSnap.data ?? const {};
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: [
-                for (final t in pinned)
-                  ActionChip(
-                    avatar: const Icon(Icons.add),
-                    label: Text(_pinnedLabel(t, entries)),
-                    onPressed: () => _quickAdd(t),
-                  ),
-                for (final item in CheckItem.values)
-                  FilterChip(
-                    label: Text(item.label),
-                    selected: checked.contains(item),
-                    onSelected: (v) => widget.checks.set(_day, item, v),
-                  ),
-              ],
-            ),
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final t in pinned)
+                ActionChip(
+                  avatar: const Icon(Icons.add, size: 18),
+                  label: Text(_pinnedLabel(t, entries)),
+                  onPressed: () => _quickAdd(t),
+                ),
+              for (final item in CheckItem.values)
+                FilterChip(
+                  label: Text(item.label),
+                  selected: checked.contains(item),
+                  onSelected: (v) => widget.checks.set(_day, item, v),
+                ),
+            ],
           );
         },
       ),
@@ -367,133 +271,249 @@ class _FoodScreenState extends State<FoodScreen> {
   }
 }
 
-class _EntryTile extends StatelessWidget {
-  const _EntryTile({
-    required this.entry,
+/// 一個餐別的卡片：標題列（餐別、小計）＋各筆紀錄，可點擊編輯、往左滑刪除。
+class _MealCard extends StatelessWidget {
+  const _MealCard({
+    required this.meal,
+    required this.entries,
     required this.onTap,
-    required this.onLongPress,
+    required this.onDismissed,
   });
 
-  final FoodEntry entry;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
+  final MealType meal;
+  final List<FoodEntry> entries;
+  final void Function(FoodEntry) onTap;
+  final void Function(FoodEntry) onDismissed;
 
   @override
   Widget build(BuildContext context) {
-    final e = entry;
-    final time = TimeOfDay.fromDateTime(e.eatenAt).format(context);
-    final macros = [
-      if (e.totalProteinG != null) '蛋白質 ${fmtNum(e.totalProteinG!)}g',
-      if (e.totalCarbsG != null) '碳水 ${fmtNum(e.totalCarbsG!)}g',
-      if (e.totalFatG != null) '脂肪 ${fmtNum(e.totalFatG!)}g',
-    ];
-    return ListTile(
-      onTap: onTap,
-      onLongPress: onLongPress,
-      title: Text(
-        e.servings == 1
-            ? e.name
-            : '${e.name} ×${fmtNum(e.servings, maxDecimals: 2)}',
-      ),
-      subtitle: Text(
-        [time, ...macros, if (e.note != null) e.note!].join(' · '),
-      ),
-      trailing: Text(
-        e.totalKcal == null ? '— kcal' : '${e.totalKcal!.round()} kcal',
+    final theme = Theme.of(context);
+    final totals = DayTotals.of(entries);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+            child: Row(
+              children: [
+                Text(meal.label, style: theme.textTheme.titleSmall),
+                const Spacer(),
+                Text('${totals.kcal.round()} kcal', style: muted),
+              ],
+            ),
+          ),
+          for (final e in entries)
+            Dismissible(
+              key: ValueKey(e.id),
+              direction: DismissDirection.endToStart,
+              background: Container(
+                color: theme.colorScheme.errorContainer,
+                alignment: Alignment.centerRight,
+                padding: const EdgeInsets.only(right: 24),
+                child: Icon(
+                  Icons.delete_outline,
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+              ),
+              onDismissed: (_) => onDismissed(e),
+              child: _EntryTile(entry: e, onTap: () => onTap(e)),
+            ),
+          const SizedBox(height: 6),
+        ],
       ),
     );
   }
 }
 
-class _TotalsCard extends StatelessWidget {
-  const _TotalsCard({required this.totals, this.phase});
+class _EntryTile extends StatelessWidget {
+  const _EntryTile({required this.entry, required this.onTap});
 
-  final DayTotals totals;
-
-  /// 當天所屬的實驗階段；有目標時顯示「實際 / 目標」，達標變色。
-  final Phase? phase;
+  final FoodEntry entry;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final p = phase;
-    final kcalTarget = p?.targetKcal;
-    final proteinTarget = p?.targetProteinG;
+    final e = entry;
+    final time = TimeOfDay.fromDateTime(e.eatenAt).format(context);
+    final kcal = e.totalKcal == null
+        ? '— kcal'
+        : '${e.totalKcal!.round()} kcal';
+    // 一般紀錄名稱就是餐別，不重複顯示；一鍵 +1 的項目顯示名稱
+    final named = e.name != e.meal.label;
+    final detail = [
+      time,
+      if (e.totalProteinG != null) '蛋白質 ${fmtNum(e.totalProteinG!)} g',
+      if (e.note != null) e.note!,
+    ].join(' · ');
 
-    Widget stat(String label, double value, {double? target, bool? hit}) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    named
+                        ? (e.servings == 1
+                              ? e.name
+                              : '${e.name} ×${fmtNum(e.servings, maxDecimals: 2)}')
+                        : kcal,
+                    style: theme.textTheme.bodyLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (named) Text(kcal, style: theme.textTheme.bodyMedium),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 當天總量：熱量與蛋白質（有階段目標時顯示進度），以及相對固定 TDEE 的赤字 / 盈餘。
+class _DaySummaryCard extends StatelessWidget {
+  const _DaySummaryCard({required this.totals, this.phase, this.tdee});
+
+  final DayTotals totals;
+  final Phase? phase;
+  final double? tdee;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final palette = context.palette;
+    final p = phase;
+    final kcalTarget = p?.targetKcal ?? tdee;
+    final proteinTarget = p?.targetProteinG;
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+
+    final kcalHit = p?.targetKcal == null
+        ? null
+        : (totals.kcal - p!.targetKcal!).abs() <=
+              p.targetKcal! * kKcalTolerance;
+    final proteinHit = proteinTarget == null
+        ? null
+        : totals.proteinG >= proteinTarget;
+
+    Widget metric({
+      required String label,
+      required double value,
+      required String unit,
+      double? target,
+      bool? hit,
+    }) {
       final color = hit == null
-          ? null
-          : (hit ? theme.colorScheme.primary : theme.colorScheme.error);
+          ? theme.colorScheme.onSurface
+          : (hit ? palette.good : palette.bad);
       return Expanded(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              target == null
-                  ? '${value.round()}'
-                  : '${value.round()} / ${target.round()}',
-              style: theme.textTheme.titleMedium?.copyWith(color: color),
+            Text(label, style: muted),
+            const SizedBox(height: 2),
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${value.round()}',
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      color: color,
+                    ),
+                  ),
+                  TextSpan(
+                    text: target == null
+                        ? ' $unit'
+                        : ' / ${target.round()} $unit',
+                    style: muted,
+                  ),
+                ],
+              ),
             ),
-            Text(label, style: theme.textTheme.bodySmall),
+            const SizedBox(height: 8),
+            if (target != null && target > 0)
+              LinearProgressIndicator(
+                value: math.min(value / target, 1),
+                color: hit == null ? theme.colorScheme.primary : color,
+              )
+            else
+              const SizedBox(height: 6),
           ],
         ),
       );
     }
 
     return Card(
-      margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (p != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.science_outlined,
-                      size: 16,
-                      color: phaseColor(p),
-                    ),
-                    const SizedBox(width: 4),
-                    Text('階段：${p.name}', style: theme.textTheme.labelMedium),
-                  ],
-                ),
+            if (p != null) ...[
+              Row(
+                children: [
+                  Icon(
+                    Icons.science_outlined,
+                    size: 16,
+                    color: palette.phase(p.id),
+                  ),
+                  const SizedBox(width: 6),
+                  Text('階段：${p.name}', style: theme.textTheme.labelLarge),
+                ],
               ),
+              const SizedBox(height: 10),
+            ],
             Row(
               children: [
-                stat(
-                  '熱量 kcal',
-                  totals.kcal,
+                metric(
+                  label: '熱量',
+                  value: totals.kcal,
+                  unit: 'kcal',
                   target: kcalTarget,
-                  hit: kcalTarget == null
-                      ? null
-                      : (totals.kcal - kcalTarget).abs() <=
-                            kcalTarget * kKcalTolerance,
+                  hit: kcalHit,
                 ),
-                stat(
-                  '蛋白質 g',
-                  totals.proteinG,
+                const SizedBox(width: 20),
+                metric(
+                  label: '蛋白質',
+                  value: totals.proteinG,
+                  unit: 'g',
                   target: proteinTarget,
-                  hit: proteinTarget == null
-                      ? null
-                      : totals.proteinG >= proteinTarget,
+                  hit: proteinHit,
                 ),
-                stat('碳水 g', totals.carbsG),
-                stat('脂肪 g', totals.fatG),
               ],
             ),
-            if (totals.missingKcal > 0)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  '${totals.missingKcal} 筆沒填熱量，未計入',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.error,
-                  ),
-                ),
+            if (tdee != null || totals.missingKcal > 0) ...[
+              const SizedBox(height: 10),
+              Text(
+                [
+                  if (tdee != null)
+                    'TDEE ${tdee!.round()} · ${formatBalance(totals.kcal - tdee!)}',
+                  if (totals.missingKcal > 0) '${totals.missingKcal} 筆沒填熱量',
+                ].join('　'),
+                style: muted,
               ),
+            ],
           ],
         ),
       ),

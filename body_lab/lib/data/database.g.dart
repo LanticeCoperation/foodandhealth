@@ -2835,6 +2835,514 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
   }
 }
 
+class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $ProfilesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<Sex, String> sex =
+      GeneratedColumn<String>(
+        'sex',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<Sex>($ProfilesTable.$convertersex);
+  static const VerificationMeta _birthYearMeta = const VerificationMeta(
+    'birthYear',
+  );
+  @override
+  late final GeneratedColumn<int> birthYear = GeneratedColumn<int>(
+    'birth_year',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _heightCmMeta = const VerificationMeta(
+    'heightCm',
+  );
+  @override
+  late final GeneratedColumn<double> heightCm = GeneratedColumn<double>(
+    'height_cm',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<ActivityLevel, String> activity =
+      GeneratedColumn<String>(
+        'activity',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: true,
+      ).withConverter<ActivityLevel>($ProfilesTable.$converteractivity);
+  static const VerificationMeta _weightKgMeta = const VerificationMeta(
+    'weightKg',
+  );
+  @override
+  late final GeneratedColumn<double> weightKg = GeneratedColumn<double>(
+    'weight_kg',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _tdeeKcalMeta = const VerificationMeta(
+    'tdeeKcal',
+  );
+  @override
+  late final GeneratedColumn<double> tdeeKcal = GeneratedColumn<double>(
+    'tdee_kcal',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _updatedAtMeta = const VerificationMeta(
+    'updatedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+    'updated_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    sex,
+    birthYear,
+    heightCm,
+    activity,
+    weightKg,
+    tdeeKcal,
+    updatedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'profiles';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Profile> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('birth_year')) {
+      context.handle(
+        _birthYearMeta,
+        birthYear.isAcceptableOrUnknown(data['birth_year']!, _birthYearMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_birthYearMeta);
+    }
+    if (data.containsKey('height_cm')) {
+      context.handle(
+        _heightCmMeta,
+        heightCm.isAcceptableOrUnknown(data['height_cm']!, _heightCmMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_heightCmMeta);
+    }
+    if (data.containsKey('weight_kg')) {
+      context.handle(
+        _weightKgMeta,
+        weightKg.isAcceptableOrUnknown(data['weight_kg']!, _weightKgMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_weightKgMeta);
+    }
+    if (data.containsKey('tdee_kcal')) {
+      context.handle(
+        _tdeeKcalMeta,
+        tdeeKcal.isAcceptableOrUnknown(data['tdee_kcal']!, _tdeeKcalMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_tdeeKcalMeta);
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(
+        _updatedAtMeta,
+        updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_updatedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Profile map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Profile(
+      id: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}id'],
+      )!,
+      sex: $ProfilesTable.$convertersex.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}sex'],
+        )!,
+      ),
+      birthYear: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}birth_year'],
+      )!,
+      heightCm: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}height_cm'],
+      )!,
+      activity: $ProfilesTable.$converteractivity.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}activity'],
+        )!,
+      ),
+      weightKg: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}weight_kg'],
+      )!,
+      tdeeKcal: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}tdee_kcal'],
+      )!,
+      updatedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}updated_at'],
+      )!,
+    );
+  }
+
+  @override
+  $ProfilesTable createAlias(String alias) {
+    return $ProfilesTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<Sex, String, String> $convertersex =
+      const EnumNameConverter<Sex>(Sex.values);
+  static JsonTypeConverter2<ActivityLevel, String, String> $converteractivity =
+      const EnumNameConverter<ActivityLevel>(ActivityLevel.values);
+}
+
+class Profile extends DataClass implements Insertable<Profile> {
+  final int id;
+  final Sex sex;
+  final int birthYear;
+  final double heightCm;
+  final ActivityLevel activity;
+
+  /// 計算 TDEE 時用的體重。
+  final double weightKg;
+
+  /// 固定的每日總消耗（kcal），可手動調整。
+  final double tdeeKcal;
+  final DateTime updatedAt;
+  const Profile({
+    required this.id,
+    required this.sex,
+    required this.birthYear,
+    required this.heightCm,
+    required this.activity,
+    required this.weightKg,
+    required this.tdeeKcal,
+    required this.updatedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    {
+      map['sex'] = Variable<String>($ProfilesTable.$convertersex.toSql(sex));
+    }
+    map['birth_year'] = Variable<int>(birthYear);
+    map['height_cm'] = Variable<double>(heightCm);
+    {
+      map['activity'] = Variable<String>(
+        $ProfilesTable.$converteractivity.toSql(activity),
+      );
+    }
+    map['weight_kg'] = Variable<double>(weightKg);
+    map['tdee_kcal'] = Variable<double>(tdeeKcal);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  ProfilesCompanion toCompanion(bool nullToAbsent) {
+    return ProfilesCompanion(
+      id: Value(id),
+      sex: Value(sex),
+      birthYear: Value(birthYear),
+      heightCm: Value(heightCm),
+      activity: Value(activity),
+      weightKg: Value(weightKg),
+      tdeeKcal: Value(tdeeKcal),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory Profile.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Profile(
+      id: serializer.fromJson<int>(json['id']),
+      sex: $ProfilesTable.$convertersex.fromJson(
+        serializer.fromJson<String>(json['sex']),
+      ),
+      birthYear: serializer.fromJson<int>(json['birthYear']),
+      heightCm: serializer.fromJson<double>(json['heightCm']),
+      activity: $ProfilesTable.$converteractivity.fromJson(
+        serializer.fromJson<String>(json['activity']),
+      ),
+      weightKg: serializer.fromJson<double>(json['weightKg']),
+      tdeeKcal: serializer.fromJson<double>(json['tdeeKcal']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sex': serializer.toJson<String>(
+        $ProfilesTable.$convertersex.toJson(sex),
+      ),
+      'birthYear': serializer.toJson<int>(birthYear),
+      'heightCm': serializer.toJson<double>(heightCm),
+      'activity': serializer.toJson<String>(
+        $ProfilesTable.$converteractivity.toJson(activity),
+      ),
+      'weightKg': serializer.toJson<double>(weightKg),
+      'tdeeKcal': serializer.toJson<double>(tdeeKcal),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  Profile copyWith({
+    int? id,
+    Sex? sex,
+    int? birthYear,
+    double? heightCm,
+    ActivityLevel? activity,
+    double? weightKg,
+    double? tdeeKcal,
+    DateTime? updatedAt,
+  }) => Profile(
+    id: id ?? this.id,
+    sex: sex ?? this.sex,
+    birthYear: birthYear ?? this.birthYear,
+    heightCm: heightCm ?? this.heightCm,
+    activity: activity ?? this.activity,
+    weightKg: weightKg ?? this.weightKg,
+    tdeeKcal: tdeeKcal ?? this.tdeeKcal,
+    updatedAt: updatedAt ?? this.updatedAt,
+  );
+  Profile copyWithCompanion(ProfilesCompanion data) {
+    return Profile(
+      id: data.id.present ? data.id.value : this.id,
+      sex: data.sex.present ? data.sex.value : this.sex,
+      birthYear: data.birthYear.present ? data.birthYear.value : this.birthYear,
+      heightCm: data.heightCm.present ? data.heightCm.value : this.heightCm,
+      activity: data.activity.present ? data.activity.value : this.activity,
+      weightKg: data.weightKg.present ? data.weightKg.value : this.weightKg,
+      tdeeKcal: data.tdeeKcal.present ? data.tdeeKcal.value : this.tdeeKcal,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Profile(')
+          ..write('id: $id, ')
+          ..write('sex: $sex, ')
+          ..write('birthYear: $birthYear, ')
+          ..write('heightCm: $heightCm, ')
+          ..write('activity: $activity, ')
+          ..write('weightKg: $weightKg, ')
+          ..write('tdeeKcal: $tdeeKcal, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+    id,
+    sex,
+    birthYear,
+    heightCm,
+    activity,
+    weightKg,
+    tdeeKcal,
+    updatedAt,
+  );
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Profile &&
+          other.id == this.id &&
+          other.sex == this.sex &&
+          other.birthYear == this.birthYear &&
+          other.heightCm == this.heightCm &&
+          other.activity == this.activity &&
+          other.weightKg == this.weightKg &&
+          other.tdeeKcal == this.tdeeKcal &&
+          other.updatedAt == this.updatedAt);
+}
+
+class ProfilesCompanion extends UpdateCompanion<Profile> {
+  final Value<int> id;
+  final Value<Sex> sex;
+  final Value<int> birthYear;
+  final Value<double> heightCm;
+  final Value<ActivityLevel> activity;
+  final Value<double> weightKg;
+  final Value<double> tdeeKcal;
+  final Value<DateTime> updatedAt;
+  const ProfilesCompanion({
+    this.id = const Value.absent(),
+    this.sex = const Value.absent(),
+    this.birthYear = const Value.absent(),
+    this.heightCm = const Value.absent(),
+    this.activity = const Value.absent(),
+    this.weightKg = const Value.absent(),
+    this.tdeeKcal = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  ProfilesCompanion.insert({
+    this.id = const Value.absent(),
+    required Sex sex,
+    required int birthYear,
+    required double heightCm,
+    required ActivityLevel activity,
+    required double weightKg,
+    required double tdeeKcal,
+    required DateTime updatedAt,
+  }) : sex = Value(sex),
+       birthYear = Value(birthYear),
+       heightCm = Value(heightCm),
+       activity = Value(activity),
+       weightKg = Value(weightKg),
+       tdeeKcal = Value(tdeeKcal),
+       updatedAt = Value(updatedAt);
+  static Insertable<Profile> custom({
+    Expression<int>? id,
+    Expression<String>? sex,
+    Expression<int>? birthYear,
+    Expression<double>? heightCm,
+    Expression<String>? activity,
+    Expression<double>? weightKg,
+    Expression<double>? tdeeKcal,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sex != null) 'sex': sex,
+      if (birthYear != null) 'birth_year': birthYear,
+      if (heightCm != null) 'height_cm': heightCm,
+      if (activity != null) 'activity': activity,
+      if (weightKg != null) 'weight_kg': weightKg,
+      if (tdeeKcal != null) 'tdee_kcal': tdeeKcal,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  ProfilesCompanion copyWith({
+    Value<int>? id,
+    Value<Sex>? sex,
+    Value<int>? birthYear,
+    Value<double>? heightCm,
+    Value<ActivityLevel>? activity,
+    Value<double>? weightKg,
+    Value<double>? tdeeKcal,
+    Value<DateTime>? updatedAt,
+  }) {
+    return ProfilesCompanion(
+      id: id ?? this.id,
+      sex: sex ?? this.sex,
+      birthYear: birthYear ?? this.birthYear,
+      heightCm: heightCm ?? this.heightCm,
+      activity: activity ?? this.activity,
+      weightKg: weightKg ?? this.weightKg,
+      tdeeKcal: tdeeKcal ?? this.tdeeKcal,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sex.present) {
+      map['sex'] = Variable<String>(
+        $ProfilesTable.$convertersex.toSql(sex.value),
+      );
+    }
+    if (birthYear.present) {
+      map['birth_year'] = Variable<int>(birthYear.value);
+    }
+    if (heightCm.present) {
+      map['height_cm'] = Variable<double>(heightCm.value);
+    }
+    if (activity.present) {
+      map['activity'] = Variable<String>(
+        $ProfilesTable.$converteractivity.toSql(activity.value),
+      );
+    }
+    if (weightKg.present) {
+      map['weight_kg'] = Variable<double>(weightKg.value);
+    }
+    if (tdeeKcal.present) {
+      map['tdee_kcal'] = Variable<double>(tdeeKcal.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('ProfilesCompanion(')
+          ..write('id: $id, ')
+          ..write('sex: $sex, ')
+          ..write('birthYear: $birthYear, ')
+          ..write('heightCm: $heightCm, ')
+          ..write('activity: $activity, ')
+          ..write('weightKg: $weightKg, ')
+          ..write('tdeeKcal: $tdeeKcal, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -2845,6 +3353,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $MealTemplatesTable mealTemplates = $MealTemplatesTable(this);
   late final $DailyChecksTable dailyChecks = $DailyChecksTable(this);
   late final $PhasesTable phases = $PhasesTable(this);
+  late final $ProfilesTable profiles = $ProfilesTable(this);
   late final Index foodEntriesEatenAt = Index(
     'food_entries_eaten_at',
     'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
@@ -2859,6 +3368,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     mealTemplates,
     dailyChecks,
     phases,
+    profiles,
     foodEntriesEatenAt,
   ];
 }
@@ -4296,6 +4806,260 @@ typedef $$PhasesTableProcessedTableManager =
       Phase,
       PrefetchHooks Function()
     >;
+typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
+  Value<int> id,
+  required Sex sex,
+  required int birthYear,
+  required double heightCm,
+  required ActivityLevel activity,
+  required double weightKg,
+  required double tdeeKcal,
+  required DateTime updatedAt,
+});
+typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
+  Value<int> id,
+  Value<Sex> sex,
+  Value<int> birthYear,
+  Value<double> heightCm,
+  Value<ActivityLevel> activity,
+  Value<double> weightKg,
+  Value<double> tdeeKcal,
+  Value<DateTime> updatedAt,
+});
+
+class $$ProfilesTableFilterComposer
+    extends Composer<_$AppDatabase, $ProfilesTable> {
+  $$ProfilesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<Sex, Sex, String> get sex =>
+      $composableBuilder(
+        column: $table.sex,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
+
+  ColumnFilters<int> get birthYear => $composableBuilder(
+    column: $table.birthYear,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get heightCm => $composableBuilder(
+    column: $table.heightCm,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<ActivityLevel, ActivityLevel, String>
+  get activity => $composableBuilder(
+    column: $table.activity,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnFilters<double> get weightKg => $composableBuilder(
+    column: $table.weightKg,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get tdeeKcal => $composableBuilder(
+    column: $table.tdeeKcal,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$ProfilesTableOrderingComposer
+    extends Composer<_$AppDatabase, $ProfilesTable> {
+  $$ProfilesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+    column: $table.id,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get sex => $composableBuilder(
+    column: $table.sex,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get birthYear => $composableBuilder(
+    column: $table.birthYear,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get heightCm => $composableBuilder(
+    column: $table.heightCm,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get activity => $composableBuilder(
+    column: $table.activity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get weightKg => $composableBuilder(
+    column: $table.weightKg,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get tdeeKcal => $composableBuilder(
+    column: $table.tdeeKcal,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+    column: $table.updatedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$ProfilesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $ProfilesTable> {
+  $$ProfilesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<Sex, String> get sex =>
+      $composableBuilder(column: $table.sex, builder: (column) => column);
+
+  GeneratedColumn<int> get birthYear =>
+      $composableBuilder(column: $table.birthYear, builder: (column) => column);
+
+  GeneratedColumn<double> get heightCm =>
+      $composableBuilder(column: $table.heightCm, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<ActivityLevel, String> get activity =>
+      $composableBuilder(column: $table.activity, builder: (column) => column);
+
+  GeneratedColumn<double> get weightKg =>
+      $composableBuilder(column: $table.weightKg, builder: (column) => column);
+
+  GeneratedColumn<double> get tdeeKcal =>
+      $composableBuilder(column: $table.tdeeKcal, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+}
+
+class $$ProfilesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $ProfilesTable,
+          Profile,
+          $$ProfilesTableFilterComposer,
+          $$ProfilesTableOrderingComposer,
+          $$ProfilesTableAnnotationComposer,
+          $$ProfilesTableCreateCompanionBuilder,
+          $$ProfilesTableUpdateCompanionBuilder,
+          (Profile, BaseReferences<_$AppDatabase, $ProfilesTable, Profile>),
+          Profile,
+          PrefetchHooks Function()
+        > {
+  $$ProfilesTableTableManager(_$AppDatabase db, $ProfilesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$ProfilesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$ProfilesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$ProfilesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<Sex> sex = const Value.absent(),
+                Value<int> birthYear = const Value.absent(),
+                Value<double> heightCm = const Value.absent(),
+                Value<ActivityLevel> activity = const Value.absent(),
+                Value<double> weightKg = const Value.absent(),
+                Value<double> tdeeKcal = const Value.absent(),
+                Value<DateTime> updatedAt = const Value.absent(),
+              }) => ProfilesCompanion(
+                id: id,
+                sex: sex,
+                birthYear: birthYear,
+                heightCm: heightCm,
+                activity: activity,
+                weightKg: weightKg,
+                tdeeKcal: tdeeKcal,
+                updatedAt: updatedAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required Sex sex,
+                required int birthYear,
+                required double heightCm,
+                required ActivityLevel activity,
+                required double weightKg,
+                required double tdeeKcal,
+                required DateTime updatedAt,
+              }) => ProfilesCompanion.insert(
+                id: id,
+                sex: sex,
+                birthYear: birthYear,
+                heightCm: heightCm,
+                activity: activity,
+                weightKg: weightKg,
+                tdeeKcal: tdeeKcal,
+                updatedAt: updatedAt,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$ProfilesTable, Profile>(table),
+                  BaseReferences<_$AppDatabase, $ProfilesTable, Profile>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$ProfilesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $ProfilesTable,
+      Profile,
+      $$ProfilesTableFilterComposer,
+      $$ProfilesTableOrderingComposer,
+      $$ProfilesTableAnnotationComposer,
+      $$ProfilesTableCreateCompanionBuilder,
+      $$ProfilesTableUpdateCompanionBuilder,
+      (Profile, BaseReferences<_$AppDatabase, $ProfilesTable, Profile>),
+      Profile,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -4310,4 +5074,6 @@ class $AppDatabaseManager {
       $$DailyChecksTableTableManager(_db, _db.dailyChecks);
   $$PhasesTableTableManager get phases =>
       $$PhasesTableTableManager(_db, _db.phases);
+  $$ProfilesTableTableManager get profiles =>
+      $$ProfilesTableTableManager(_db, _db.profiles);
 }

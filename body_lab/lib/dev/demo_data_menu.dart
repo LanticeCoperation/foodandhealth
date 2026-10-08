@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../data/body_repository.dart';
 import '../data/check_repository.dart';
 import '../data/database.dart';
+import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
+import '../data/profile_repository.dart';
 import '../data/template_repository.dart';
 import 'demo_data.dart';
 
@@ -13,9 +15,11 @@ class DemoDataMenu extends StatelessWidget {
     super.key,
     required this.db,
     required this.body,
+    required this.food,
     required this.templates,
     required this.checks,
     required this.phases,
+    required this.profile,
   });
 
   final AppDatabase db;
@@ -23,6 +27,8 @@ class DemoDataMenu extends StatelessWidget {
   final TemplateRepository templates;
   final CheckRepository checks;
   final PhaseRepository phases;
+  final FoodRepository food;
+  final ProfileRepository profile;
 
   Future<void> _run(
     BuildContext context, {
@@ -67,20 +73,22 @@ class DemoDataMenu extends StatelessWidget {
         'seed' => _run(
           context,
           title: '產生示範資料？',
-          message: '會先清空所有資料（飲食、範本、階段、快取），再產生 12 週示範資料。',
+          message: '會先清空所有資料（飲食、一鍵項目、階段、個人資料、快取），再產生 12 週示範資料。',
           done: '已產生 12 週示範資料',
           action: () => seedDemoData(
             db: db,
             body: body,
+            food: food,
             templates: templates,
             checks: checks,
             phases: phases,
+            profile: profile,
           ),
         ),
         'clear' => _run(
           context,
           title: '清空所有資料？',
-          message: '飲食紀錄、範本、打勾、階段與健康資料快取都會刪除，無法復原。',
+          message: '飲食紀錄、一鍵項目、打勾、階段、個人資料與健康資料快取都會刪除，無法復原。',
           done: '已清空',
           action: db.clearAllData,
         ),
