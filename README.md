@@ -1,102 +1,158 @@
-# Body Lab — 第一步：讀取身體組成
+# Body Lab
 
-目標：從 Apple 健康（iOS）/ Health Connect（Android）讀取
-**體重、體脂%、除脂體重**，每天只取最早一筆（起床測量），
-並計算脂肪重量與 7 日移動平均。
+從 Apple 健康（iOS）/ Health Connect（Android）讀取**體重、體脂%、除脂體重**，
+搭配飲食紀錄、補充品打勾與 4 週實驗階段，看哪種做法真的讓脂肪下降、除脂體重上升。
 
-## 1. 專案（已建立）
+- **身體**：每天只取最早一筆（起床測量），算脂肪重與 7 日移動平均，標出水分波動
+- **飲食**：餐點範本快速輸入、份量倍率、蛋白粉一鍵 +1、肌酸打勾
+- **趨勢**：體重 / 脂肪 / 除脂變化疊加每日熱量或蛋白質
+- **分析**：4 週實驗階段（目標、執行率、階段比較）與組合分析熱力圖
 
-專案在 `body_lab/`（`flutter create --org com.yourname --platforms ios,android body_lab`），
-已加入 `health` 套件，平台設定都已套用。上架前記得把 `com.yourname` 換成自己的
-（Android `applicationId`/`namespace`/MainActivity package、iOS Bundle Identifier）。
+## 在 Mac 上跑起來（iPhone 實機）
 
 ```bash
-cd body_lab
-flutter pub get
-flutter test
+git clone https://github.com/LanticeCoperation/foodandhealth.git
 ```
 
-## 2. iOS 設定
+```bash
+cd foodandhealth/body_lab && flutter pub get && flutter test
+```
 
-已完成：
-- `ios/Runner/Info.plist` 加入 `NSHealthShareUsageDescription` / `NSHealthUpdateUsageDescription`
-- `ios/Runner/Runner.entitlements` 開啟 HealthKit，並設定 `CODE_SIGN_ENTITLEMENTS`
-- 部署目標 iOS 15.0
+```bash
+open ios/Runner.xcworkspace
+```
 
-需要在 Mac 上手動做：
-1. `open ios/Runner.xcworkspace` → Runner target → Signing & Capabilities →
-   選你的 Team，確認 **HealthKit** 出現在 capability 列表（沒出現就 `+ Capability` 加一次）
-2. 只能用**實機**測試，模擬器沒有你的健康資料
+在 Xcode：
 
-## 3. Android 設定（Health Connect）
+1. 左側選 **Runner** 專案 → TARGETS **Runner** → **Signing & Capabilities**
+2. **Team** 選你的 Apple ID / 開發者帳號
+3. **Bundle Identifier** 改成自己的（例如 `com.<你的名字>.bodylab`）；`com.yourname.bodyLab`
+   很可能已被別人註冊而無法簽署
+4. 確認 capability 列表裡有 **HealthKit**（entitlement 已經設好，沒出現就 `+ Capability` 加一次）。
+   免費 Apple ID 若無法簽署 HealthKit，需要改用付費開發者帳號
 
-已完成：
-- `android/app/build.gradle.kts`：`minSdk = 26`
-- `AndroidManifest.xml`：讀取體重 / 體脂 / 除脂體重 / 歷史資料權限、
-  權限說明 intent-filter、`ViewPermissionUsageActivity`、Health Connect `<queries>`
-- `MainActivity` 改成 `FlutterFragmentActivity`
-- `android/gradle.properties`：`kotlin.incremental=false`（Windows 上專案與 pub cache
-  在不同磁碟時 Kotlin 增量編譯會失敗）
-
-Android 14 以上 Health Connect 內建在系統；Android 13 以下要從 Play 商店安裝
-（App 偵測到沒安裝會顯示安裝按鈕）。Health Connect 預設只給授權後 30 天的資料，
-App 會另外要求「讀取歷史資料」權限以取得 90 天。
-
-## 4. 執行
+接上 iPhone（第一次要在 iPhone 上開啟「開發者模式」），然後：
 
 ```bash
 flutter run
 ```
 
-第一次開啟會跳出權限畫面，把體重、體脂、除脂體重都打開。
-列表會顯示每天的數值、7 日平均，偏離平均超過 0.8 kg 的天會標記水滴圖示。
-除脂體重後面有「*推算」表示體脂計沒寫入，由 體重 × (1 − 體脂%) 算出。
+- 免費帳號第一次安裝後，到 iPhone 的 設定 → 一般 → VPN 與裝置管理 信任開發者
+- 只能用**實機**：模擬器沒有你的健康資料
+- 第一次開啟會跳出健康權限畫面，把體重、體脂率、除脂體重都打開。之後要改權限：
+  設定 → 健康 → 資料存取與裝置 → Body Lab
+- iOS 已設定：Info.plist 權限說明、`Runner.entitlements`（HealthKit）、部署目標 iOS 15.0
+
+## Android（Health Connect）
+
+已設定：`minSdk = 26`、Health Connect 讀取權限（體重 / 體脂 / 除脂體重 / 歷史資料）、
+權限說明 intent-filter、`ViewPermissionUsageActivity`、`FlutterFragmentActivity`。
+`android/gradle.properties` 的 `kotlin.incremental=false` 是因為 Windows 上專案與 pub cache
+在不同磁碟時 Kotlin 增量編譯會失敗。
+
+Android 14 以上 Health Connect 內建在系統；Android 13 以下要從 Play 商店安裝
+（App 偵測到沒安裝會顯示安裝按鈕）。Health Connect 預設只給授權後 30 天的資料，
+App 會另外要求「讀取歷史資料」權限以取得 90 天。
+
+上架前把 `com.yourname` 換成自己的（Android `applicationId` / `namespace` / MainActivity
+package、iOS Bundle Identifier）。
+
+## 怎麼用
+
+### 身體
+
+每天一列：體重、體脂、脂肪重、除脂體重與 7 日平均。偏離 7 日平均超過 0.8 kg 的天標記水滴
+（多半是水分）。除脂體重後面有「*推算」表示體脂計沒寫入，由 體重 × (1 − 體脂%) 算出。
+先顯示本地快取，再背景同步；右上角可手動同步。
+
+### 飲食
+
+- **+ 按鈕**：搜尋範本 → 選份量（−/+ 0.5 或 ×0.5 / ×1 / ×1.5 / ×2）與餐別 → 加入。
+  找不到就按「自訂輸入」，可勾「同時存成範本」。
+- **快速列**：釘選的範本一鍵 +1（後面的數字是當天已吃幾份），肌酸點一下打勾。
+  預設釘選「蛋白粉（1 匙）」120 kcal / 24 g 蛋白質，請在範本管理改成自己的數值。
+- **長按紀錄**：存成範本 / 編輯 / 刪除。往左滑也能刪除，都可以復原。
+- 右上角書籤圖示進入範本管理：釘選、編輯、往左滑刪除。
+- 當天在實驗階段內時，總量顯示「實際 / 目標」，達標變色。
+
+### 趨勢
+
+- 左軸：體重 / 脂肪重 / 除脂體重的 7 日平均，相對區間第一天的變化（kg）。
+  三條線同一尺度，看得出體重下降是脂肪還是除脂體重。淡色點是當天實際量到的體重。
+- 右軸：每日熱量或蛋白質（只畫在圖表下半部）。
+- 底部紫色方塊：有吃肌酸的天；背景色塊：實驗階段。
+- 點圖表看當天數值；下方摘要是區間內的變化、平均攝取（只算有紀錄的天）與紀錄天數。
+
+### 分析 → 實驗階段
+
+- 一個階段固定改變一件事，預設 4 週（可選 2 / 4 / 6 / 8 週或自訂結束日），階段不能重疊。
+- 卡片顯示進度、**每週**體重 / 脂肪 / 除脂變化（長度不同的階段才能比較），以及執行率：
+  熱量在目標 ±10% 內、蛋白質達到目標、有吃肌酸、有飲食紀錄的天數。
+- 已進行 7 天以上的階段有兩個以上時，下方出現「階段比較」表。
+- 詳情頁的圖表多顯示階段前 7 天當對照；可編輯（含心得）或刪除（只刪設定，資料保留）。
+- 變化量是「結束時 7 日平均 − 開始時 7 日平均」，開始時的平均包含階段前幾天，
+  等於以進入階段時的狀態為基準。
+
+### 分析 → 組合分析
+
+- 把全部歷史從今天往回切成不重疊的**週**，每週一個樣本：
+  - 因子：平均熱量、蛋白質 g/kg、肌酸（一週 ≥5 天算有）、階段（一週 ≥4 天在該階段）
+  - 結果：體重 / 脂肪重 / 除脂體重的 7 日平均，這週末減上週末
+- 選橫軸、縱軸兩個因子（縱軸可選「不分」看單一因子），每格是該組合各週的平均變化與週數 n。
+  綠色是好的方向（脂肪、體重下降；除脂體重上升），n 少於 2 的格子淡化。
+- 熱量依自己資料的三分位數分低 / 中 / 高；蛋白質依 1.2 / 1.6 / 2.2 g/kg 分組。
+- 用到熱量 / 蛋白質時，一週需至少 4 天飲食紀錄；週變化需要這週與上週末的 7 日平均
+  都至少有 3 次量測。
+- 用週而不用逐日滑動，是因為逐日樣本彼此重疊，n 會灌水。這是相關不是因果。
+- 下方「各週資料」可以看每一週的原始數字。
 
 ## 專案結構
 
 ```
 body_lab/
   lib/
-    main.dart                     建立資料庫與服務、底部頁籤
+    main.dart                     AppServices（資料庫、repository）、底部頁籤
     models/body_metric.dart       每日身體組成資料
     services/health_service.dart  HealthKit / Health Connect 讀取、每日取第一筆
-    data/database.dart            drift schema：健康資料快取、飲食紀錄
-    data/body_repository.dart     快取讀取、從健康資料同步
+    data/database.dart            drift schema 與 migration
+    data/body_repository.dart     健康資料快取、同步
     data/food_repository.dart     飲食紀錄 CRUD、每日總量
     data/template_repository.dart 餐點範本、從範本加入
     data/check_repository.dart    每日打勾（肌酸）
     data/phase_repository.dart    實驗階段（不可重疊）
-    analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食總量、打勾）
+    analysis/daily_dataset.dart   分析用每日資料（身體、7 日平均、飲食、打勾、階段）
     analysis/overlay_chart.dart   疊加圖資料、區間摘要
     analysis/phase_summary.dart   階段進度、執行率、每週變化
+    analysis/combo_heatmap.dart   週樣本、因子分組、熱力圖
     utils/trend.dart              7 日移動平均、異常值判斷
     utils/dates.dart              當地日期、yyyy-MM-dd 日期鍵
-    screens/body_screen.dart      身體組成列表（先顯示快取再同步）
-    screens/food_screen.dart      單日飲食列表與總量
+    screens/body_screen.dart      身體組成列表
+    screens/food_screen.dart      單日飲食、快速列
     screens/food_entry_sheet.dart 自訂輸入 / 編輯飲食
-    screens/quick_add_sheet.dart  範本快速新增（搜尋、份量倍率、餐別）
-    screens/templates_screen.dart 範本管理（釘選、編輯、封存）
+    screens/quick_add_sheet.dart  範本快速新增
+    screens/templates_screen.dart 範本管理
     screens/trend_screen.dart     疊加趨勢圖（fl_chart）與區間摘要
+    screens/analysis_screen.dart  分析頁（實驗階段 / 組合分析）
     screens/phases_screen.dart    實驗階段列表、詳情、比較、表單
-    widgets/phase_style.dart      階段顏色、圖表色塊
+    screens/combo_screen.dart     組合分析熱力圖
     widgets/nutrition_fields.dart 營養素輸入欄、數字格式
-  test/                           單元測試 + widget 測試
+    widgets/phase_style.dart      階段顏色、圖表色塊
+  test/                           單元測試 + widget 測試（手機尺寸 360 × 780）
     drift/                        schema migration 測試（make-migrations 產生）
   drift_schemas/                  各版 schema 快照
 ```
 
 ## 本地資料庫（drift）
 
-- 資料庫檔案：App 文件目錄下的 `body_lab.sqlite`
+資料庫檔案在 App 文件目錄下的 `body_lab.sqlite`，目前 schema v3。
+
 - **健康資料快取** `daily_body_metrics`：每天一列。第一次同步抓 90 天，之後從快取最後一天
   往前 14 天重抓，並以重抓結果取代這段範圍（健康 App 裡刪掉的天也會消失）。
   讀到空資料時不動快取：iOS 被拒絕讀取時 HealthKit 只回傳空資料，和沒資料分不出來。
 - **飲食紀錄** `food_entries`：時間、餐別、名稱、份量倍率，以及每份的熱量 / 蛋白質 /
   碳水 / 脂肪（都可留空），實際攝取 = 每份 × 份量。從範本加入時記錄 `template_id`，
   營養素仍複製一份，之後改範本不影響舊紀錄。
-- **餐點範本** `meal_templates`（v2）：每份營養、預設份量與餐別、釘選、使用次數。
-  新資料庫預設有一個釘選的「蛋白粉（1 匙）」範本（120 kcal / 24 g 蛋白質），
-  數值請依自己的蛋白粉在範本管理修改。刪除範本只做封存。
+- **餐點範本** `meal_templates`（v2）：每份營養、預設份量與餐別、釘選、使用次數。刪除只做封存。
 - **每日打勾** `daily_checks`（v2）：目前只有肌酸，有紀錄 = 當天有吃。
 - **實驗階段** `phases`（v3）：名稱、起訖日、假設、熱量 / 蛋白質目標、是否吃肌酸、心得。
 
@@ -114,38 +170,18 @@ dart run drift_dev make-migrations
 ```
 
 3. 在 `migration` 的 `stepByStep` 補上新的 `fromNToN+1`
-4. `flutter test test/drift` 驗證 migration
+4. 驗證 migration：
 
-## 飲食頁怎麼用
+```bash
+flutter test test/drift
+```
 
-- **+ 按鈕**：搜尋範本 → 選份量（−/+ 0.5 或 ×0.5 / ×1 / ×1.5 / ×2）與餐別 → 加入。
-  找不到就按「自訂輸入」，可勾「同時存成範本」。
-- **快速列**：釘選的範本一鍵 +1（後面的數字是當天已吃幾份），肌酸點一下打勾。
-- **長按紀錄**：存成範本 / 編輯 / 刪除。往左滑也能刪除，都可以復原。
-- 右上角書籤圖示進入範本管理：釘選、編輯、往左滑刪除。
+## 進度
 
-## 趨勢頁
-
-- 左軸：體重 / 脂肪重 / 除脂體重的 7 日平均，相對區間第一天的變化（kg）。
-  三條線同一尺度，看得出體重下降是脂肪還是除脂體重。淡色點是當天實際量到的體重。
-- 右軸：每日熱量或蛋白質（只畫在圖表下半部），沒紀錄的天斷開。
-- 底部紫色方塊：有吃肌酸的天。
-- 點圖表看當天數值；下方摘要是區間內的變化、平均攝取（只算有紀錄的天）與紀錄天數。
-
-## 實驗頁（4 週實驗）
-
-- 一個階段固定改變一件事，預設 4 週（可選 2 / 4 / 6 / 8 週或自訂結束日），階段不能重疊。
-- 卡片顯示進度、**每週**體重 / 脂肪 / 除脂變化（長度不同的階段才能比較），以及執行率：
-  熱量在目標 ±10% 內、蛋白質達到目標、有吃肌酸、有飲食紀錄的天數。
-- 已進行 7 天以上的階段有兩個以上時，下方出現「階段比較」表。
-- 詳情頁的圖表多顯示階段前 7 天當對照；可編輯（含心得）或刪除（只刪設定，資料保留）。
-- 階段期間在趨勢圖上有背景色塊；飲食頁的總量會顯示「實際 / 目標」，達標變色。
-- 變化量是「結束時 7 日平均 − 開始時 7 日平均」，開始時的平均包含階段前幾天，等於以進入階段時的狀態為基準。
-
-## 接下來
-
+- [x] 讀取身體組成（HealthKit / Health Connect）
 - [x] 本地資料庫（drift）：快取健康資料 + 存飲食紀錄
 - [x] 外食快速輸入：餐點範本、份量倍率、蛋白粉一鍵 +1、肌酸打勾
 - [x] 疊加趨勢圖（fl_chart）
 - [x] 階段（4 週實驗）功能
-- [ ] 組合分析熱力圖
+- [x] 組合分析熱力圖
+- [ ] iPhone 實機驗證

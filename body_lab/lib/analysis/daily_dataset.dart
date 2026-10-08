@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:drift/drift.dart' show TableUpdateQuery;
+import 'package:drift/drift.dart';
 
 import '../data/body_repository.dart';
 import '../data/check_repository.dart';
@@ -128,6 +128,32 @@ class DatasetRepository {
 
   Stream<DailyDataset> watchRange(DateTime from, DateTime to) =>
       _watch(() => loadRange(from, to));
+
+  /// 從最早一筆資料（身體、飲食或打勾）到今天；沒有任何資料時是空的。
+  Future<DailyDataset> loadAll() async {
+    final first = await _earliestDay();
+    if (first == null) return const DailyDataset([]);
+    return loadRange(first.isAfter(today) ? today : first, today);
+  }
+
+  Stream<DailyDataset> watchAll() => _watch(loadAll);
+
+  Future<DateTime?> _earliestDay() async {
+    final body = _db.dailyBodyMetrics.day.min();
+    final food = _db.foodEntries.eatenAt.min();
+    final check = _db.dailyChecks.day.min();
+    final (b, f, c) = await (
+      (_db.selectOnly(_db.dailyBodyMetrics)..addColumns([body])).getSingle(),
+      (_db.selectOnly(_db.foodEntries)..addColumns([food])).getSingle(),
+      (_db.selectOnly(_db.dailyChecks)..addColumns([check])).getSingle(),
+    ).wait;
+    final candidates = [
+      if (b.read(body) case final key?) parseDayKey(key),
+      if (f.read(food) case final t?) dateOnly(t),
+      if (c.read(check) case final key?) parseDayKey(key),
+    ]..sort();
+    return candidates.firstOrNull;
+  }
 
   Stream<PhaseOverview> watchPhaseOverview() => _watch(() async {
     final phases = await _phases.all();

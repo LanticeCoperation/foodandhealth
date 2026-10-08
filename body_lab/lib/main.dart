@@ -9,7 +9,7 @@ import 'data/phase_repository.dart';
 import 'data/template_repository.dart';
 import 'screens/body_screen.dart';
 import 'screens/food_screen.dart';
-import 'screens/phases_screen.dart';
+import 'screens/analysis_screen.dart';
 import 'screens/trend_screen.dart';
 import 'services/health_service.dart';
 
@@ -83,10 +83,7 @@ class _HomeShellState extends State<_HomeShell> {
         phases: s.phases,
       ),
       TrendScreen(dataset: s.dataset),
-      Scaffold(
-        appBar: AppBar(title: const Text('實驗階段')),
-        body: PhasesScreen(phases: s.phases, dataset: s.dataset),
-      ),
+      AnalysisScreen(phases: s.phases, dataset: s.dataset),
     ];
   }
 
@@ -112,7 +109,7 @@ class _HomeShellState extends State<_HomeShell> {
           NavigationDestination(
             icon: Icon(Icons.science_outlined),
             selectedIcon: Icon(Icons.science),
-            label: '實驗',
+            label: '分析',
           ),
         ],
       ),
