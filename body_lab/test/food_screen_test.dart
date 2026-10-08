@@ -194,4 +194,40 @@ void main() {
 
     await close(tester);
   });
+
+  testWidgets('點紀錄編輯熱量；編輯表單裡也能刪除並復原', (tester) async {
+    usePhoneSize(tester);
+    await open(tester);
+
+    await tester.tap(find.text('記一餐'));
+    await settle(tester);
+    await tester.tap(find.text('午餐'));
+    await tester.enterText(find.widgetWithText(TextFormField, '熱量'), '600');
+    await tester.tap(find.text('儲存'));
+    await settle(tester);
+
+    // 點那筆 → 編輯成 650
+    await tester.tap(find.text('600 kcal').last);
+    await settle(tester);
+    expect(find.text('編輯飲食'), findsOneWidget);
+    await tester.enterText(find.widgetWithText(TextFormField, '熱量'), '650');
+    await tester.tap(find.text('儲存'));
+    await settle(tester);
+    expect(find.text('650 kcal'), findsWidgets);
+    expect(find.text('600 kcal'), findsNothing);
+
+    // 再點開 → 刪除
+    await tester.tap(find.text('650 kcal').last);
+    await settle(tester);
+    await tester.tap(find.text('刪除這筆'));
+    await settle(tester);
+    expect(find.text('650 kcal'), findsNothing);
+    expect(find.textContaining('已刪除 午餐'), findsOneWidget);
+
+    await tester.tap(find.text('復原'));
+    await settle(tester);
+    expect(find.text('650 kcal'), findsWidgets);
+
+    await close(tester);
+  });
 }

@@ -113,6 +113,7 @@ class _FoodScreenState extends State<FoodScreen> {
       context,
       defaultTime: e.eatenAt,
       initial: e,
+      onDelete: () => _delete(e),
     );
     if (entry != null) await widget.repository.save(entry);
   }

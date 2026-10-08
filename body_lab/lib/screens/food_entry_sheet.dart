@@ -6,23 +6,34 @@ import '../widgets/nutrition_fields.dart';
 
 /// 新增或編輯一筆飲食：選餐別、輸入熱量（蛋白質、脂肪選填）。
 /// 按儲存回傳要寫入的 companion（編輯時含原本的 id），取消回傳 null。
+/// 編輯時有 [onDelete] 會顯示「刪除」按鈕：關閉表單後呼叫它。
 Future<FoodEntriesCompanion?> showFoodEntrySheet(
   BuildContext context, {
   required DateTime defaultTime,
   FoodEntry? initial,
+  VoidCallback? onDelete,
 }) {
   return showModalBottomSheet<FoodEntriesCompanion>(
     context: context,
     isScrollControlled: true,
-    builder: (_) => _FoodEntryForm(defaultTime: defaultTime, initial: initial),
+    builder: (_) => _FoodEntryForm(
+      defaultTime: defaultTime,
+      initial: initial,
+      onDelete: onDelete,
+    ),
   );
 }
 
 class _FoodEntryForm extends StatefulWidget {
-  const _FoodEntryForm({required this.defaultTime, this.initial});
+  const _FoodEntryForm({
+    required this.defaultTime,
+    this.initial,
+    this.onDelete,
+  });
 
   final DateTime defaultTime;
   final FoodEntry? initial;
+  final VoidCallback? onDelete;
 
   @override
   State<_FoodEntryForm> createState() => _FoodEntryFormState();
@@ -208,6 +219,21 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
                 FilledButton(onPressed: _submit, child: const Text('儲存')),
               ],
             ),
+            if (widget.onDelete != null)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    widget.onDelete!();
+                  },
+                  icon: const Icon(Icons.delete_outline, size: 18),
+                  label: const Text('刪除這筆'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
           ],
         ),
       ),
