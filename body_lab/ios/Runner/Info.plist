@@ -74,6 +74,6 @@
 	<key>NSHealthShareUsageDescription</key>
 	<string>讀取體重、體脂率、除脂體重與活動能量，用來計算每日身體組成、7 日趨勢與每日消耗。</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>本 App 目前不會寫入健康資料。</string>
+	<string>手動輸入的體重與體脂率會寫入健康 App，和體脂計的資料放在一起。</string>
 </dict>
 </plist>

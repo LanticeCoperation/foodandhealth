@@ -2,6 +2,9 @@
     <!-- Health Connect 讀取權限：體重、體脂、除脂體重 -->
     <uses-permission android:name="android.permission.health.READ_WEIGHT"/>
     <uses-permission android:name="android.permission.health.READ_BODY_FAT"/>
+    <!-- 手動輸入的體重 / 體脂寫回 Health Connect -->
+    <uses-permission android:name="android.permission.health.WRITE_WEIGHT"/>
+    <uses-permission android:name="android.permission.health.WRITE_BODY_FAT"/>
     <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS"/>
     <!-- 手錶的活動消耗（每日消耗 = 基礎代謝 + 活動消耗） -->
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>

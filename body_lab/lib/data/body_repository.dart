@@ -38,12 +38,14 @@ class BodyRepository {
   }
 
   /// 從健康資料同步到快取，回傳讀到的天數。
-  Future<int> sync() async {
+  /// [from] 可以把同步範圍往前延伸（例如手動補登了較早日期的體重）。
+  Future<int> sync({DateTime? from}) async {
     final today = dateOnly(_clock());
     final latest = await _latestCachedDay();
-    final start = latest == null
+    var start = latest == null
         ? addDays(today, -(initialDays - 1))
         : addDays(latest.isAfter(today) ? today : latest, -overlapDays);
+    if (from != null && dateOnly(from).isBefore(start)) start = dateOnly(from);
 
     final metrics = await _source.fetchDailyMetrics(start);
     await replaceFrom(start, metrics);

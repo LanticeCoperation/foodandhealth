@@ -82,6 +82,16 @@ void main() {
     ]);
   });
 
+  test('sync(from:) 可把範圍往前延伸到補登的日期', () async {
+    source.data = [metric(10, 1, 72)];
+    await repo.sync(); // 之後一般同步從 9/17 開始
+
+    source.data = [metric(9, 1, 74), metric(10, 1, 72)];
+    await repo.sync(from: DateTime(2026, 9, 1, 8));
+    expect(source.requestedStarts.last, DateTime(2026, 9, 1));
+    expect((await cached()).map((m) => m.date.month), [9, 10]);
+  });
+
   test('讀到空資料時不清掉快取（iOS 被拒絕讀取時只會拿到空資料）', () async {
     source.data = [metric(10, 1, 72)];
     await repo.sync();

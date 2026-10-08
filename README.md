@@ -67,6 +67,10 @@ package、iOS Bundle Identifier）。
 （多半是水分）。除脂體重後面有「*推算」表示體脂計沒寫入，由 體重 × (1 − 體脂%) 算出。
 先顯示本地快取，再背景同步；右上角可手動同步。
 
+**記錄體重**（右下角按鈕）：手動輸入體重（必填）與體脂率（選填），可選日期時間補登。
+資料會**寫進 Apple 健康**（標記為手動輸入），再照一般同步讀回來，所以健康 App 和其他 App
+也看得到，正本只有一份。第一次會跳出健康 App 的寫入權限。每天仍以最早一筆為準。
+
 ### 個人資料與每日消耗（身體頁右上角人像）
 
 - 輸入性別、年齡、身高、活動量；體重預設最近的 7 日平均。用 Mifflin-St Jeor 算基礎代謝，
@@ -173,7 +177,8 @@ body_lab/
     screens/food_entry_sheet.dart 自訂輸入 / 編輯飲食
     screens/templates_screen.dart 一鍵 +1 項目
     screens/profile_screen.dart   個人資料與每日消耗設定
-    screens/extra_burn_sheet.dart 自訂消耗（新增 / 刪除）
+    screens/extra_burn_sheet.dart 運動（自訂消耗）新增 / 刪除
+    screens/body_entry_sheet.dart 手動記錄體重 / 體脂率
     screens/trend_screen.dart     疊加趨勢圖（fl_chart）與區間摘要
     screens/analysis_screen.dart  分析頁（實驗階段 / 組合分析）
     screens/phases_screen.dart    實驗階段列表、詳情、比較、表單

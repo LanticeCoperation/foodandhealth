@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
+import 'body_entry_sheet.dart';
 import '../services/health_service.dart';
 import '../utils/dates.dart';
 import '../theme/app_theme.dart';
@@ -78,9 +79,45 @@ class _BodyScreenState extends State<BodyScreen> {
     }
   }
 
+  /// 手動記錄：寫進健康資料後，從該筆的日期開始重新同步讀回來。
+  Future<void> _addManual() async {
+    final entry = await showBodyEntrySheet(context);
+    if (entry == null || !mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final ok = await widget.health.writeBodyMetric(
+        time: entry.time,
+        weightKg: entry.weightKg,
+        bodyFatPercent: entry.bodyFatPercent,
+      );
+      if (!ok) {
+        messenger.showSnackBar(
+          const SnackBar(content: Text('沒有寫入權限，請在健康 App 允許 Body Lab 寫入體重與體脂率')),
+        );
+        return;
+      }
+      await widget.repository.sync(from: entry.time);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            '已記錄 ${entry.weightKg.toStringAsFixed(1)} kg'
+            '${entry.bodyFatPercent == null ? '' : '、體脂 ${entry.bodyFatPercent!.toStringAsFixed(1)}%'}',
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('記錄失敗：$e')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addManual,
+        icon: const Icon(Icons.add),
+        label: const Text('記錄體重'),
+      ),
       appBar: AppBar(
         title: const Text('身體組成'),
         actions: [
@@ -117,7 +154,7 @@ class _BodyScreenState extends State<BodyScreen> {
           return RefreshIndicator(
             onRefresh: _sync,
             child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
               itemCount: points.length + 1,
               itemBuilder: (_, i) => i == 0
                   ? (banner ?? const SizedBox(height: 4))

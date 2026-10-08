@@ -145,6 +145,47 @@ class HealthService implements BodyMetricsSource, ActivitySource {
 
   Future<void> installHealthConnect() => _health.installHealthConnect();
 
+  /// 手動輸入的體重 / 體脂率寫進 Apple 健康 / Health Connect（標記為手動輸入），
+  /// 之後照一般同步讀回來，資料只有健康 App 一份正本。
+  /// 第一次會跳出寫入權限；被拒或寫入失敗回傳 false。
+  Future<bool> writeBodyMetric({
+    required DateTime time,
+    required double weightKg,
+    double? bodyFatPercent,
+  }) async {
+    await _configure();
+    const types = [HealthDataType.WEIGHT, HealthDataType.BODY_FAT_PERCENTAGE];
+    final granted = await _health.requestAuthorization(
+      types,
+      permissions: const [
+        HealthDataAccess.READ_WRITE,
+        HealthDataAccess.READ_WRITE,
+      ],
+    );
+    if (!granted) return false;
+
+    var ok = await _health.writeHealthData(
+      value: weightKg,
+      unit: HealthDataUnit.KILOGRAM,
+      type: HealthDataType.WEIGHT,
+      startTime: time,
+      endTime: time,
+      recordingMethod: RecordingMethod.manual,
+    );
+    if (bodyFatPercent != null) {
+      ok &= await _health.writeHealthData(
+        // HealthKit 的 percent 單位是 0–1，Health Connect 是 0–100
+        value: Platform.isIOS ? bodyFatPercent / 100 : bodyFatPercent,
+        unit: HealthDataUnit.PERCENT,
+        type: HealthDataType.BODY_FAT_PERCENTAGE,
+        startTime: time,
+        endTime: time,
+        recordingMethod: RecordingMethod.manual,
+      );
+    }
+    return ok;
+  }
+
   @override
   Future<List<BodyMetric>> fetchDailyMetrics(DateTime start) async {
     await _configure();
