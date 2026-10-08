@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:health/health.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../models/body_metric.dart';
 import '../utils/dates.dart';
@@ -9,11 +10,19 @@ enum BodySampleType { weight, bodyFat, leanMass }
 
 /// 與平台無關的單筆量測；體脂一律是 0–100。
 class BodySample {
-  const BodySample(this.type, this.time, this.value);
+  const BodySample(
+    this.type,
+    this.time,
+    this.value, {
+    this.fromThisApp = false,
+  });
 
   final BodySampleType type;
   final DateTime time;
   final double value;
+
+  /// 由 Body Lab 自己寫入（手動記錄）。
+  final bool fromThisApp;
 }
 
 /// 每種數值各取當天最早一筆，組成每日資料。沒有體重的日子略過。
@@ -54,6 +63,7 @@ List<BodyMetric> buildDailyMetrics(Iterable<BodySample> samples) {
         bodyFatPercent: bodyFat,
         leanMassKg: lean,
         leanMassEstimated: estimated,
+        fromThisApp: weight.fromThisApp,
       ),
     );
   }
@@ -145,6 +155,26 @@ class HealthService implements BodyMetricsSource, ActivitySource {
 
   Future<void> installHealthConnect() => _health.installHealthConnect();
 
+  /// 刪除 Body Lab 在 [time] 手動記錄的體重與體脂率。
+  /// Apple 健康 / Health Connect 只允許 App 刪除自己寫入的資料，
+  /// 所以就算同一時間有體脂計的紀錄也不會被刪到。
+  Future<bool> deleteBodyMetric(DateTime time) async {
+    await _configure();
+    final from = time.subtract(const Duration(seconds: 1));
+    final to = time.add(const Duration(seconds: 1));
+    final weight = await _health.delete(
+      type: HealthDataType.WEIGHT,
+      startTime: from,
+      endTime: to,
+    );
+    final bodyFat = await _health.delete(
+      type: HealthDataType.BODY_FAT_PERCENTAGE,
+      startTime: from,
+      endTime: to,
+    );
+    return weight && bodyFat;
+  }
+
   /// 手動輸入的體重 / 體脂率寫進 Apple 健康 / Health Connect（標記為手動輸入），
   /// 之後照一般同步讀回來，資料只有健康 App 一份正本。
   /// 第一次會跳出寫入權限；被拒或寫入失敗回傳 false。
@@ -186,9 +216,16 @@ class HealthService implements BodyMetricsSource, ActivitySource {
     return ok;
   }
 
+  String? _appId;
+
+  /// App 自己的 bundle id / package name，用來判斷哪些紀錄是我們寫的。
+  Future<String> _ownAppId() async =>
+      _appId ??= (await PackageInfo.fromPlatform()).packageName;
+
   @override
   Future<List<BodyMetric>> fetchDailyMetrics(DateTime start) async {
     await _configure();
+    final appId = await _ownAppId();
     final now = DateTime.now();
 
     final points = await _health.getHealthDataFromTypes(
@@ -198,7 +235,10 @@ class HealthService implements BodyMetricsSource, ActivitySource {
     );
 
     return buildDailyMetrics(
-      _health.removeDuplicates(points).map(_toSample).whereType<BodySample>(),
+      _health
+          .removeDuplicates(points)
+          .map((p) => _toSample(p, appId))
+          .whereType<BodySample>(),
     );
   }
 
@@ -225,14 +265,21 @@ class HealthService implements BodyMetricsSource, ActivitySource {
     return result;
   }
 
-  BodySample? _toSample(HealthDataPoint p) {
+  BodySample? _toSample(HealthDataPoint p, String appId) {
     final value = p.value;
     if (value is! NumericHealthValue) return null;
     final v = value.numericValue.toDouble();
+    // iOS 的來源在 sourceId（bundle id），Android 在 sourceName（package name）
+    final mine = p.sourceId == appId || p.sourceName == appId;
 
     switch (p.type) {
       case HealthDataType.WEIGHT:
-        return BodySample(BodySampleType.weight, p.dateFrom, v);
+        return BodySample(
+          BodySampleType.weight,
+          p.dateFrom,
+          v,
+          fromThisApp: mine,
+        );
       case HealthDataType.LEAN_BODY_MASS:
         return BodySample(BodySampleType.leanMass, p.dateFrom, v);
       case HealthDataType.BODY_FAT_PERCENTAGE:

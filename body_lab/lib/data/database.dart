@@ -16,6 +16,9 @@ class DailyBodyMetrics extends Table {
   RealColumn get leanMassKg => real().nullable()();
   BoolColumn get leanMassEstimated =>
       boolean().withDefault(const Constant(false))();
+
+  /// 這天顯示的那筆體重是 Body Lab 手動記錄寫入的（v8），只有這種可以在 App 裡刪除。
+  BoolColumn get fromThisApp => boolean().withDefault(const Constant(false))();
   DateTimeColumn get syncedAt => dateTime()();
 
   @override
@@ -237,7 +240,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -269,6 +272,12 @@ class AppDatabase extends _$AppDatabase {
       },
       from6To7: (m, schema) async {
         await m.addColumn(schema.dailyChecks, schema.dailyChecks.amount);
+      },
+      from7To8: (m, schema) async {
+        await m.addColumn(
+          schema.dailyBodyMetrics,
+          schema.dailyBodyMetrics.fromThisApp,
+        );
       },
     ),
   );

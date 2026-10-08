@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
+import '../models/body_metric.dart';
 import 'body_entry_sheet.dart';
 import '../services/health_service.dart';
 import '../utils/dates.dart';
@@ -76,6 +77,80 @@ class _BodyScreenState extends State<BodyScreen> {
       setState(() => _error = e);
     } finally {
       if (mounted) setState(() => _syncing = false);
+    }
+  }
+
+  /// 點某一天：Body Lab 手動記錄的可以刪除，其他來源說明要到健康 App 刪。
+  Future<void> _openDay(BodyMetric m) async {
+    final theme = Theme.of(context);
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                '${m.date.month}/${m.date.day} '
+                '${m.measuredAt.hour.toString().padLeft(2, '0')}:'
+                '${m.measuredAt.minute.toString().padLeft(2, '0')}　'
+                '${m.weightKg.toStringAsFixed(1)} kg'
+                '${m.bodyFatPercent == null ? '' : '・體脂 ${m.bodyFatPercent!.toStringAsFixed(1)}%'}',
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              if (m.fromThisApp)
+                FilledButton.tonalIcon(
+                  onPressed: () => Navigator.pop(context, 'delete'),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('刪除這筆'),
+                  style: FilledButton.styleFrom(
+                    foregroundColor: theme.colorScheme.error,
+                  ),
+                )
+              else
+                Text(
+                  '這筆來自其他 App（例如體脂計），Body Lab 不能刪除。'
+                  '請到健康 App 刪除，再回來同步。',
+                  style: theme.textTheme.bodyMedium,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (action != 'delete' || !mounted) return;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('刪除這筆體重？'),
+        content: const Text('會從健康 App 一起刪除（體重與同一時間的體脂率）。'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('刪除'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.health.deleteBodyMetric(m.measuredAt);
+      // 先移除快取再重新同步：如果當天還有其他紀錄，會再顯示那一筆
+      await widget.repository.removeDay(m.date);
+      await widget.repository.sync(from: m.date);
+      messenger.showSnackBar(const SnackBar(content: Text('已刪除')));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('刪除失敗：$e')));
     }
   }
 
@@ -158,7 +233,10 @@ class _BodyScreenState extends State<BodyScreen> {
               itemCount: points.length + 1,
               itemBuilder: (_, i) => i == 0
                   ? (banner ?? const SizedBox(height: 4))
-                  : _DayCard(point: points[i - 1]),
+                  : _DayCard(
+                      point: points[i - 1],
+                      onTap: () => _openDay(points[i - 1].metric),
+                    ),
             ),
           );
         },
@@ -233,9 +311,10 @@ class _BodyScreenState extends State<BodyScreen> {
 /// 一天一張卡片：日期與量測時間、體重（大字）與 7 日平均，
 /// 下方三欄是體脂、脂肪重、除脂體重（顏色和趨勢圖的線一致）。
 class _DayCard extends StatelessWidget {
-  const _DayCard({required this.point});
+  const _DayCard({required this.point, required this.onTap});
 
   final TrendPoint point;
+  final VoidCallback onTap;
 
   static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
 
@@ -250,105 +329,123 @@ class _DayCard extends StatelessWidget {
     final dev = point.weightDeviation;
 
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  '${m.date.month}/${m.date.day}（${_weekdays[m.date.weekday - 1]}）',
-                  style: theme.textTheme.titleSmall,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  '${_two(m.measuredAt.hour)}:${_two(m.measuredAt.minute)}',
-                  style: muted,
-                ),
-                const Spacer(),
-                if (point.isWaterOutlier)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: palette.leanMass.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.water_drop,
-                          size: 14,
-                          color: palette.leanMass,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '水分 ${dev > 0 ? '+' : ''}${dev.toStringAsFixed(1)} kg',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: palette.leanMass,
-                          ),
-                        ),
-                      ],
-                    ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '${m.date.month}/${m.date.day}（${_weekdays[m.date.weekday - 1]}）',
+                    style: theme.textTheme.titleSmall,
                   ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  m.weightKg.toStringAsFixed(1),
-                  style: theme.textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                    color: palette.weight,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text('kg', style: muted),
-                ),
-                const Spacer(),
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
+                  const SizedBox(width: 8),
+                  Text(
+                    '${_two(m.measuredAt.hour)}:${_two(m.measuredAt.minute)}',
                     style: muted,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _Metric(
-                  label: '體脂',
-                  value: m.bodyFatPercent == null
-                      ? '—'
-                      : '${m.bodyFatPercent!.toStringAsFixed(1)}%',
-                ),
-                _Metric(
-                  label: '脂肪重',
-                  value: _kg(m.fatMassKg),
-                  avg: point.fatMassAvg,
-                  color: palette.fatMass,
-                ),
-                _Metric(
-                  // 推算：體脂計沒寫入，由 體重 × (1 − 體脂%) 算出
-                  label: m.leanMassEstimated ? '除脂 · 推算' : '除脂體重',
-                  value: _kg(m.leanMassKg),
-                  avg: point.leanMassAvg,
-                  color: palette.leanMass,
-                ),
-              ],
-            ),
-          ],
+                  if (m.fromThisApp) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: theme.colorScheme.outline),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text('手動', style: theme.textTheme.labelSmall),
+                    ),
+                  ],
+                  const Spacer(),
+                  if (point.isWaterOutlier)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: palette.leanMass.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.water_drop,
+                            size: 14,
+                            color: palette.leanMass,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            '水分 ${dev > 0 ? '+' : ''}${dev.toStringAsFixed(1)} kg',
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: palette.leanMass,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    m.weightKg.toStringAsFixed(1),
+                    style: theme.textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: palette.weight,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text('kg', style: muted),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
+                      style: muted,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _Metric(
+                    label: '體脂',
+                    value: m.bodyFatPercent == null
+                        ? '—'
+                        : '${m.bodyFatPercent!.toStringAsFixed(1)}%',
+                  ),
+                  _Metric(
+                    label: '脂肪重',
+                    value: _kg(m.fatMassKg),
+                    avg: point.fatMassAvg,
+                    color: palette.fatMass,
+                  ),
+                  _Metric(
+                    // 推算：體脂計沒寫入，由 體重 × (1 − 體脂%) 算出
+                    label: m.leanMassEstimated ? '除脂 · 推算' : '除脂體重',
+                    value: _kg(m.leanMassKg),
+                    avg: point.leanMassAvg,
+                    color: palette.leanMass,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

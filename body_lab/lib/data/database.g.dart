@@ -77,6 +77,21 @@ class $DailyBodyMetricsTable extends DailyBodyMetrics
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _fromThisAppMeta = const VerificationMeta(
+    'fromThisApp',
+  );
+  @override
+  late final GeneratedColumn<bool> fromThisApp = GeneratedColumn<bool>(
+    'from_this_app',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("from_this_app" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _syncedAtMeta = const VerificationMeta(
     'syncedAt',
   );
@@ -96,6 +111,7 @@ class $DailyBodyMetricsTable extends DailyBodyMetrics
     bodyFatPercent,
     leanMassKg,
     leanMassEstimated,
+    fromThisApp,
     syncedAt,
   ];
   @override
@@ -161,6 +177,15 @@ class $DailyBodyMetricsTable extends DailyBodyMetrics
         ),
       );
     }
+    if (data.containsKey('from_this_app')) {
+      context.handle(
+        _fromThisAppMeta,
+        fromThisApp.isAcceptableOrUnknown(
+          data['from_this_app']!,
+          _fromThisAppMeta,
+        ),
+      );
+    }
     if (data.containsKey('synced_at')) {
       context.handle(
         _syncedAtMeta,
@@ -202,6 +227,10 @@ class $DailyBodyMetricsTable extends DailyBodyMetrics
         DriftSqlType.bool,
         data['${effectivePrefix}lean_mass_estimated'],
       )!,
+      fromThisApp: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}from_this_app'],
+      )!,
       syncedAt: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}synced_at'],
@@ -224,6 +253,9 @@ class DailyBodyMetricRow extends DataClass
   final double? bodyFatPercent;
   final double? leanMassKg;
   final bool leanMassEstimated;
+
+  /// 這天顯示的那筆體重是 Body Lab 手動記錄寫入的（v8），只有這種可以在 App 裡刪除。
+  final bool fromThisApp;
   final DateTime syncedAt;
   const DailyBodyMetricRow({
     required this.day,
@@ -232,6 +264,7 @@ class DailyBodyMetricRow extends DataClass
     this.bodyFatPercent,
     this.leanMassKg,
     required this.leanMassEstimated,
+    required this.fromThisApp,
     required this.syncedAt,
   });
   @override
@@ -247,6 +280,7 @@ class DailyBodyMetricRow extends DataClass
       map['lean_mass_kg'] = Variable<double>(leanMassKg);
     }
     map['lean_mass_estimated'] = Variable<bool>(leanMassEstimated);
+    map['from_this_app'] = Variable<bool>(fromThisApp);
     map['synced_at'] = Variable<DateTime>(syncedAt);
     return map;
   }
@@ -263,6 +297,7 @@ class DailyBodyMetricRow extends DataClass
           ? const Value.absent()
           : Value(leanMassKg),
       leanMassEstimated: Value(leanMassEstimated),
+      fromThisApp: Value(fromThisApp),
       syncedAt: Value(syncedAt),
     );
   }
@@ -279,6 +314,7 @@ class DailyBodyMetricRow extends DataClass
       bodyFatPercent: serializer.fromJson<double?>(json['bodyFatPercent']),
       leanMassKg: serializer.fromJson<double?>(json['leanMassKg']),
       leanMassEstimated: serializer.fromJson<bool>(json['leanMassEstimated']),
+      fromThisApp: serializer.fromJson<bool>(json['fromThisApp']),
       syncedAt: serializer.fromJson<DateTime>(json['syncedAt']),
     );
   }
@@ -292,6 +328,7 @@ class DailyBodyMetricRow extends DataClass
       'bodyFatPercent': serializer.toJson<double?>(bodyFatPercent),
       'leanMassKg': serializer.toJson<double?>(leanMassKg),
       'leanMassEstimated': serializer.toJson<bool>(leanMassEstimated),
+      'fromThisApp': serializer.toJson<bool>(fromThisApp),
       'syncedAt': serializer.toJson<DateTime>(syncedAt),
     };
   }
@@ -303,6 +340,7 @@ class DailyBodyMetricRow extends DataClass
     Value<double?> bodyFatPercent = const Value.absent(),
     Value<double?> leanMassKg = const Value.absent(),
     bool? leanMassEstimated,
+    bool? fromThisApp,
     DateTime? syncedAt,
   }) => DailyBodyMetricRow(
     day: day ?? this.day,
@@ -313,6 +351,7 @@ class DailyBodyMetricRow extends DataClass
         : this.bodyFatPercent,
     leanMassKg: leanMassKg.present ? leanMassKg.value : this.leanMassKg,
     leanMassEstimated: leanMassEstimated ?? this.leanMassEstimated,
+    fromThisApp: fromThisApp ?? this.fromThisApp,
     syncedAt: syncedAt ?? this.syncedAt,
   );
   DailyBodyMetricRow copyWithCompanion(DailyBodyMetricsCompanion data) {
@@ -331,6 +370,9 @@ class DailyBodyMetricRow extends DataClass
       leanMassEstimated: data.leanMassEstimated.present
           ? data.leanMassEstimated.value
           : this.leanMassEstimated,
+      fromThisApp: data.fromThisApp.present
+          ? data.fromThisApp.value
+          : this.fromThisApp,
       syncedAt: data.syncedAt.present ? data.syncedAt.value : this.syncedAt,
     );
   }
@@ -344,6 +386,7 @@ class DailyBodyMetricRow extends DataClass
           ..write('bodyFatPercent: $bodyFatPercent, ')
           ..write('leanMassKg: $leanMassKg, ')
           ..write('leanMassEstimated: $leanMassEstimated, ')
+          ..write('fromThisApp: $fromThisApp, ')
           ..write('syncedAt: $syncedAt')
           ..write(')'))
         .toString();
@@ -357,6 +400,7 @@ class DailyBodyMetricRow extends DataClass
     bodyFatPercent,
     leanMassKg,
     leanMassEstimated,
+    fromThisApp,
     syncedAt,
   );
   @override
@@ -369,6 +413,7 @@ class DailyBodyMetricRow extends DataClass
           other.bodyFatPercent == this.bodyFatPercent &&
           other.leanMassKg == this.leanMassKg &&
           other.leanMassEstimated == this.leanMassEstimated &&
+          other.fromThisApp == this.fromThisApp &&
           other.syncedAt == this.syncedAt);
 }
 
@@ -379,6 +424,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
   final Value<double?> bodyFatPercent;
   final Value<double?> leanMassKg;
   final Value<bool> leanMassEstimated;
+  final Value<bool> fromThisApp;
   final Value<DateTime> syncedAt;
   final Value<int> rowid;
   const DailyBodyMetricsCompanion({
@@ -388,6 +434,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
     this.bodyFatPercent = const Value.absent(),
     this.leanMassKg = const Value.absent(),
     this.leanMassEstimated = const Value.absent(),
+    this.fromThisApp = const Value.absent(),
     this.syncedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
@@ -398,6 +445,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
     this.bodyFatPercent = const Value.absent(),
     this.leanMassKg = const Value.absent(),
     this.leanMassEstimated = const Value.absent(),
+    this.fromThisApp = const Value.absent(),
     required DateTime syncedAt,
     this.rowid = const Value.absent(),
   }) : day = Value(day),
@@ -411,6 +459,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
     Expression<double>? bodyFatPercent,
     Expression<double>? leanMassKg,
     Expression<bool>? leanMassEstimated,
+    Expression<bool>? fromThisApp,
     Expression<DateTime>? syncedAt,
     Expression<int>? rowid,
   }) {
@@ -421,6 +470,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
       if (bodyFatPercent != null) 'body_fat_percent': bodyFatPercent,
       if (leanMassKg != null) 'lean_mass_kg': leanMassKg,
       if (leanMassEstimated != null) 'lean_mass_estimated': leanMassEstimated,
+      if (fromThisApp != null) 'from_this_app': fromThisApp,
       if (syncedAt != null) 'synced_at': syncedAt,
       if (rowid != null) 'rowid': rowid,
     });
@@ -433,6 +483,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
     Value<double?>? bodyFatPercent,
     Value<double?>? leanMassKg,
     Value<bool>? leanMassEstimated,
+    Value<bool>? fromThisApp,
     Value<DateTime>? syncedAt,
     Value<int>? rowid,
   }) {
@@ -443,6 +494,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
       bodyFatPercent: bodyFatPercent ?? this.bodyFatPercent,
       leanMassKg: leanMassKg ?? this.leanMassKg,
       leanMassEstimated: leanMassEstimated ?? this.leanMassEstimated,
+      fromThisApp: fromThisApp ?? this.fromThisApp,
       syncedAt: syncedAt ?? this.syncedAt,
       rowid: rowid ?? this.rowid,
     );
@@ -469,6 +521,9 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
     if (leanMassEstimated.present) {
       map['lean_mass_estimated'] = Variable<bool>(leanMassEstimated.value);
     }
+    if (fromThisApp.present) {
+      map['from_this_app'] = Variable<bool>(fromThisApp.value);
+    }
     if (syncedAt.present) {
       map['synced_at'] = Variable<DateTime>(syncedAt.value);
     }
@@ -487,6 +542,7 @@ class DailyBodyMetricsCompanion extends UpdateCompanion<DailyBodyMetricRow> {
           ..write('bodyFatPercent: $bodyFatPercent, ')
           ..write('leanMassKg: $leanMassKg, ')
           ..write('leanMassEstimated: $leanMassEstimated, ')
+          ..write('fromThisApp: $fromThisApp, ')
           ..write('syncedAt: $syncedAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
@@ -4101,6 +4157,7 @@ typedef $$DailyBodyMetricsTableCreateCompanionBuilder =
       Value<double?> bodyFatPercent,
       Value<double?> leanMassKg,
       Value<bool> leanMassEstimated,
+      Value<bool> fromThisApp,
       required DateTime syncedAt,
       Value<int> rowid,
     });
@@ -4112,6 +4169,7 @@ typedef $$DailyBodyMetricsTableUpdateCompanionBuilder =
       Value<double?> bodyFatPercent,
       Value<double?> leanMassKg,
       Value<bool> leanMassEstimated,
+      Value<bool> fromThisApp,
       Value<DateTime> syncedAt,
       Value<int> rowid,
     });
@@ -4152,6 +4210,11 @@ class $$DailyBodyMetricsTableFilterComposer
 
   ColumnFilters<bool> get leanMassEstimated => $composableBuilder(
     column: $table.leanMassEstimated,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get fromThisApp => $composableBuilder(
+    column: $table.fromThisApp,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4200,6 +4263,11 @@ class $$DailyBodyMetricsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get fromThisApp => $composableBuilder(
+    column: $table.fromThisApp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get syncedAt => $composableBuilder(
     column: $table.syncedAt,
     builder: (column) => ColumnOrderings(column),
@@ -4238,6 +4306,11 @@ class $$DailyBodyMetricsTableAnnotationComposer
 
   GeneratedColumn<bool> get leanMassEstimated => $composableBuilder(
     column: $table.leanMassEstimated,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get fromThisApp => $composableBuilder(
+    column: $table.fromThisApp,
     builder: (column) => column,
   );
 
@@ -4288,6 +4361,7 @@ class $$DailyBodyMetricsTableTableManager
                 Value<double?> bodyFatPercent = const Value.absent(),
                 Value<double?> leanMassKg = const Value.absent(),
                 Value<bool> leanMassEstimated = const Value.absent(),
+                Value<bool> fromThisApp = const Value.absent(),
                 Value<DateTime> syncedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DailyBodyMetricsCompanion(
@@ -4297,6 +4371,7 @@ class $$DailyBodyMetricsTableTableManager
                 bodyFatPercent: bodyFatPercent,
                 leanMassKg: leanMassKg,
                 leanMassEstimated: leanMassEstimated,
+                fromThisApp: fromThisApp,
                 syncedAt: syncedAt,
                 rowid: rowid,
               ),
@@ -4308,6 +4383,7 @@ class $$DailyBodyMetricsTableTableManager
                 Value<double?> bodyFatPercent = const Value.absent(),
                 Value<double?> leanMassKg = const Value.absent(),
                 Value<bool> leanMassEstimated = const Value.absent(),
+                Value<bool> fromThisApp = const Value.absent(),
                 required DateTime syncedAt,
                 Value<int> rowid = const Value.absent(),
               }) => DailyBodyMetricsCompanion.insert(
@@ -4317,6 +4393,7 @@ class $$DailyBodyMetricsTableTableManager
                 bodyFatPercent: bodyFatPercent,
                 leanMassKg: leanMassKg,
                 leanMassEstimated: leanMassEstimated,
+                fromThisApp: fromThisApp,
                 syncedAt: syncedAt,
                 rowid: rowid,
               ),

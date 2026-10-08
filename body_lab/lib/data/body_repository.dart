@@ -75,12 +75,18 @@ class BodyRepository {
               bodyFatPercent: Value(m.bodyFatPercent),
               leanMassKg: Value(m.leanMassKg),
               leanMassEstimated: Value(m.leanMassEstimated),
+              fromThisApp: Value(m.fromThisApp),
               syncedAt: syncedAt,
             ),
         ]);
       });
     });
   }
+
+  /// 從快取移除某一天（刪除手動記錄後用；之後重新同步，若當天還有其他紀錄會再出現）。
+  Future<void> removeDay(DateTime day) => (_db.delete(
+    _db.dailyBodyMetrics,
+  )..where((r) => r.day.equals(dayKey(day)))).go();
 
   Future<DateTime?> _latestCachedDay() async {
     final t = _db.dailyBodyMetrics;
@@ -97,5 +103,6 @@ class BodyRepository {
     bodyFatPercent: r.bodyFatPercent,
     leanMassKg: r.leanMassKg,
     leanMassEstimated: r.leanMassEstimated,
+    fromThisApp: r.fromThisApp,
   );
 }

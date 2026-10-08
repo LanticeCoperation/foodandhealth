@@ -56,4 +56,17 @@ void main() {
       DateTime(2026, 10, 5),
     ]);
   });
+
+  test('當天體重是 Body Lab 寫入的才標記 fromThisApp', () {
+    final metrics = buildDailyMetrics([
+      BodySample(
+        BodySampleType.weight,
+        DateTime(2026, 10, 8, 8, 40),
+        73.9,
+        fromThisApp: true,
+      ),
+      w(DateTime(2026, 10, 9, 7), 73.5), // 體脂計
+    ]);
+    expect(metrics.map((m) => m.fromThisApp), [true, false]);
+  });
 }

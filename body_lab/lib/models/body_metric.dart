@@ -7,6 +7,7 @@ class BodyMetric {
     this.bodyFatPercent,
     this.leanMassKg,
     this.leanMassEstimated = false,
+    this.fromThisApp = false,
   });
 
   /// 當地日期，時間固定為 00:00。
@@ -24,6 +25,9 @@ class BodyMetric {
 
   /// 體脂計沒寫入除脂體重，由 體重 × (1 − 體脂%) 推算。
   final bool leanMassEstimated;
+
+  /// 這天的體重是 Body Lab 手動記錄寫入健康資料的（只有這種能在 App 裡刪除）。
+  final bool fromThisApp;
 
   /// 脂肪重量：優先用體脂%，沒有的話用 體重 − 除脂體重。
   double? get fatMassKg {

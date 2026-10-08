@@ -92,6 +92,25 @@ void main() {
     expect((await cached()).map((m) => m.date.month), [9, 10]);
   });
 
+  test('快取保留 fromThisApp；removeDay 只移除那一天', () async {
+    source.data = [
+      BodyMetric(
+        date: DateTime(2026, 10, 7),
+        measuredAt: DateTime(2026, 10, 7, 8),
+        weightKg: 73,
+        fromThisApp: true,
+      ),
+      metric(10, 8, 72),
+    ];
+    await repo.sync();
+    var rows = await cached();
+    expect(rows.map((m) => m.fromThisApp), [true, false]);
+
+    await repo.removeDay(DateTime(2026, 10, 7));
+    rows = await cached();
+    expect(rows.map((m) => m.date.day), [8]);
+  });
+
   test('讀到空資料時不清掉快取（iOS 被拒絕讀取時只會拿到空資料）', () async {
     source.data = [metric(10, 1, 72)];
     await repo.sync();
