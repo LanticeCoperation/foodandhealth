@@ -85,6 +85,7 @@ class _PhasesScreenState extends State<PhasesScreen> {
         final phases = data?.phases ?? const <Phase>[];
         return Scaffold(
           floatingActionButton: FloatingActionButton.extended(
+            heroTag: null,
             onPressed: data == null ? null : () => _add(phases),
             icon: const Icon(Icons.add),
             label: const Text('新增階段'),

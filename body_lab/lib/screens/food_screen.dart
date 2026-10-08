@@ -193,6 +193,7 @@ class _FoodScreenState extends State<FoodScreen> {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: null,
         onPressed: _add,
         icon: const Icon(Icons.add),
         label: const Text('記一餐'),

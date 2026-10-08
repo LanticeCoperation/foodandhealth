@@ -189,6 +189,8 @@ class _BodyScreenState extends State<BodyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
+        // 四個頁籤同時在 IndexedStack 裡，預設 hero tag 會撞在一起
+        heroTag: null,
         onPressed: _addManual,
         icon: const Icon(Icons.add),
         label: const Text('記錄體重'),
