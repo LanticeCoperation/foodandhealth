@@ -67,8 +67,11 @@ class _BodyScreenState extends State<BodyScreen> {
         await widget.repository.sync();
         // 活動消耗失敗不影響身體資料（例如使用者只允許讀體重）
         try {
-          await widget.activity?.sync();
-        } catch (_) {}
+          final days = await widget.activity?.sync();
+          debugPrint('[activity] 讀到 $days 天活動消耗');
+        } catch (e, st) {
+          debugPrint('[activity] 同步失敗：$e\n$st');
+        }
       }
       if (!mounted) return;
       setState(() => _access = access);

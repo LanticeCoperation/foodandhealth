@@ -666,6 +666,38 @@ class _DaySummaryCard extends StatelessWidget {
                 ],
               ),
             ],
+            // 還沒填個人資料就算不出基礎代謝，先顯示手錶活動消耗並提示去填
+            if (e == null) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.watch_outlined,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (activeKcal != null || extraKcal > 0)
+                          Text(
+                            [
+                              if (activeKcal != null)
+                                '活動 ${activeKcal!.round()} kcal'
+                                    '${isToday ? '（到目前）' : ''}',
+                              if (extraKcal > 0) '運動 ${extraKcal.round()} kcal',
+                            ].join(' + '),
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                        Text('到「身體」頁右上角填寫個人資料，才能算出每日消耗與赤字', style: muted),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (totals.missingKcal > 0 || totals.fatG > 0) ...[
               const SizedBox(height: 6),
               Text(
