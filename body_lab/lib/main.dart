@@ -27,11 +27,11 @@ import 'theme/app_theme.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  MobileAds.instance.initialize();
+  if (kAdsEnabled) MobileAds.instance.initialize();
   runApp(
     BodyLabApp(
       services: AppServices(AppDatabase(), HealthService()),
-      analysisBanner: const AnalysisBannerAd(),
+      analysisBanner: kAdsEnabled ? const AnalysisBannerAd() : null,
     ),
   );
 }

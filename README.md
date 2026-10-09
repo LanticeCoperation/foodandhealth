@@ -149,6 +149,28 @@ package、iOS Bundle Identifier）。
 - 用週而不用逐日滑動，是因為逐日樣本彼此重疊，n 會灌水。這是相關不是因果。
 - 下方「各週資料」可以看每一週的原始數字。
 
+## 廣告（預設關閉）
+
+分析頁底部可以放一條 AdMob 橫幅，預設不啟用：不初始化 AdMob，也不顯示廣告。
+要開啟時在建置 / 執行指令加上 `--dart-define=ADS_ENABLED=true`：
+
+```bash
+flutter run --dart-define=ADS_ENABLED=true
+```
+
+```bash
+flutter build ipa --dart-define=ADS_ENABLED=true
+```
+
+- 只請求非個人化廣告，不傳任何健康資料（App Store 5.1.3 / Health Connect 政策），
+  所以不需要 ATT 追蹤授權。
+- 目前用的是 Google 測試 ID（只會顯示「Test Ad」）。正式上線前到 AdMob 建立 App 與橫幅廣告單元，
+  替換 `ios/Runner/Info.plist` 的 `GADApplicationIdentifier`、`AndroidManifest.xml` 的
+  `com.google.android.gms.ads.APPLICATION_ID`，廣告單元 ID 用
+  `--dart-define=ADMOB_BANNER_IOS=...` / `--dart-define=ADMOB_BANNER_ANDROID=...` 傳入，
+  或直接改 `lib/ads/analysis_banner_ad.dart` 的預設值。
+- 開啟後記得更新 App Store 隱私標籤與 Google Play 資料安全表單，並準備隱私權政策網址。
+
 ## App 圖示與啟動畫面
 
 - 圖示：深青綠底、米白燒瓶、薄荷綠液面是一條往下走的趨勢線。原圖由 `tool/make_icon.py` 產生，
@@ -176,6 +198,7 @@ body_lab/
     main.dart                     AppServices（資料庫、repository）、底部頁籤
     models/body_metric.dart       每日身體組成資料
     services/health_service.dart  HealthKit / Health Connect 讀取、每日取第一筆
+    ads/analysis_banner_ad.dart   分析頁 AdMob 橫幅、廣告開關（ADS_ENABLED）
     data/database.dart            drift schema 與 migration
     data/body_repository.dart     健康資料快取、同步
     data/food_repository.dart     飲食紀錄 CRUD、每日總量

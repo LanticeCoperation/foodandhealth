@@ -3,6 +3,10 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 
+/// 是否啟用廣告。預設關閉；建置時加 `--dart-define=ADS_ENABLED=true` 才會
+/// 初始化 AdMob 並在分析頁顯示橫幅。
+const kAdsEnabled = bool.fromEnvironment('ADS_ENABLED');
+
 /// 分析頁底部的橫幅廣告單元 ID。
 ///
 /// 目前是 Google 官方的測試 ID；上架前換成 AdMob 後台建立的正式 ID，
