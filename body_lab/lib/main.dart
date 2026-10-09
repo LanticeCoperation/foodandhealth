@@ -1,6 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+
+import 'ads/analysis_banner_ad.dart';
 
 import 'analysis/daily_dataset.dart';
 import 'data/activity_repository.dart';
@@ -23,7 +26,14 @@ import 'services/health_service.dart';
 import 'theme/app_theme.dart';
 
 void main() {
-  runApp(BodyLabApp(services: AppServices(AppDatabase(), HealthService())));
+  WidgetsFlutterBinding.ensureInitialized();
+  MobileAds.instance.initialize();
+  runApp(
+    BodyLabApp(
+      services: AppServices(AppDatabase(), HealthService()),
+      analysisBanner: const AnalysisBannerAd(),
+    ),
+  );
 }
 
 /// App 共用的資料庫、健康資料與 repository。
@@ -71,9 +81,12 @@ const kAppLocale = Locale.fromSubtags(
 );
 
 class BodyLabApp extends StatelessWidget {
-  const BodyLabApp({super.key, required this.services});
+  const BodyLabApp({super.key, required this.services, this.analysisBanner});
 
   final AppServices services;
+
+  /// 分析頁底部的廣告；只有 main() 會傳，測試不載入廣告外掛。
+  final Widget? analysisBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -84,15 +97,16 @@ class BodyLabApp extends StatelessWidget {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
-      home: _HomeShell(services: services),
+      home: _HomeShell(services: services, analysisBanner: analysisBanner),
     );
   }
 }
 
 class _HomeShell extends StatefulWidget {
-  const _HomeShell({required this.services});
+  const _HomeShell({required this.services, this.analysisBanner});
 
   final AppServices services;
+  final Widget? analysisBanner;
 
   @override
   State<_HomeShell> createState() => _HomeShellState();
@@ -137,7 +151,12 @@ class _HomeShellState extends State<_HomeShell> {
         extraBurns: s.extraBurns,
       ),
       TrendScreen(dataset: s.dataset, profile: s.profile),
-      AnalysisScreen(phases: s.phases, dataset: s.dataset, profile: s.profile),
+      AnalysisScreen(
+        phases: s.phases,
+        dataset: s.dataset,
+        profile: s.profile,
+        bottomBanner: widget.analysisBanner,
+      ),
     ];
   }
 

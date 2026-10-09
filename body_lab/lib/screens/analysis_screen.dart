@@ -13,11 +13,15 @@ class AnalysisScreen extends StatelessWidget {
     required this.phases,
     required this.dataset,
     required this.profile,
+    this.bottomBanner,
   });
 
   final PhaseRepository phases;
   final DatasetRepository dataset;
   final ProfileRepository profile;
+
+  /// 固定在頁面底部的橫幅（廣告）；測試不傳就不顯示。
+  final Widget? bottomBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -39,6 +43,7 @@ class AnalysisScreen extends StatelessWidget {
             ComboScreen(dataset: dataset, profile: profile),
           ],
         ),
+        bottomNavigationBar: bottomBanner,
       ),
     );
   }
