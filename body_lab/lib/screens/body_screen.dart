@@ -243,18 +243,26 @@ class _BodyScreenState extends State<BodyScreen> {
             stream: _intake,
             builder: (context, intakeSnapshot) {
               final intake = intakeSnapshot.data ?? const {};
+              final today = dateOnly(DateTime.now());
+              // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
+              final header = widget.food == null ? 1 : 2;
               return RefreshIndicator(
                 onRefresh: _sync,
                 child: ListView.builder(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-                  itemCount: points.length + 1,
-                  itemBuilder: (_, i) => i == 0
-                      ? (banner ?? const SizedBox(height: 4))
-                      : _DayCard(
-                          point: points[i - 1],
-                          intake: intake[points[i - 1].metric.date],
-                          onTap: () => _openDay(points[i - 1].metric),
-                        ),
+                  itemCount: points.length + header,
+                  itemBuilder: (_, i) {
+                    if (i == 0) return banner ?? const SizedBox(height: 4);
+                    if (i < header) return _TodayIntakeCard(intake[today]);
+                    final point = points[i - header];
+                    final day = point.metric.date;
+                    return _DayCard(
+                      point: point,
+                      // 今天的攝取已經在最上面那張
+                      intake: day == today ? null : intake[day],
+                      onTap: () => _openDay(point.metric),
+                    );
+                  },
                 ),
               );
             },
@@ -472,26 +480,7 @@ class _DayCard extends StatelessWidget {
               ),
               if (intake case final t?) ...[
                 const Divider(height: 20),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _Metric(
-                      label: '攝取熱量',
-                      value: _amount(t.kcal, 'kcal'),
-                      color: palette.intakeLine,
-                    ),
-                    _Metric(
-                      label: '攝取蛋白質',
-                      value: _amount(t.proteinG, 'g'),
-                      color: palette.protein,
-                    ),
-                    _Metric(
-                      label: '攝取脂肪',
-                      value: _amount(t.fatG, 'g'),
-                      color: palette.fatMass,
-                    ),
-                  ],
-                ),
+                _IntakeRow(t),
               ],
             ],
           ),
@@ -504,6 +493,71 @@ class _DayCard extends StatelessWidget {
 
   static String _kg(double? v) =>
       v == null ? '—' : '${v.toStringAsFixed(1)} kg';
+}
+
+/// 列表最上面的今天攝取；今天還沒記飲食時顯示提示。
+class _TodayIntakeCard extends StatelessWidget {
+  const _TodayIntakeCard(this.totals);
+
+  final DayTotals? totals;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('今天攝取', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 8),
+            if (totals case final t?)
+              _IntakeRow(t)
+            else
+              Text(
+                '今天還沒有飲食紀錄',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 一天的攝取熱量、蛋白質、脂肪總量（顏色和攝取圖表一致）。
+class _IntakeRow extends StatelessWidget {
+  const _IntakeRow(this.totals);
+
+  final DayTotals totals;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _Metric(
+          label: '攝取熱量',
+          value: _amount(totals.kcal, 'kcal'),
+          color: palette.intakeLine,
+        ),
+        _Metric(
+          label: '攝取蛋白質',
+          value: _amount(totals.proteinG, 'g'),
+          color: palette.protein,
+        ),
+        _Metric(
+          label: '攝取脂肪',
+          value: _amount(totals.fatG, 'g'),
+          color: palette.fatMass,
+        ),
+      ],
+    );
+  }
 
   /// 總量是 0 代表當天的紀錄都沒填這項，顯示「—」。
   static String _amount(double v, String unit) =>
