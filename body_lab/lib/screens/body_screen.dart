@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
+import '../data/food_repository.dart';
 import '../models/body_metric.dart';
 import 'body_entry_sheet.dart';
 import '../services/health_service.dart';
@@ -19,6 +20,7 @@ class BodyScreen extends StatefulWidget {
     required this.health,
     required this.repository,
     this.activity,
+    this.food,
     this.extraActions = const [],
   });
 
@@ -27,6 +29,9 @@ class BodyScreen extends StatefulWidget {
 
   /// 一起同步每日活動消耗（Apple Watch）。
   final ActivityRepository? activity;
+
+  /// 每天卡片下方顯示當天飲食的熱量、蛋白質、脂肪總量。
+  final FoodRepository? food;
 
   /// AppBar 額外的按鈕（debug 版的示範資料選單）。
   final List<Widget> extraActions;
@@ -37,6 +42,7 @@ class BodyScreen extends StatefulWidget {
 
 class _BodyScreenState extends State<BodyScreen> {
   late final Stream<List<TrendPoint>> _trend;
+  late final Stream<Map<DateTime, DayTotals>> _intake;
   bool _syncing = false;
   HealthAccess? _access;
   Object? _error;
@@ -52,6 +58,8 @@ class _BodyScreenState extends State<BodyScreen> {
     _trend = widget.repository
         .watchSince(from)
         .map((metrics) => computeTrend(metrics).reversed.toList());
+    _intake =
+        widget.food?.watchDailyTotalsSince(from) ?? Stream.value(const {});
     _sync();
   }
 
@@ -231,18 +239,25 @@ class _BodyScreenState extends State<BodyScreen> {
                 : _problem(fullScreen: true) ?? _noData();
           }
           final banner = _problem(fullScreen: false);
-          return RefreshIndicator(
-            onRefresh: _sync,
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-              itemCount: points.length + 1,
-              itemBuilder: (_, i) => i == 0
-                  ? (banner ?? const SizedBox(height: 4))
-                  : _DayCard(
-                      point: points[i - 1],
-                      onTap: () => _openDay(points[i - 1].metric),
-                    ),
-            ),
+          return StreamBuilder<Map<DateTime, DayTotals>>(
+            stream: _intake,
+            builder: (context, intakeSnapshot) {
+              final intake = intakeSnapshot.data ?? const {};
+              return RefreshIndicator(
+                onRefresh: _sync,
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                  itemCount: points.length + 1,
+                  itemBuilder: (_, i) => i == 0
+                      ? (banner ?? const SizedBox(height: 4))
+                      : _DayCard(
+                          point: points[i - 1],
+                          intake: intake[points[i - 1].metric.date],
+                          onTap: () => _openDay(points[i - 1].metric),
+                        ),
+                ),
+              );
+            },
           );
         },
       ),
@@ -314,11 +329,13 @@ class _BodyScreenState extends State<BodyScreen> {
 }
 
 /// 一天一張卡片：日期與量測時間、體重（大字）與 7 日平均，
-/// 下方三欄是體脂、脂肪重、除脂體重（顏色和趨勢圖的線一致）。
+/// 下方三欄是體脂、脂肪重、除脂體重（顏色和趨勢圖的線一致）；
+/// 當天有飲食紀錄時，最下面再一列熱量、蛋白質、脂肪的總攝取。
 class _DayCard extends StatelessWidget {
-  const _DayCard({required this.point, required this.onTap});
+  const _DayCard({required this.point, this.intake, required this.onTap});
 
   final TrendPoint point;
+  final DayTotals? intake;
   final VoidCallback onTap;
 
   static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
@@ -414,12 +431,16 @@ class _DayCard extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 4),
                     child: Text('kg', style: muted),
                   ),
-                  const Spacer(),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(
-                      '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
-                      style: muted,
+                  // 靠右；窄螢幕時截斷而不是溢出
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(
+                        '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
+                        style: muted,
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ),
                 ],
@@ -449,6 +470,29 @@ class _DayCard extends StatelessWidget {
                   ),
                 ],
               ),
+              if (intake case final t?) ...[
+                const Divider(height: 20),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Metric(
+                      label: '攝取熱量',
+                      value: _amount(t.kcal, 'kcal'),
+                      color: palette.intakeLine,
+                    ),
+                    _Metric(
+                      label: '攝取蛋白質',
+                      value: _amount(t.proteinG, 'g'),
+                      color: palette.protein,
+                    ),
+                    _Metric(
+                      label: '攝取脂肪',
+                      value: _amount(t.fatG, 'g'),
+                      color: palette.fatMass,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -460,6 +504,10 @@ class _DayCard extends StatelessWidget {
 
   static String _kg(double? v) =>
       v == null ? '—' : '${v.toStringAsFixed(1)} kg';
+
+  /// 總量是 0 代表當天的紀錄都沒填這項，顯示「—」。
+  static String _amount(double v, String unit) =>
+      v == 0 ? '—' : '${v.round()} $unit';
 }
 
 /// 卡片下方的一欄數值：標籤、當天值、7 日平均。

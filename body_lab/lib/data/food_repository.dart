@@ -27,11 +27,20 @@ class FoodRepository {
   }
 
   /// [from] 之後每天的攝取總量；沒有紀錄的天不會出現。key 是當地日期 00:00。
-  Future<Map<DateTime, DayTotals>> dailyTotalsSince(DateTime from) async {
-    final t = _db.foodEntries;
-    final rows = await (_db.select(
-      t,
-    )..where((r) => r.eatenAt.isBiggerOrEqualValue(dateOnly(from)))).get();
+  Future<Map<DateTime, DayTotals>> dailyTotalsSince(DateTime from) async =>
+      _byDay(await _sinceQuery(from).get());
+
+  /// 同 [dailyTotalsSince]，飲食紀錄有變動時會重新發出。
+  Stream<Map<DateTime, DayTotals>> watchDailyTotalsSince(DateTime from) =>
+      _sinceQuery(from).watch().map(_byDay);
+
+  SimpleSelectStatement<$FoodEntriesTable, FoodEntry> _sinceQuery(
+    DateTime from,
+  ) =>
+      _db.select(_db.foodEntries)
+        ..where((r) => r.eatenAt.isBiggerOrEqualValue(dateOnly(from)));
+
+  static Map<DateTime, DayTotals> _byDay(List<FoodEntry> rows) {
     final byDay = <DateTime, List<FoodEntry>>{};
     for (final e in rows) {
       byDay.putIfAbsent(dateOnly(e.eatenAt), () => []).add(e);

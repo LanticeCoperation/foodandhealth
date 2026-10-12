@@ -84,4 +84,21 @@ void main() {
     expect(entries[1].totalKcal, 240);
     expect(entries[2].totalKcal, isNull);
   });
+
+  test('watchDailyTotalsSince 依天加總，新增紀錄後重新發出', () async {
+    final stream = repo.watchDailyTotalsSince(DateTime(2026, 10, 8));
+    await repo.add(entry(DateTime(2026, 10, 7, 20), '前一天', kcal: 999));
+    await repo.add(
+      entry(DateTime(2026, 10, 8, 8), '早餐', kcal: 400, protein: 30),
+    );
+    await repo.add(
+      entry(DateTime(2026, 10, 8, 12), '午餐', servings: 2, kcal: 300),
+    );
+
+    final totals = await stream.firstWhere(
+      (m) => m[DateTime(2026, 10, 8)]?.kcal == 1000,
+    );
+    expect(totals.keys, [DateTime(2026, 10, 8)]);
+    expect(totals[DateTime(2026, 10, 8)]!.proteinG, 30);
+  });
 }
