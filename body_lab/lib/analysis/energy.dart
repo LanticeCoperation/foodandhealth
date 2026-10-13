@@ -33,3 +33,9 @@ class EnergyModel {
   /// 這天的消耗是不是用手錶資料算的（否則是固定 TDEE）。
   bool fromWatch(double? activeKcal) => usesWatch && activeKcal != null;
 }
+
+/// 脂肪建議占總熱量的上限（國健署建議 20–30%）。
+const double kFatKcalShare = 0.30;
+
+/// 每日脂肪建議上限（g）：[kcal] × 30% ÷ 每克 9 kcal。
+double fatLimitG(double kcal) => kcal * kFatKcalShare / 9;

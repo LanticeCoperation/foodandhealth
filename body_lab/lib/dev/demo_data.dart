@@ -117,8 +117,10 @@ Future<void> seedDemoData({
 
   await db.clearAllData();
 
-  // 清空後只剩預設的蛋白粉項目
-  final powder = (await templates.watchPinned().first).single;
+  // 清空後只剩預設的一鍵項目，示範資料只用蛋白粉
+  final powder = (await templates.watchPinned().first).firstWhere(
+    (t) => t.name == '蛋白粉（1 匙）',
+  );
 
   const age = 35;
   const height = 175.0;

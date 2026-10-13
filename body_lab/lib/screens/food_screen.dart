@@ -493,7 +493,7 @@ class _EntryTile extends StatelessWidget {
   }
 }
 
-/// 當天總量：熱量與蛋白質（有階段目標時顯示進度），以及相對固定 TDEE 的赤字 / 盈餘。
+/// 當天總量：熱量與蛋白質（有階段目標時顯示進度）、脂肪對建議上限，以及相對固定 TDEE 的赤字 / 盈餘。
 class _DaySummaryCard extends StatelessWidget {
   const _DaySummaryCard({
     required this.totals,
@@ -524,6 +524,9 @@ class _DaySummaryCard extends StatelessWidget {
     final burned = e?.expenditure(activeKcal, extraKcal: extraKcal);
     final kcalTarget = p?.targetKcal ?? burned;
     final proteinTarget = p?.targetProteinG;
+    // 脂肪上限依階段目標熱量，沒有就用固定 TDEE（不隨當天手錶消耗變動）
+    final fatKcal = p?.targetKcal ?? e?.profile.tdeeKcal;
+    final fatLimit = fatKcal == null ? null : fatLimitG(fatKcal);
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );
@@ -541,6 +544,7 @@ class _DaySummaryCard extends StatelessWidget {
       required double value,
       required String unit,
       double? target,
+      String targetPrefix = '',
       bool? hit,
     }) {
       final color = hit == null
@@ -564,7 +568,7 @@ class _DaySummaryCard extends StatelessWidget {
                   TextSpan(
                     text: target == null
                         ? ' $unit'
-                        : ' / ${target.round()} $unit',
+                        : ' / $targetPrefix${target.round()} $unit',
                     style: muted,
                   ),
                 ],
@@ -622,6 +626,21 @@ class _DaySummaryCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (fatLimit != null) ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  metric(
+                    label: '脂肪（建議上限 = 熱量 ${(kFatKcalShare * 100).round()}%）',
+                    value: totals.fatG,
+                    unit: 'g',
+                    target: fatLimit,
+                    targetPrefix: '上限 ',
+                    hit: totals.fatG > fatLimit ? false : null,
+                  ),
+                ],
+              ),
+            ],
             if (e != null && burned != null) ...[
               const SizedBox(height: 12),
               Row(
@@ -698,11 +717,13 @@ class _DaySummaryCard extends StatelessWidget {
                 ],
               ),
             ],
-            if (totals.missingKcal > 0 || totals.fatG > 0) ...[
+            if (totals.missingKcal > 0 ||
+                (fatLimit == null && totals.fatG > 0)) ...[
               const SizedBox(height: 6),
               Text(
                 [
-                  if (totals.fatG > 0) '脂肪 ${totals.fatG.round()} g',
+                  if (fatLimit == null && totals.fatG > 0)
+                    '脂肪 ${totals.fatG.round()} g',
                   if (totals.missingKcal > 0) '${totals.missingKcal} 筆沒填熱量',
                 ].join('　'),
                 style: muted,

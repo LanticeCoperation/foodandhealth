@@ -22,10 +22,24 @@ void main() {
   MealTemplatesCompanion template(String name, {double? kcal}) =>
       MealTemplatesCompanion.insert(name: name, kcal: Value(kcal));
 
-  test('新資料庫預設有釘選的蛋白粉範本', () async {
+  test('新資料庫預設有釘選的蛋白粉、雞蛋、牛奶等範本', () async {
     final pinned = await templates.watchPinned().first;
-    expect(pinned.single.name, '蛋白粉（1 匙）');
-    expect(pinned.single.proteinG, 12);
+    expect(pinned.map((t) => t.name), [
+      '蛋白粉（1 匙）',
+      '雞蛋（1 顆）',
+      '牛奶（100 ml）',
+      '豆漿（100 ml）',
+      '麥片（20 g）',
+      '大麥克（去醬）',
+      '麥克雞塊（4 塊）',
+    ]);
+    expect(pinned.first.proteinG, 12);
+  });
+
+  test('清空資料後預設範本只有一份', () async {
+    await db.clearAllData();
+    final pinned = await templates.watchPinned().first;
+    expect(pinned, hasLength(7));
   });
 
   test('從範本加入：複製營養素、記錄來源、使用次數 +1、改範本不影響舊紀錄', () async {
@@ -83,16 +97,19 @@ void main() {
     final b = (await templates.watchTemplates(query: 'B').first).single;
     await templates.addEntryFromTemplate(b, eatenAt: DateTime(2026, 10, 8));
 
-    var names = (await templates.watchTemplates().first).map((t) => t.name);
-    expect(names, ['蛋白粉（1 匙）', 'B', 'A']);
+    // 預設範本都釘選，排在前面；只看自己加的
+    Future<List<String>> names() async => [
+      for (final t in await templates.watchTemplates().first)
+        if (!t.pinned) t.name,
+    ];
+    expect((await templates.watchTemplates().first).first.pinned, isTrue);
+    expect(await names(), ['B', 'A']);
 
     await templates.archive(bId);
-    names = (await templates.watchTemplates().first).map((t) => t.name);
-    expect(names, ['蛋白粉（1 匙）', 'A']);
+    expect(await names(), ['A']);
 
     await templates.unarchive(bId);
-    names = (await templates.watchTemplates().first).map((t) => t.name);
-    expect(names, contains('B'));
+    expect(await names(), contains('B'));
   });
 
   test('飲食紀錄存成範本', () async {

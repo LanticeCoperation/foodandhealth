@@ -99,6 +99,9 @@ void main() {
     await tester.tapAt(const Offset(10, 10)); // 關閉表單
     await settle(tester);
 
+    // 預設一鍵項目多，紀錄可能在畫面下方
+    await tester.ensureVisible(find.text('700 kcal').last);
+    await settle(tester);
     await tester.drag(find.text('700 kcal').last, const Offset(-500, 0));
     await settle(tester);
     expect(find.text('700 kcal'), findsNothing);
@@ -165,6 +168,54 @@ void main() {
       tester.widget<FilterChip>(find.widgetWithText(FilterChip, '肌酸')).selected,
       isFalse,
     );
+
+    await close(tester);
+  });
+
+  testWidgets('脂肪建議上限 = TDEE 30%，超過變紅', (tester) async {
+    usePhoneSize(tester);
+    await tester.runAsync(
+      () => ProfileRepository(db).save(
+        sex: Sex.male,
+        birthYear: 1990,
+        heightCm: 175,
+        activity: ActivityLevel.light,
+        weightKg: 75,
+        tdeeKcal: 2100,
+        energyMode: EnergyMode.fixed,
+      ),
+    );
+    await open(tester);
+
+    // 2100 × 30% ÷ 9 = 70 g
+    final fat = find.textContaining('上限 70 g', findRichText: true);
+    expect(fat, findsOneWidget);
+    // 數值那一段（第一個有文字的 span）的顏色
+    Color? fatColor() {
+      Color? color;
+      tester.widget<RichText>(fat).text.visitChildren((span) {
+        if (span is TextSpan && span.text != null) {
+          color = span.style?.color;
+          return false;
+        }
+        return true;
+      });
+      return color;
+    }
+
+    final normal = fatColor();
+    expect(normal, isNotNull);
+
+    // 大麥克（去醬）每個 19 g 脂肪，4 個 76 g 超過上限
+    final bigMac = find.widgetWithText(ActionChip, '大麥克（去醬）');
+    await tester.tap(bigMac);
+    await settle(tester);
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.textContaining('大麥克（去醬） ·'));
+      await settle(tester);
+    }
+    expect(find.text('大麥克（去醬） · 4'), findsOneWidget);
+    expect(fatColor(), isNot(normal));
 
     await close(tester);
   });

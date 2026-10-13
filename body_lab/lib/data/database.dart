@@ -240,7 +240,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -255,7 +255,7 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(schema.mealTemplates);
         await m.createTable(schema.dailyChecks);
         await m.addColumn(schema.foodEntries, schema.foodEntries.templateId);
-        await seedDefaultTemplates();
+        await _seedProteinPowder();
       },
       from2To3: (m, schema) async {
         await m.createTable(schema.phases);
@@ -279,16 +279,48 @@ class AppDatabase extends _$AppDatabase {
           schema.dailyBodyMetrics.fromThisApp,
         );
       },
+      from8To9: (m, schema) async {
+        await _seedBasicTemplates();
+      },
     ),
   );
 
-  /// 預設釘選「蛋白粉」範本，數值可在範本管理修改。
+  /// 預設釘選的一鍵項目，數值可在範本管理修改。
+  Future<void> seedDefaultTemplates() async {
+    await _seedProteinPowder();
+    await _seedBasicTemplates();
+  }
+
+  /// 「蛋白粉」範本（v1 → v2 起就有）。
   /// 用 SQL 寫死，避免之後 schema 再變時舊的 migration 跟著變。
-  Future<void> seedDefaultTemplates() => customStatement(
+  Future<void> _seedProteinPowder() => customStatement(
     "INSERT INTO meal_templates "
     "(name, default_servings, kcal, protein_g, carbs_g, fat_g, pinned) "
     "VALUES ('蛋白粉（1 匙）', 1, 60, 12, 1.5, 0.75, 1)",
   );
+
+  /// 雞蛋、牛奶（全脂）、豆漿（無糖）、麥片、大麥克（去醬）、麥克雞塊（v9 加入）。已有同名項目就跳過，
+  /// 以免和使用者自己建的重複。
+  Future<void> _seedBasicTemplates() async {
+    const templates = [
+      // 名稱, kcal, 蛋白質, 碳水, 脂肪
+      ('雞蛋（1 顆）', 75, 7, 1, 5),
+      ('牛奶（100 ml）', 63, 3.1, 4.8, 3.6),
+      ('豆漿（100 ml）', 35, 3.6, 1, 1.9),
+      ('麥片（20 g）', 78, 2.7, 13.4, 1.4),
+      ('大麥克（去醬）', 450, 26, 43, 19),
+      ('麥克雞塊（4 塊）', 180, 10, 10, 11),
+    ];
+    for (final (name, kcal, protein, carbs, fat) in templates) {
+      await customStatement(
+        "INSERT INTO meal_templates "
+        "(name, default_servings, kcal, protein_g, carbs_g, fat_g, pinned) "
+        "SELECT ?, 1, ?, ?, ?, ?, 1 "
+        "WHERE NOT EXISTS (SELECT 1 FROM meal_templates WHERE name = ?)",
+        [name, kcal, protein, carbs, fat, name],
+      );
+    }
+  }
 
   /// 清空所有資料，回到剛安裝的狀態（保留預設範本）。
   Future<void> clearAllData() => transaction(() async {

@@ -31,7 +31,7 @@ void main() {
 
   Future<void> seed(AppDatabase db) async {
     final templates = TemplateRepository(db);
-    final powder = (await templates.watchPinned().first).single;
+    final powder = (await templates.watchPinned().first).first;
     await templates.addEntryFromTemplate(
       powder,
       eatenAt: DateTime(2026, 10, 8, 16),
@@ -85,7 +85,7 @@ void main() {
     final counts = await BackupService(target)
         .restore(jsonDecode(json) as Map<String, dynamic>);
     expect(counts.foodEntries, 2);
-    expect(counts.templates, 1);
+    expect(counts.templates, 7);
     expect(counts.checks, 1);
     expect(counts.phases, 1);
     expect(counts.hasProfile, isTrue);
@@ -108,9 +108,7 @@ void main() {
     await BackupService(target)
         .restore(jsonDecode(jsonEncode(json)) as Map<String, dynamic>);
 
-    final powder = (await TemplateRepository(
-      target,
-    ).watchPinned().first).single;
+    final powder = (await TemplateRepository(target).watchPinned().first).first;
     final day = await FoodRepository(target)
         .watchDay(DateTime(2026, 10, 8))
         .first;
@@ -162,8 +160,8 @@ void main() {
     await seed(source);
     final json = await BackupService(source).export();
     final counts = BackupService(target).inspect(json);
-    expect(counts.toString(), '飲食 2 筆、一鍵項目 1 個、打勾 1 天、階段 1 個、自訂消耗 1 筆、個人資料');
-    // target 只有預設的蛋白粉項目，沒有紀錄
+    expect(counts.toString(), '飲食 2 筆、一鍵項目 7 個、打勾 1 天、階段 1 個、自訂消耗 1 筆、個人資料');
+    // target 只有預設的一鍵項目，沒有紀錄
     expect(await target.select(target.foodEntries).get(), isEmpty);
   });
 }

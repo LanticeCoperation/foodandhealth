@@ -98,10 +98,11 @@ void main() {
     expect(weighDays, inInclusiveRange(65, 84));
     expect(foodDays, inInclusiveRange(60, 84));
 
-    // 只有預設的蛋白粉一鍵項目且有使用；其他紀錄都只是「餐別 + 熱量」
-    final list = await templates.watchTemplates().first;
-    expect(list.single.name, '蛋白粉（1 匙）');
-    expect(list.single.useCount, greaterThan(0));
+    // 只用了預設的蛋白粉一鍵項目；其他紀錄都只是「餐別 + 熱量」
+    final used = (await templates.watchTemplates().first).where(
+      (t) => t.useCount > 0,
+    );
+    expect(used.single.name, '蛋白粉（1 匙）');
     final meals = await food.watchDay(addDaysForTest(today, -1)).first;
     expect(meals, isNotEmpty);
     expect(

@@ -9,6 +9,8 @@ import 'generated/schema.dart';
 
 import 'generated/schema_v1.dart' as v1;
 import 'generated/schema_v2.dart' as v2;
+import 'generated/schema_v8.dart' as v8;
+import 'generated/schema_v9.dart' as v9;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -122,6 +124,47 @@ void main() {
         );
         final templates = await newDb.select(newDb.mealTemplates).get();
         expect(templates.map((t) => (t.name, t.pinned)), [('蛋白粉（1 匙）', 1)]);
+      },
+    );
+  });
+
+  test('v8 → v9 補上預設一鍵項目，已有同名的不重複', () async {
+    final createdAt = DateTime(2026, 10, 1).millisecondsSinceEpoch ~/ 1000;
+    v8.MealTemplatesData old(int id, String name, int pinned) =>
+        v8.MealTemplatesData(
+          id: id,
+          name: name,
+          defaultServings: 1,
+          pinned: pinned,
+          archived: 0,
+          useCount: 0,
+          createdAt: createdAt,
+        );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 8,
+      newVersion: 9,
+      createOld: v8.DatabaseAtV8.new,
+      createNew: v9.DatabaseAtV9.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insertAll(oldDb.mealTemplates, [
+          old(1, '蛋白粉（1 匙）', 1),
+          // 使用者自己建過、沒釘選
+          old(2, '雞蛋（1 顆）', 0),
+        ]);
+      },
+      validateItems: (newDb) async {
+        final templates = await newDb.select(newDb.mealTemplates).get();
+        expect(templates.map((t) => (t.name, t.pinned)), [
+          ('蛋白粉（1 匙）', 1),
+          ('雞蛋（1 顆）', 0),
+          ('牛奶（100 ml）', 1),
+          ('豆漿（100 ml）', 1),
+          ('麥片（20 g）', 1),
+          ('大麥克（去醬）', 1),
+          ('麥克雞塊（4 塊）', 1),
+        ]);
       },
     );
   });
