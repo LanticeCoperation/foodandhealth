@@ -524,9 +524,7 @@ class _DaySummaryCard extends StatelessWidget {
     final burned = e?.expenditure(activeKcal, extraKcal: extraKcal);
     final kcalTarget = p?.targetKcal ?? burned;
     final proteinTarget = p?.targetProteinG;
-    // 脂肪上限依階段目標熱量，沒有就用固定 TDEE（不隨當天手錶消耗變動）
-    final fatKcal = p?.targetKcal ?? e?.profile.tdeeKcal;
-    final fatLimit = fatKcal == null ? null : fatLimitG(fatKcal);
+    final fatLimit = fatLimitFor(phase: p, profile: e?.profile);
     final muted = theme.textTheme.bodySmall?.copyWith(
       color: theme.colorScheme.onSurfaceVariant,
     );

@@ -39,3 +39,10 @@ const double kFatKcalShare = 0.30;
 
 /// 每日脂肪建議上限（g）：[kcal] × 30% ÷ 每克 9 kcal。
 double fatLimitG(double kcal) => kcal * kFatKcalShare / 9;
+
+/// 當天的脂肪上限：依階段目標熱量，沒有就用固定 TDEE（不隨當天手錶消耗變動）。
+/// 兩者都沒有時回傳 null。
+double? fatLimitFor({Phase? phase, Profile? profile}) {
+  final kcal = phase?.targetKcal ?? profile?.tdeeKcal;
+  return kcal == null ? null : fatLimitG(kcal);
+}

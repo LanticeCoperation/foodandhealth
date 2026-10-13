@@ -2,9 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../analysis/energy.dart';
 import '../data/activity_repository.dart';
 import '../data/body_repository.dart';
+import '../data/database.dart';
 import '../data/food_repository.dart';
+import '../data/phase_repository.dart';
+import '../data/profile_repository.dart';
 import '../models/body_metric.dart';
 import 'body_entry_sheet.dart';
 import '../services/health_service.dart';
@@ -21,6 +25,8 @@ class BodyScreen extends StatefulWidget {
     required this.repository,
     this.activity,
     this.food,
+    this.phases,
+    this.profile,
     this.extraActions = const [],
   });
 
@@ -33,6 +39,10 @@ class BodyScreen extends StatefulWidget {
   /// 每天卡片下方顯示當天飲食的熱量、蛋白質、脂肪總量。
   final FoodRepository? food;
 
+  /// 今天攝取的脂肪上限（依階段目標熱量或固定 TDEE）。
+  final PhaseRepository? phases;
+  final ProfileRepository? profile;
+
   /// AppBar 額外的按鈕（debug 版的示範資料選單）。
   final List<Widget> extraActions;
 
@@ -43,6 +53,8 @@ class BodyScreen extends StatefulWidget {
 class _BodyScreenState extends State<BodyScreen> {
   late final Stream<List<TrendPoint>> _trend;
   late final Stream<Map<DateTime, DayTotals>> _intake;
+  late final Stream<Phase?> _phase;
+  late final Stream<Profile?> _profile;
   bool _syncing = false;
   HealthAccess? _access;
   Object? _error;
@@ -60,6 +72,9 @@ class _BodyScreenState extends State<BodyScreen> {
         .map((metrics) => computeTrend(metrics).reversed.toList());
     _intake =
         widget.food?.watchDailyTotalsSince(from) ?? Stream.value(const {});
+    _phase =
+        widget.phases?.watchOn(dateOnly(DateTime.now())) ?? Stream.value(null);
+    _profile = widget.profile?.watch() ?? Stream.value(null);
     _sync();
   }
 
@@ -253,7 +268,23 @@ class _BodyScreenState extends State<BodyScreen> {
                   itemCount: points.length + header,
                   itemBuilder: (_, i) {
                     if (i == 0) return banner ?? const SizedBox(height: 4);
-                    if (i < header) return _TodayIntakeCard(intake[today]);
+                    if (i < header) {
+                      return StreamBuilder<Phase?>(
+                        stream: _phase,
+                        builder: (context, phaseSnap) =>
+                            StreamBuilder<Profile?>(
+                              stream: _profile,
+                              builder: (context, profileSnap) =>
+                                  _TodayIntakeCard(
+                                    intake[today],
+                                    fatLimit: fatLimitFor(
+                                      phase: phaseSnap.data,
+                                      profile: profileSnap.data,
+                                    ),
+                                  ),
+                            ),
+                      );
+                    }
                     final point = points[i - header];
                     final day = point.metric.date;
                     return _DayCard(
@@ -497,9 +528,12 @@ class _DayCard extends StatelessWidget {
 
 /// 列表最上面的今天攝取；今天還沒記飲食時顯示提示。
 class _TodayIntakeCard extends StatelessWidget {
-  const _TodayIntakeCard(this.totals);
+  const _TodayIntakeCard(this.totals, {this.fatLimit});
 
   final DayTotals? totals;
+
+  /// 脂肪建議上限（g）；沒有個人資料也沒有階段時為 null。
+  final double? fatLimit;
 
   @override
   Widget build(BuildContext context) {
@@ -513,7 +547,7 @@ class _TodayIntakeCard extends StatelessWidget {
             Text('今天攝取', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
             if (totals case final t?)
-              _IntakeRow(t)
+              _IntakeRow(t, fatLimit: fatLimit)
             else
               Text(
                 '今天還沒有飲食紀錄',
@@ -530,13 +564,19 @@ class _TodayIntakeCard extends StatelessWidget {
 
 /// 一天的攝取熱量、蛋白質、脂肪總量（顏色和攝取圖表一致）。
 class _IntakeRow extends StatelessWidget {
-  const _IntakeRow(this.totals);
+  const _IntakeRow(this.totals, {this.fatLimit});
 
   final DayTotals totals;
+
+  /// 有值時脂肪下方顯示上限，超過時改成紅字「超過上限」
+  /// （脂肪本身的顏色和紅色太接近，只換數值顏色看不出來）。
+  final double? fatLimit;
 
   @override
   Widget build(BuildContext context) {
     final palette = context.palette;
+    final limit = fatLimit;
+    final over = limit != null && totals.fatG > limit;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -554,6 +594,10 @@ class _IntakeRow extends StatelessWidget {
           label: '攝取脂肪',
           value: _amount(totals.fatG, 'g'),
           color: palette.fatMass,
+          note: limit == null
+              ? null
+              : '${over ? '超過' : ''}上限 ${limit.round()} g',
+          noteColor: over ? palette.bad : null,
         ),
       ],
     );
@@ -564,18 +608,24 @@ class _IntakeRow extends StatelessWidget {
       v == 0 ? '—' : '${v.round()} $unit';
 }
 
-/// 卡片下方的一欄數值：標籤、當天值、7 日平均。
+/// 卡片下方的一欄數值：標籤、當天值、7 日平均或補充說明。
 class _Metric extends StatelessWidget {
   const _Metric({
     required this.label,
     required this.value,
     this.avg,
+    this.note,
+    this.noteColor,
     this.color,
   });
 
   final String label;
   final String value;
   final double? avg;
+
+  /// 數值下方的小字（例如脂肪上限）。
+  final String? note;
+  final Color? noteColor;
   final Color? color;
 
   @override
@@ -594,6 +644,16 @@ class _Metric extends StatelessWidget {
             style: theme.textTheme.titleMedium?.copyWith(color: color),
           ),
           if (avg != null) Text('7日 ${avg!.toStringAsFixed(1)}', style: muted),
+          if (note != null)
+            Text(
+              note!,
+              style: noteColor == null
+                  ? muted
+                  : muted?.copyWith(
+                      color: noteColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+            ),
         ],
       ),
     );

@@ -126,6 +126,8 @@ class _HomeShellState extends State<_HomeShell> {
         repository: s.body,
         activity: s.activity,
         food: s.food,
+        phases: s.phases,
+        profile: s.profile,
         extraActions: [
           ProfileButton(profile: s.profile, body: s.body, backup: s.backup),
           if (kDebugMode)

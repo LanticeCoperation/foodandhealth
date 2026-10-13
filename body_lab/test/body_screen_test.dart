@@ -1,6 +1,8 @@
 import 'package:body_lab/data/body_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
+import 'package:body_lab/data/phase_repository.dart';
+import 'package:body_lab/data/profile_repository.dart';
 import 'package:body_lab/screens/body_screen.dart';
 import 'package:body_lab/services/health_service.dart';
 import 'package:body_lab/theme/app_theme.dart';
@@ -151,6 +153,95 @@ void main() {
 
     expect(find.text('今天攝取'), findsOneWidget);
     expect(find.text('今天還沒有飲食紀錄'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(db.close);
+  });
+
+  testWidgets('今天攝取顯示脂肪上限：有階段用目標熱量，否則用 TDEE；超過時標示', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    final db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    final today = dateOnly(DateTime.now());
+    final phases = PhaseRepository(db);
+    final profile = ProfileRepository(db);
+    await tester.runAsync(() async {
+      await db
+          .into(db.dailyBodyMetrics)
+          .insert(
+            DailyBodyMetricsCompanion.insert(
+              day: dayKey(today),
+              measuredAt: today.add(const Duration(hours: 7)),
+              weightKg: 70,
+              syncedAt: DateTime.now(),
+            ),
+          );
+      await FoodRepository(db).add(
+        FoodEntriesCompanion.insert(
+          eatenAt: today.add(const Duration(hours: 8)),
+          meal: MealType.breakfast,
+          name: '早餐',
+          kcal: const Value(500),
+          fatG: const Value(15),
+        ),
+      );
+      await profile.save(
+        sex: Sex.male,
+        birthYear: 1990,
+        heightCm: 175,
+        activity: ActivityLevel.light,
+        weightKg: 70,
+        tdeeKcal: 2100,
+      );
+    });
+
+    Future<void> settle() async {
+      for (var i = 0; i < 5; i++) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 20)),
+        );
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+    }
+
+    final health = HealthService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(Brightness.light),
+        home: BodyScreen(
+          health: health,
+          repository: BodyRepository(db, health),
+          food: FoodRepository(db),
+          phases: phases,
+          profile: profile,
+        ),
+      ),
+    );
+    await settle();
+
+    // 2100 × 30% ÷ 9 = 70 g
+    expect(find.text('上限 70 g'), findsOneWidget);
+
+    // 階段目標 300 kcal → 上限 10 g，15 g 超過
+    await tester.runAsync(
+      () => phases.save(
+        PhasesCompanion.insert(
+          name: '測試',
+          startDay: dayKey(today),
+          endDay: dayKey(addDays(today, 27)),
+          targetKcal: const Value(300),
+        ),
+      ),
+    );
+    await settle();
+    expect(find.text('超過上限 10 g'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(db.close);
