@@ -158,7 +158,7 @@ void main() {
     await tester.runAsync(db.close);
   });
 
-  testWidgets('今天攝取顯示脂肪上限：有階段用目標熱量，否則用 TDEE；超過時標示', (tester) async {
+  testWidgets('每天的攝取都顯示脂肪上限：依當天階段的目標熱量，否則用 TDEE；超過時標示', (tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -170,28 +170,31 @@ void main() {
       ),
     );
     final today = dateOnly(DateTime.now());
+    final yesterday = addDays(today, -1);
     final phases = PhaseRepository(db);
     final profile = ProfileRepository(db);
     await tester.runAsync(() async {
-      await db
-          .into(db.dailyBodyMetrics)
-          .insert(
-            DailyBodyMetricsCompanion.insert(
-              day: dayKey(today),
-              measuredAt: today.add(const Duration(hours: 7)),
-              weightKg: 70,
-              syncedAt: DateTime.now(),
-            ),
-          );
-      await FoodRepository(db).add(
-        FoodEntriesCompanion.insert(
-          eatenAt: today.add(const Duration(hours: 8)),
-          meal: MealType.breakfast,
-          name: '早餐',
-          kcal: const Value(500),
-          fatG: const Value(15),
-        ),
-      );
+      for (final day in [today, yesterday]) {
+        await db
+            .into(db.dailyBodyMetrics)
+            .insert(
+              DailyBodyMetricsCompanion.insert(
+                day: dayKey(day),
+                measuredAt: day.add(const Duration(hours: 7)),
+                weightKg: 70,
+                syncedAt: DateTime.now(),
+              ),
+            );
+        await FoodRepository(db).add(
+          FoodEntriesCompanion.insert(
+            eatenAt: day.add(const Duration(hours: 8)),
+            meal: MealType.breakfast,
+            name: '早餐',
+            kcal: const Value(500),
+            fatG: const Value(15),
+          ),
+        );
+      }
       await profile.save(
         sex: Sex.male,
         birthYear: 1990,
@@ -226,10 +229,10 @@ void main() {
     );
     await settle();
 
-    // 2100 × 30% ÷ 9 = 70 g
-    expect(find.text('上限 70 g'), findsOneWidget);
+    // 今天和昨天的卡片：2100 × 30% ÷ 9 = 70 g
+    expect(find.text('上限 70 g'), findsNWidgets(2));
 
-    // 階段目標 300 kcal → 上限 10 g，15 g 超過
+    // 今天起的階段目標 300 kcal → 今天上限 10 g（15 g 超過），昨天不在階段裡
     await tester.runAsync(
       () => phases.save(
         PhasesCompanion.insert(
@@ -242,6 +245,7 @@ void main() {
     );
     await settle();
     expect(find.text('超過上限 10 g'), findsOneWidget);
+    expect(find.text('上限 70 g'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(db.close);

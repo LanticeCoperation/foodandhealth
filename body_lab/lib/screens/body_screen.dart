@@ -39,7 +39,7 @@ class BodyScreen extends StatefulWidget {
   /// 每天卡片下方顯示當天飲食的熱量、蛋白質、脂肪總量。
   final FoodRepository? food;
 
-  /// 今天攝取的脂肪上限（依階段目標熱量或固定 TDEE）。
+  /// 攝取的脂肪上限（依當天階段的目標熱量，沒有就用固定 TDEE）。
   final PhaseRepository? phases;
   final ProfileRepository? profile;
 
@@ -53,7 +53,7 @@ class BodyScreen extends StatefulWidget {
 class _BodyScreenState extends State<BodyScreen> {
   late final Stream<List<TrendPoint>> _trend;
   late final Stream<Map<DateTime, DayTotals>> _intake;
-  late final Stream<Phase?> _phase;
+  late final Stream<List<Phase>> _phases;
   late final Stream<Profile?> _profile;
   bool _syncing = false;
   HealthAccess? _access;
@@ -72,8 +72,7 @@ class _BodyScreenState extends State<BodyScreen> {
         .map((metrics) => computeTrend(metrics).reversed.toList());
     _intake =
         widget.food?.watchDailyTotalsSince(from) ?? Stream.value(const {});
-    _phase =
-        widget.phases?.watchOn(dateOnly(DateTime.now())) ?? Stream.value(null);
+    _phases = widget.phases?.watchAll() ?? Stream.value(const []);
     _profile = widget.profile?.watch() ?? Stream.value(null);
     _sync();
   }
@@ -256,47 +255,48 @@ class _BodyScreenState extends State<BodyScreen> {
           final banner = _problem(fullScreen: false);
           return StreamBuilder<Map<DateTime, DayTotals>>(
             stream: _intake,
-            builder: (context, intakeSnapshot) {
-              final intake = intakeSnapshot.data ?? const {};
-              final today = dateOnly(DateTime.now());
-              // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
-              final header = widget.food == null ? 1 : 2;
-              return RefreshIndicator(
-                onRefresh: _sync,
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-                  itemCount: points.length + header,
-                  itemBuilder: (_, i) {
-                    if (i == 0) return banner ?? const SizedBox(height: 4);
-                    if (i < header) {
-                      return StreamBuilder<Phase?>(
-                        stream: _phase,
-                        builder: (context, phaseSnap) =>
-                            StreamBuilder<Profile?>(
-                              stream: _profile,
-                              builder: (context, profileSnap) =>
-                                  _TodayIntakeCard(
-                                    intake[today],
-                                    fatLimit: fatLimitFor(
-                                      phase: phaseSnap.data,
-                                      profile: profileSnap.data,
-                                    ),
-                                  ),
-                            ),
-                      );
-                    }
-                    final point = points[i - header];
-                    final day = point.metric.date;
-                    return _DayCard(
-                      point: point,
-                      // 今天的攝取已經在最上面那張
-                      intake: day == today ? null : intake[day],
-                      onTap: () => _openDay(point.metric),
-                    );
-                  },
-                ),
-              );
-            },
+            builder: (context, intakeSnapshot) => StreamBuilder<List<Phase>>(
+              stream: _phases,
+              builder: (context, phasesSnapshot) => StreamBuilder<Profile?>(
+                stream: _profile,
+                builder: (context, profileSnapshot) {
+                  final intake = intakeSnapshot.data ?? const {};
+                  final phases = phasesSnapshot.data ?? const <Phase>[];
+                  final today = dateOnly(DateTime.now());
+                  double? fatLimit(DateTime day) => fatLimitFor(
+                    phase: phases.where((p) => p.contains(day)).firstOrNull,
+                    profile: profileSnapshot.data,
+                  );
+                  // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
+                  final header = widget.food == null ? 1 : 2;
+                  return RefreshIndicator(
+                    onRefresh: _sync,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                      itemCount: points.length + header,
+                      itemBuilder: (_, i) {
+                        if (i == 0) return banner ?? const SizedBox(height: 4);
+                        if (i < header) {
+                          return _TodayIntakeCard(
+                            intake[today],
+                            fatLimit: fatLimit(today),
+                          );
+                        }
+                        final point = points[i - header];
+                        final day = point.metric.date;
+                        return _DayCard(
+                          point: point,
+                          // 今天的攝取已經在最上面那張
+                          intake: day == today ? null : intake[day],
+                          fatLimit: fatLimit(day),
+                          onTap: () => _openDay(point.metric),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
           );
         },
       ),
@@ -371,10 +371,18 @@ class _BodyScreenState extends State<BodyScreen> {
 /// 下方三欄是體脂、脂肪重、除脂體重（顏色和趨勢圖的線一致）；
 /// 當天有飲食紀錄時，最下面再一列熱量、蛋白質、脂肪的總攝取。
 class _DayCard extends StatelessWidget {
-  const _DayCard({required this.point, this.intake, required this.onTap});
+  const _DayCard({
+    required this.point,
+    this.intake,
+    this.fatLimit,
+    required this.onTap,
+  });
 
   final TrendPoint point;
   final DayTotals? intake;
+
+  /// 當天的脂肪建議上限（g）。
+  final double? fatLimit;
   final VoidCallback onTap;
 
   static const _weekdays = ['一', '二', '三', '四', '五', '六', '日'];
@@ -511,7 +519,7 @@ class _DayCard extends StatelessWidget {
               ),
               if (intake case final t?) ...[
                 const Divider(height: 20),
-                _IntakeRow(t),
+                _IntakeRow(t, fatLimit: fatLimit),
               ],
             ],
           ),
