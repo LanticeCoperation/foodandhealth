@@ -240,7 +240,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -280,6 +280,10 @@ class AppDatabase extends _$AppDatabase {
         );
       },
       from8To9: (m, schema) async {
+        await seedBasicTemplates();
+      },
+      // 沒有 schema 變更：從 v9 之前的備份匯入時預設項目會被蓋掉，升級時補一次
+      from9To10: (m, schema) async {
         await seedBasicTemplates();
       },
     ),

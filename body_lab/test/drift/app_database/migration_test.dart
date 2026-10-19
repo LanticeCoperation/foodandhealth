@@ -11,6 +11,7 @@ import 'generated/schema_v1.dart' as v1;
 import 'generated/schema_v2.dart' as v2;
 import 'generated/schema_v8.dart' as v8;
 import 'generated/schema_v9.dart' as v9;
+import 'generated/schema_v10.dart' as v10;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -164,6 +165,46 @@ void main() {
           ('麥片（20 g）', 1),
           ('大麥克（去醬）', 1),
           ('麥克雞塊（4 塊）', 1),
+        ]);
+      },
+    );
+  });
+
+  test('v9 → v10 補回被舊備份蓋掉的預設一鍵項目', () async {
+    final createdAt = DateTime(2026, 10, 1).millisecondsSinceEpoch ~/ 1000;
+    v9.MealTemplatesData old(int id, String name) => v9.MealTemplatesData(
+      id: id,
+      name: name,
+      defaultServings: 1,
+      pinned: 1,
+      archived: 0,
+      useCount: 0,
+      createdAt: createdAt,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 9,
+      newVersion: 10,
+      createOld: v9.DatabaseAtV9.new,
+      createNew: v10.DatabaseAtV10.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        // 匯入 v9 之前的備份後只剩蛋白粉和雞蛋
+        batch.insertAll(oldDb.mealTemplates, [
+          old(1, '蛋白粉（1 匙）'),
+          old(2, '雞蛋（1 顆）'),
+        ]);
+      },
+      validateItems: (newDb) async {
+        final templates = await newDb.select(newDb.mealTemplates).get();
+        expect(templates.map((t) => t.name), [
+          '蛋白粉（1 匙）',
+          '雞蛋（1 顆）',
+          '牛奶（100 ml）',
+          '豆漿（100 ml）',
+          '麥片（20 g）',
+          '大麥克（去醬）',
+          '麥克雞塊（4 塊）',
         ]);
       },
     );
