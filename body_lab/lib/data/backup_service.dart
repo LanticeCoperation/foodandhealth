@@ -136,6 +136,9 @@ class BackupService {
         if (profile != null) b.insert(_db.profiles, profile);
         b.insertAll(_db.extraBurns, extra);
       });
+      // v9 之前的備份沒有雞蛋、牛奶等預設項目，補上（已有同名就跳過）
+      final schema = json['schemaVersion'];
+      if (schema is! int || schema < 9) await _db.seedBasicTemplates();
     });
     return counts;
   }

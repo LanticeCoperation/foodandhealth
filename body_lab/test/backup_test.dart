@@ -156,6 +156,38 @@ void main() {
     expect(await target.select(target.foodEntries).get(), hasLength(2));
   });
 
+  test('匯入 v9 之前的備份：補上新的預設一鍵項目，已有同名的不重複', () async {
+    await seed(source);
+    await source.customStatement(
+      "DELETE FROM meal_templates WHERE name != '蛋白粉（1 匙）' "
+      "AND name != '雞蛋（1 顆）'",
+    );
+    final json = await BackupService(source).export();
+    json['schemaVersion'] = 8;
+    await BackupService(target).restore(json);
+    final names = [
+      for (final t in await target.select(target.mealTemplates).get()) t.name,
+    ];
+    expect(names, hasLength(7));
+    expect(names.where((n) => n == '雞蛋（1 顆）'), hasLength(1));
+    expect(names, contains('大麥克（去醬）'));
+    // templateId 對應不變
+    expect(await target.select(target.foodEntries).get(), hasLength(2));
+  });
+
+  test('匯入 v9 之後的備份：使用者刪掉的預設項目不會被加回來', () async {
+    await seed(source);
+    await source.customStatement(
+      "DELETE FROM meal_templates WHERE name = '大麥克（去醬）'",
+    );
+    final json = await BackupService(source).export();
+    await BackupService(target).restore(json);
+    final names = [
+      for (final t in await target.select(target.mealTemplates).get()) t.name,
+    ];
+    expect(names, isNot(contains('大麥克（去醬）')));
+  });
+
   test('inspect 只看內容不寫入', () async {
     await seed(source);
     final json = await BackupService(source).export();

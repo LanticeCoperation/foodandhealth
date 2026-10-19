@@ -280,7 +280,7 @@ class AppDatabase extends _$AppDatabase {
         );
       },
       from8To9: (m, schema) async {
-        await _seedBasicTemplates();
+        await seedBasicTemplates();
       },
     ),
   );
@@ -288,7 +288,7 @@ class AppDatabase extends _$AppDatabase {
   /// 預設釘選的一鍵項目，數值可在範本管理修改。
   Future<void> seedDefaultTemplates() async {
     await _seedProteinPowder();
-    await _seedBasicTemplates();
+    await seedBasicTemplates();
   }
 
   /// 「蛋白粉」範本（v1 → v2 起就有）。
@@ -301,7 +301,7 @@ class AppDatabase extends _$AppDatabase {
 
   /// 雞蛋、牛奶（全脂）、豆漿（無糖）、麥片、大麥克（去醬）、麥克雞塊（v9 加入）。已有同名項目就跳過，
   /// 以免和使用者自己建的重複。
-  Future<void> _seedBasicTemplates() async {
+  Future<void> seedBasicTemplates() async {
     const templates = [
       // 名稱, kcal, 蛋白質, 碳水, 脂肪
       ('雞蛋（1 顆）', 75, 7, 1, 5),
