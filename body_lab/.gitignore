@@ -46,3 +46,8 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Android 簽名金鑰，絕不進版控
+android/key.properties
+*.jks
+*.keystore
