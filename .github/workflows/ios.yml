@@ -1,6 +1,7 @@
 name: iOS build
 
 # public repo 使用標準 GitHub-hosted runner 免費，每次 push / PR 都編一次 iOS。
+# 產出未簽名的 .ipa（Actions 頁面的 artifact），在 Windows 用 Sideloadly 以自己的 Apple ID 重新簽名後裝進 iPhone。
 on:
   push:
     branches: [main]
@@ -13,7 +14,7 @@ concurrency:
 
 jobs:
   build:
-    name: flutter build ios --no-codesign
+    name: flutter build ios --release --no-codesign
     runs-on: macos-latest
     timeout-minutes: 45
     defaults:
@@ -30,5 +31,20 @@ jobs:
 
       - run: flutter pub get
 
-      # 不簽名，只確認 iOS 端（HealthKit 外掛、Info.plist、entitlements、部署目標）能編譯。
-      - run: flutter build ios --no-codesign --debug
+      # 不簽名：Sideloadly 安裝時會用使用者自己的 Apple ID 重簽，HealthKit entitlements 會一併保留。
+      - run: flutter build ios --release --no-codesign
+
+      # 把 Runner.app 包成標準 .ipa 結構（Payload/Runner.app）。
+      - name: Package unsigned ipa
+        run: |
+          rm -rf ipa && mkdir -p ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app ipa/Payload/
+          cd ipa && zip -qry "body_lab-unsigned.ipa" Payload
+          ls -lh body_lab-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: body_lab-unsigned-ipa
+          path: body_lab/ipa/body_lab-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
