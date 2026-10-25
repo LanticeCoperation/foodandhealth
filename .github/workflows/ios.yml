@@ -12,6 +12,9 @@ concurrency:
   group: ios-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: flutter build ios --release --no-codesign
@@ -48,3 +51,21 @@ jobs:
           path: body_lab/ipa/body_lab-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
+
+      # push 到 main 時同步放到固定的 Release「ios-latest」，網址不變、不用登入也能下載。
+      - name: Publish to GitHub Release (ios-latest)
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git tag -f ios-latest
+          git push -f origin ios-latest
+          NOTES="未簽名的 iOS 安裝檔，來自 commit ${GITHUB_SHA::7}（$(date -u +'%Y-%m-%d %H:%M UTC')）。
+
+          Windows 用 Sideloadly 以自己的 Apple ID 重新簽名後裝進 iPhone；免費 Apple ID 7 天到期後重裝一次即可。"
+          if gh release view ios-latest >/dev/null 2>&1; then
+            gh release edit ios-latest --title "iOS 最新版（未簽名 .ipa）" --notes "$NOTES"
+          else
+            gh release create ios-latest --title "iOS 最新版（未簽名 .ipa）" --notes "$NOTES" --latest=false
+          fi
+          gh release upload ios-latest ipa/body_lab-unsigned.ipa --clobber
