@@ -95,7 +95,7 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('紀錄：記一餐 → 編輯 → 刪除並復原；蛋白粉與運動', (tester) async {
+  testWidgets('紀錄：記一餐 → 編輯 → 刪除並復原；運動', (tester) async {
     await launch(tester, FakeHealthService());
     await tester.tap(find.text('紀錄'));
     await waitFor(tester, find.textContaining('這天還沒有飲食紀錄'));
@@ -127,10 +127,6 @@ void main() {
     await tester.tap(find.text('復原'));
     await waitFor(tester, find.text('700 kcal'));
 
-    // 蛋白粉一鍵加入
-    await tester.tap(find.widgetWithText(ActionChip, '蛋白粉（1 匙）'));
-    await waitFor(tester, find.text('蛋白粉（1 匙） · 1'));
-
     // 運動
     await tester.tap(find.widgetWithText(ActionChip, '運動'));
     await waitFor(tester, find.widgetWithText(TextFormField, '消耗'));
@@ -140,6 +136,22 @@ void main() {
     await waitFor(tester, find.text('游泳'));
     await dismissSheet(tester);
     await waitFor(tester, find.widgetWithText(ActionChip, '運動 · 300 kcal'));
+
+    // 快速分頁：蛋白粉 +1，回到紀錄頁看得到那一筆
+    await tester.tap(find.text('快速'));
+    await waitFor(tester, find.text('蛋白粉（1 匙）'));
+    await tester.tap(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('蛋白粉（1 匙）'),
+          matching: find.byType(ListTile),
+        ),
+        matching: find.byTooltip('+1'),
+      ),
+    );
+    await waitFor(tester, find.text('今天 1 份'));
+    await tester.tap(find.text('紀錄'));
+    await waitFor(tester, find.text('蛋白粉（1 匙）'));
 
     await close(tester);
   });

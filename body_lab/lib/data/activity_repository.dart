@@ -27,6 +27,16 @@ class ActivityRepository {
         .map((r) => r?.activeKcal);
   }
 
+  /// [from] 之後每天的活動消耗（快取更新時重送），key 是當地日期 00:00。
+  Stream<Map<DateTime, double>> watchSince(DateTime from) {
+    final t = _db.dailyActivity;
+    return (_db.select(
+      t,
+    )..where((r) => r.day.isBiggerOrEqualValue(dayKey(from)))).watch().map(
+      (rows) => {for (final r in rows) parseDayKey(r.day): r.activeKcal},
+    );
+  }
+
   /// [from] 之後每天的活動消耗，key 是當地日期 00:00。
   Future<Map<DateTime, double>> since(DateTime from) async {
     final t = _db.dailyActivity;

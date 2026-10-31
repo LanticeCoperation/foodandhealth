@@ -20,6 +20,7 @@ import 'dev/demo_data_menu.dart';
 import 'screens/body_screen.dart';
 import 'screens/food_screen.dart';
 import 'screens/profile_screen.dart';
+import 'screens/quick_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/trend_screen.dart';
 import 'services/health_service.dart';
@@ -146,13 +147,13 @@ class _HomeShellState extends State<_HomeShell> {
       ),
       FoodScreen(
         repository: s.food,
-        templates: s.templates,
         checks: s.checks,
         phases: s.phases,
         profile: s.profile,
         activity: s.activity,
         extraBurns: s.extraBurns,
       ),
+      QuickScreen(templates: s.templates, food: s.food),
       TrendScreen(dataset: s.dataset, profile: s.profile),
       AnalysisScreen(
         phases: s.phases,
@@ -180,6 +181,11 @@ class _HomeShellState extends State<_HomeShell> {
             icon: Icon(Icons.event_note_outlined),
             selectedIcon: Icon(Icons.event_note),
             label: '紀錄',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.bolt_outlined),
+            selectedIcon: Icon(Icons.bolt),
+            label: '快速',
           ),
           NavigationDestination(icon: Icon(Icons.show_chart), label: '趨勢'),
           NavigationDestination(

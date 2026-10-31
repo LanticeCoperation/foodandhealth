@@ -2,7 +2,9 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
+import '../data/food_repository.dart';
 import '../data/template_repository.dart';
+import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/undo_snackbar.dart';
 
@@ -17,45 +19,77 @@ String templateSummary(MealTemplate t) {
   ].join(' · ');
 }
 
-/// 一鍵 +1 項目（例如蛋白粉）：新增、編輯、釘選到飲食頁、滑動刪除。
-class TemplatesScreen extends StatefulWidget {
-  const TemplatesScreen({super.key, required this.repository});
+/// 「快速」分頁：一鍵 +1 項目（例如蛋白粉）。每列按 +1 記一份到今天，
+/// 顯示今天已幾份；點列編輯、置頂排序、往左滑刪除。
+class QuickScreen extends StatefulWidget {
+  const QuickScreen({super.key, required this.templates, required this.food});
 
-  final TemplateRepository repository;
+  final TemplateRepository templates;
+
+  /// 今天的紀錄（算已幾份）與復原加入。
+  final FoodRepository food;
 
   @override
-  State<TemplatesScreen> createState() => _TemplatesScreenState();
+  State<QuickScreen> createState() => _QuickScreenState();
 }
 
-class _TemplatesScreenState extends State<TemplatesScreen> {
+class _QuickScreenState extends State<QuickScreen> {
   late final Stream<List<MealTemplate>> _templates;
+  late final Stream<List<FoodEntry>> _today;
   final _hidden = <int>{};
+
+  TemplateRepository get _repo => widget.templates;
 
   @override
   void initState() {
     super.initState();
-    _templates = widget.repository.watchTemplates();
+    _templates = _repo.watchTemplates();
+    _today = widget.food.watchDay(dateOnly(DateTime.now()));
+  }
+
+  /// 記一份到今天（依現在時間判斷餐別），可復原。
+  Future<void> _quickAdd(MealTemplate t) async {
+    final now = DateTime.now();
+    final id = await _repo.addEntryFromTemplate(
+      t,
+      eatenAt: now,
+      meal: MealType.forTime(now),
+    );
+    if (!mounted) return;
+    showUndoSnackBar(
+      context,
+      '已加入「${t.name}」',
+      onUndo: () => widget.food.delete(id),
+    );
+  }
+
+  /// 今天這個項目記了幾份；0 份回傳 null。
+  static String? _todayLabel(MealTemplate t, List<FoodEntry> entries) {
+    final count = entries
+        .where((e) => e.templateId == t.id)
+        .fold<double>(0, (sum, e) => sum + e.servings);
+    return count == 0 ? null : '今天 ${fmtNum(count, maxDecimals: 2)} 份';
   }
 
   Future<void> _add() async {
     final t = await showTemplateSheet(context);
-    if (t != null) await widget.repository.add(t);
+    if (t != null) await _repo.add(t);
   }
 
   Future<void> _edit(MealTemplate t) async {
     final updated = await showTemplateSheet(context, initial: t);
-    if (updated != null) await widget.repository.update(t.id, updated);
+    if (updated != null) await _repo.update(t.id, updated);
   }
 
   Future<void> _archive(MealTemplate t) async {
     setState(() => _hidden.add(t.id));
-    await widget.repository.archive(t.id);
+    await _repo.archive(t.id);
     if (!mounted) return;
     showUndoSnackBar(
       context,
       '已刪除「${t.name}」',
       onUndo: () async {
-        await widget.repository.unarchive(t.id);
+        await _repo.unarchive(t.id);
         if (mounted) setState(() => _hidden.remove(t.id));
       },
     );
@@ -65,7 +99,7 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('一鍵 +1 項目')),
+      appBar: AppBar(title: const Text('快速')),
       floatingActionButton: FloatingActionButton(
         onPressed: _add,
         tooltip: '新增項目',
@@ -73,56 +107,79 @@ class _TemplatesScreenState extends State<TemplatesScreen> {
       ),
       body: StreamBuilder<List<MealTemplate>>(
         stream: _templates,
-        builder: (context, snapshot) {
-          final data = snapshot.data;
-          if (data == null) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final list = data.where((t) => !_hidden.contains(t.id)).toList();
-          if (list.isEmpty) {
-            return const Center(child: Text('還沒有項目，按 + 新增。'));
-          }
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 88),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                child: Text(
-                  '釘選的項目會出現在飲食頁，按一下就記一份（例如蛋白粉）。',
-                  style: theme.textTheme.bodySmall,
-                ),
-              ),
-              for (final t in list)
-                Dismissible(
-                  key: ValueKey(t.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    color: theme.colorScheme.errorContainer,
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 24),
-                    child: Icon(
-                      Icons.delete_outline,
-                      color: theme.colorScheme.onErrorContainer,
-                    ),
+        builder: (context, snapshot) => StreamBuilder<List<FoodEntry>>(
+          stream: _today,
+          builder: (context, todaySnap) {
+            final data = snapshot.data;
+            if (data == null) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final today = todaySnap.data ?? const <FoodEntry>[];
+            final list = data.where((t) => !_hidden.contains(t.id)).toList();
+            if (list.isEmpty) {
+              return const Center(child: Text('還沒有項目，按 + 新增。'));
+            }
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 88),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text(
+                    '按 +1 就記一份到今天（例如蛋白粉）；點項目可以編輯。',
+                    style: theme.textTheme.bodySmall,
                   ),
-                  onDismissed: (_) => _archive(t),
-                  child: ListTile(
-                    leading: IconButton(
-                      onPressed: () =>
-                          widget.repository.setPinned(t.id, !t.pinned),
-                      icon: Icon(
-                        t.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                ),
+                for (final t in list)
+                  Dismissible(
+                    key: ValueKey(t.id),
+                    direction: DismissDirection.endToStart,
+                    background: Container(
+                      color: theme.colorScheme.errorContainer,
+                      alignment: Alignment.centerRight,
+                      padding: const EdgeInsets.only(right: 24),
+                      child: Icon(
+                        Icons.delete_outline,
+                        color: theme.colorScheme.onErrorContainer,
                       ),
-                      tooltip: t.pinned ? '取消釘選' : '釘選',
                     ),
-                    title: Text(t.name),
-                    subtitle: Text(templateSummary(t)),
-                    onTap: () => _edit(t),
+                    onDismissed: (_) => _archive(t),
+                    child: ListTile(
+                      leading: IconButton(
+                        onPressed: () => _repo.setPinned(t.id, !t.pinned),
+                        icon: Icon(
+                          t.pinned ? Icons.push_pin : Icons.push_pin_outlined,
+                        ),
+                        tooltip: t.pinned ? '取消置頂' : '置頂',
+                      ),
+                      title: Text(t.name),
+                      subtitle: Text(templateSummary(t)),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_todayLabel(t, today) case final label?)
+                            Padding(
+                              padding: const EdgeInsets.only(right: 4),
+                              child: Text(
+                                label,
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                            ),
+                          IconButton.filledTonal(
+                            onPressed: () => _quickAdd(t),
+                            icon: const Icon(Icons.add),
+                            tooltip: '+1',
+                          ),
+                        ],
+                      ),
+                      onTap: () => _edit(t),
+                    ),
                   ),
-                ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
@@ -257,7 +314,7 @@ class _TemplateFormState extends State<_TemplateForm> {
               SwitchListTile(
                 value: _pinned,
                 onChanged: (v) => setState(() => _pinned = v),
-                title: const Text('釘選到飲食頁（一鍵 +1）'),
+                title: const Text('置頂'),
                 contentPadding: EdgeInsets.zero,
               ),
               Align(

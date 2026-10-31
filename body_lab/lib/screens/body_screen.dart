@@ -53,6 +53,7 @@ class BodyScreen extends StatefulWidget {
 class _BodyScreenState extends State<BodyScreen> {
   late final Stream<List<TrendPoint>> _trend;
   late final Stream<Map<DateTime, DayTotals>> _intake;
+  late final Stream<Map<DateTime, double>> _activeKcal;
   late final Stream<List<Phase>> _phases;
   late final Stream<Profile?> _profile;
   bool _syncing = false;
@@ -72,6 +73,7 @@ class _BodyScreenState extends State<BodyScreen> {
         .map((metrics) => computeTrend(metrics).reversed.toList());
     _intake =
         widget.food?.watchDailyTotalsSince(from) ?? Stream.value(const {});
+    _activeKcal = widget.activity?.watchSince(from) ?? Stream.value(const {});
     _phases = widget.phases?.watchAll() ?? Stream.value(const []);
     _profile = widget.profile?.watch() ?? Stream.value(null);
     _sync();
@@ -259,42 +261,58 @@ class _BodyScreenState extends State<BodyScreen> {
               stream: _phases,
               builder: (context, phasesSnapshot) => StreamBuilder<Profile?>(
                 stream: _profile,
-                builder: (context, profileSnapshot) {
-                  final intake = intakeSnapshot.data ?? const {};
-                  final phases = phasesSnapshot.data ?? const <Phase>[];
-                  final today = dateOnly(DateTime.now());
-                  double? fatLimit(DateTime day) => fatLimitFor(
-                    phase: phases.where((p) => p.contains(day)).firstOrNull,
-                    profile: profileSnapshot.data,
-                  );
-                  // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
-                  final header = widget.food == null ? 1 : 2;
-                  return RefreshIndicator(
-                    onRefresh: _sync,
-                    child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
-                      itemCount: points.length + header,
-                      itemBuilder: (_, i) {
-                        if (i == 0) return banner ?? const SizedBox(height: 4);
-                        if (i < header) {
-                          return _TodayIntakeCard(
-                            intake[today],
-                            fatLimit: fatLimit(today),
-                          );
-                        }
-                        final point = points[i - header];
-                        final day = point.metric.date;
-                        return _DayCard(
-                          point: point,
-                          // 今天的攝取已經在最上面那張
-                          intake: day == today ? null : intake[day],
-                          fatLimit: fatLimit(day),
-                          onTap: () => _openDay(point.metric),
+                builder: (context, profileSnapshot) =>
+                    StreamBuilder<Map<DateTime, double>>(
+                      stream: _activeKcal,
+                      builder: (context, activeSnapshot) {
+                        final intake = intakeSnapshot.data ?? const {};
+                        final active =
+                            activeSnapshot.data ?? const <DateTime, double>{};
+                        // 有手錶資料時每張卡片都顯示活動消耗（沒資料的天顯示 —）
+                        final showActive = widget.activity != null;
+                        final phases = phasesSnapshot.data ?? const <Phase>[];
+                        final today = dateOnly(DateTime.now());
+                        double? fatLimit(DateTime day) => fatLimitFor(
+                          phase: phases
+                              .where((p) => p.contains(day))
+                              .firstOrNull,
+                          profile: profileSnapshot.data,
+                        );
+                        // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
+                        final header = widget.food == null ? 1 : 2;
+                        return RefreshIndicator(
+                          onRefresh: _sync,
+                          child: ListView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 0, 16, 96),
+                            itemCount: points.length + header,
+                            itemBuilder: (_, i) {
+                              if (i == 0) {
+                                return banner ?? const SizedBox(height: 4);
+                              }
+                              if (i < header) {
+                                return _TodayIntakeCard(
+                                  intake[today],
+                                  fatLimit: fatLimit(today),
+                                  activeKcal: active[today],
+                                  showActive: showActive,
+                                );
+                              }
+                              final point = points[i - header];
+                              final day = point.metric.date;
+                              return _DayCard(
+                                point: point,
+                                // 今天的攝取已經在最上面那張
+                                intake: day == today ? null : intake[day],
+                                fatLimit: fatLimit(day),
+                                activeKcal: day == today ? null : active[day],
+                                showActive: showActive && day != today,
+                                onTap: () => _openDay(point.metric),
+                              );
+                            },
+                          ),
                         );
                       },
                     ),
-                  );
-                },
               ),
             ),
           );
@@ -375,11 +393,17 @@ class _DayCard extends StatelessWidget {
     required this.point,
     this.intake,
     this.fatLimit,
+    this.activeKcal,
+    this.showActive = false,
     required this.onTap,
   });
 
   final TrendPoint point;
   final DayTotals? intake;
+
+  /// 當天手錶記錄的活動消耗；[showActive] 為 true 但沒資料時顯示「—」。
+  final double? activeKcal;
+  final bool showActive;
 
   /// 當天的脂肪建議上限（g）。
   final double? fatLimit;
@@ -517,10 +541,12 @@ class _DayCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (intake case final t?) ...[
-                const Divider(height: 20),
-                _IntakeRow(t, fatLimit: fatLimit),
+              if (showActive || intake != null) const Divider(height: 20),
+              if (showActive) ...[
+                _ActivityRow(activeKcal),
+                if (intake != null) const SizedBox(height: 8),
               ],
+              if (intake case final t?) _IntakeRow(t, fatLimit: fatLimit),
             ],
           ),
         ),
@@ -536,12 +562,21 @@ class _DayCard extends StatelessWidget {
 
 /// 列表最上面的今天攝取；今天還沒記飲食時顯示提示。
 class _TodayIntakeCard extends StatelessWidget {
-  const _TodayIntakeCard(this.totals, {this.fatLimit});
+  const _TodayIntakeCard(
+    this.totals, {
+    this.fatLimit,
+    this.activeKcal,
+    this.showActive = false,
+  });
 
   final DayTotals? totals;
 
   /// 脂肪建議上限（g）；沒有個人資料也沒有階段時為 null。
   final double? fatLimit;
+
+  /// 今天到目前的活動消耗。
+  final double? activeKcal;
+  final bool showActive;
 
   @override
   Widget build(BuildContext context) {
@@ -554,6 +589,10 @@ class _TodayIntakeCard extends StatelessWidget {
           children: [
             Text('今天攝取', style: theme.textTheme.titleSmall),
             const SizedBox(height: 8),
+            if (showActive) ...[
+              _ActivityRow(activeKcal, label: '活動消耗（到目前）'),
+              const SizedBox(height: 8),
+            ],
             if (totals case final t?)
               _IntakeRow(t, fatLimit: fatLimit)
             else
@@ -566,6 +605,40 @@ class _TodayIntakeCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 當天手錶記錄的活動消耗（Apple 健康 / Health Connect 的活動能量）。
+class _ActivityRow extends StatelessWidget {
+  const _ActivityRow(this.kcal, {this.label = '活動消耗'});
+
+  final double? kcal;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final muted = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurfaceVariant,
+    );
+    return Row(
+      children: [
+        Icon(
+          Icons.watch_outlined,
+          size: 16,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: muted),
+        const SizedBox(width: 8),
+        Text(
+          kcal == null ? '—' : '${kcal!.round()} kcal',
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: kcal == null ? null : context.palette.good,
+          ),
+        ),
+      ],
     );
   }
 }

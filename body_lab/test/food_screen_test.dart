@@ -4,9 +4,8 @@ import 'package:body_lab/data/extra_burn_repository.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
-import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/screens/food_screen.dart';
-import 'package:drift/drift.dart' show DatabaseConnection;
+import 'package:drift/drift.dart' show DatabaseConnection, Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,7 +47,6 @@ void main() {
       MaterialApp(
         home: FoodScreen(
           repository: FoodRepository(db),
-          templates: TemplateRepository(db),
           checks: CheckRepository(db),
           phases: PhaseRepository(db),
           profile: ProfileRepository(db),
@@ -119,22 +117,14 @@ void main() {
     await close(tester);
   });
 
-  testWidgets('蛋白粉一鍵 +1、肌酸打勾', (tester) async {
+  testWidgets('一鍵 +1 項目不在紀錄頁；肌酸打勾', (tester) async {
     usePhoneSize(tester);
     await open(tester);
 
-    final powder = find.widgetWithText(ActionChip, '蛋白粉（1 匙）');
-    expect(powder, findsOneWidget);
-    await tester.tap(powder);
-    await settle(tester);
-    await tester.tap(find.text('蛋白粉（1 匙） · 1'));
-    await settle(tester);
-    expect(find.text('蛋白粉（1 匙） · 2'), findsOneWidget);
-    expect(find.text('24 g'), findsOneWidget); // 蛋白質總計 12 × 2
-    expect(find.text('已加入「蛋白粉（1 匙）」'), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    await settle(tester);
-    expect(find.text('已加入「蛋白粉（1 匙）」'), findsNothing);
+    // 快速項目搬到「快速」分頁，紀錄頁只剩運動與打勾
+    expect(find.widgetWithText(ActionChip, '蛋白粉（1 匙）'), findsNothing);
+    expect(find.byTooltip('一鍵 +1 項目'), findsNothing);
+    expect(find.widgetWithText(ActionChip, '運動'), findsOneWidget);
 
     // 肌酸打勾：第一次預設 5 g
     final creatine = find.widgetWithText(FilterChip, '肌酸');
@@ -206,15 +196,20 @@ void main() {
     final normal = fatColor();
     expect(normal, isNotNull);
 
-    // 大麥克（去醬）每個 19 g 脂肪，4 個 76 g 超過上限
-    final bigMac = find.widgetWithText(ActionChip, '大麥克（去醬）');
-    await tester.tap(bigMac);
+    // 再吃 76 g 脂肪（4 個大麥克）就超過上限
+    await tester.runAsync(
+      () => FoodRepository(db).add(
+        FoodEntriesCompanion.insert(
+          eatenAt: DateTime.now(),
+          meal: MealType.dinner,
+          name: '大麥克（去醬）',
+          servings: const Value(4),
+          kcal: const Value(500),
+          fatG: const Value(19),
+        ),
+      ),
+    );
     await settle(tester);
-    for (var i = 0; i < 3; i++) {
-      await tester.tap(find.textContaining('大麥克（去醬） ·'));
-      await settle(tester);
-    }
-    expect(find.text('大麥克（去醬） · 4'), findsOneWidget);
     expect(fatColor(), isNot(normal));
 
     await close(tester);

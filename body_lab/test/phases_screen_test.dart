@@ -5,7 +5,6 @@ import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
-import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/models/body_metric.dart';
 import 'package:body_lab/screens/food_screen.dart';
 import 'package:body_lab/screens/phases_screen.dart';
@@ -146,7 +145,6 @@ void main() {
       MaterialApp(
         home: FoodScreen(
           repository: food,
-          templates: TemplateRepository(db),
           checks: CheckRepository(db),
           phases: phases,
           profile: ProfileRepository(db),

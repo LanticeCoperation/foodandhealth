@@ -12,22 +12,19 @@ import '../data/database.dart';
 import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
 import '../data/profile_repository.dart';
-import '../data/template_repository.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/undo_snackbar.dart';
 import 'extra_burn_sheet.dart';
 import 'food_entry_sheet.dart';
-import 'templates_screen.dart';
 
 /// 每日紀錄：吃了什麼（依餐別）與消耗（基礎代謝、手錶活動、運動）、赤字 / 盈餘、
-/// 一鍵 +1、肌酸打勾；對照當天的階段目標。
+/// 肌酸打勾；對照當天的階段目標。一鍵 +1 項目在「快速」分頁。
 class FoodScreen extends StatefulWidget {
   const FoodScreen({
     super.key,
     required this.repository,
-    required this.templates,
     required this.checks,
     required this.phases,
     required this.profile,
@@ -36,7 +33,6 @@ class FoodScreen extends StatefulWidget {
   });
 
   final FoodRepository repository;
-  final TemplateRepository templates;
   final CheckRepository checks;
   final PhaseRepository phases;
   final ProfileRepository profile;
@@ -56,7 +52,6 @@ class _FoodScreenState extends State<FoodScreen> {
   late Stream<Phase?> _phase;
   late Stream<double?> _active;
   late Stream<List<ExtraBurn>> _extra;
-  late final Stream<List<MealTemplate>> _pinned;
   late final Stream<Profile?> _profile;
 
   /// 滑掉的項目要立刻從畫面消失（Dismissible 的要求），不等資料庫 stream 更新。
@@ -67,7 +62,6 @@ class _FoodScreenState extends State<FoodScreen> {
   @override
   void initState() {
     super.initState();
-    _pinned = widget.templates.watchPinned();
     _profile = widget.profile.watch();
     _setDay(dateOnly(DateTime.now()));
   }
@@ -118,20 +112,6 @@ class _FoodScreenState extends State<FoodScreen> {
     if (entry != null) await widget.repository.save(entry);
   }
 
-  Future<void> _quickAdd(MealTemplate t) async {
-    final id = await widget.templates.addEntryFromTemplate(
-      t,
-      eatenAt: _defaultTime(),
-      meal: MealType.forTime(_defaultTime()),
-    );
-    if (!mounted) return;
-    showUndoSnackBar(
-      context,
-      '已加入「${t.name}」',
-      onUndo: () => widget.repository.delete(id),
-    );
-  }
-
   Future<void> _delete(FoodEntry e) async {
     setState(() => _hidden.add(e.id));
     await widget.repository.delete(e.id);
@@ -146,14 +126,6 @@ class _FoodScreenState extends State<FoodScreen> {
     );
   }
 
-  void _openTemplates() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => TemplatesScreen(repository: widget.templates),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final d = _day;
@@ -163,13 +135,6 @@ class _FoodScreenState extends State<FoodScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('每日紀錄'),
-        actions: [
-          IconButton(
-            onPressed: _openTemplates,
-            icon: const Icon(Icons.bolt_outlined),
-            tooltip: '一鍵 +1 項目',
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(48),
           child: Row(
@@ -234,7 +199,7 @@ class _FoodScreenState extends State<FoodScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              _buildQuickRow(entries),
+              _buildQuickRow(),
               const SizedBox(height: 8),
               if (entries.isEmpty)
                 Padding(
@@ -282,67 +247,50 @@ class _FoodScreenState extends State<FoodScreen> {
   void _openExercise() =>
       showExtraBurnSheet(context, repository: widget.extraBurns!, day: _day);
 
-  /// 快速列：釘選項目一鍵 +1（顯示當天已幾份）、運動、每日打勾。
-  Widget _buildQuickRow(List<FoodEntry> entries) {
-    return StreamBuilder<List<MealTemplate>>(
-      stream: _pinned,
-      builder: (context, pinnedSnap) => StreamBuilder<Map<CheckItem, double?>>(
-        stream: _checks,
-        builder: (context, checkSnap) => StreamBuilder<List<ExtraBurn>>(
-          stream: _extra,
-          builder: (context, extraSnap) {
-            final pinned = pinnedSnap.data ?? const [];
-            final checked = checkSnap.data ?? const <CheckItem, double?>{};
-            final exercise = (extraSnap.data ?? const []).fold<double>(
-              0,
-              (s, b) => s + b.kcal,
-            );
-            return Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final t in pinned)
-                  ActionChip(
-                    avatar: const Icon(Icons.add, size: 18),
-                    label: Text(_pinnedLabel(t, entries)),
-                    onPressed: () => _quickAdd(t),
+  /// 快速列：運動、每日打勾。
+  Widget _buildQuickRow() {
+    return StreamBuilder<Map<CheckItem, double?>>(
+      stream: _checks,
+      builder: (context, checkSnap) => StreamBuilder<List<ExtraBurn>>(
+        stream: _extra,
+        builder: (context, extraSnap) {
+          final checked = checkSnap.data ?? const <CheckItem, double?>{};
+          final exercise = (extraSnap.data ?? const []).fold<double>(
+            0,
+            (s, b) => s + b.kcal,
+          );
+          return Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (widget.extraBurns != null)
+                ActionChip(
+                  avatar: const Icon(Icons.directions_run, size: 18),
+                  label: Text(
+                    exercise > 0 ? '運動 · ${exercise.round()} kcal' : '運動',
                   ),
-                if (widget.extraBurns != null)
-                  ActionChip(
-                    avatar: const Icon(Icons.directions_run, size: 18),
+                  onPressed: _openExercise,
+                ),
+              // 點一下打勾（沿用上次劑量，第一次 5 g）/ 取消；長按改劑量
+              for (final item in CheckItem.values)
+                GestureDetector(
+                  onLongPress: () => _editDose(item, checked[item]),
+                  child: FilterChip(
                     label: Text(
-                      exercise > 0 ? '運動 · ${exercise.round()} kcal' : '運動',
+                      checked.containsKey(item)
+                          ? '${item.label} ${fmtNum(checked[item])}${checked[item] == null ? '' : item.unit}'
+                                .trim()
+                          : item.label,
                     ),
-                    onPressed: _openExercise,
+                    selected: checked.containsKey(item),
+                    onSelected: (v) => widget.checks.set(_day, item, v),
                   ),
-                // 點一下打勾（沿用上次劑量，第一次 5 g）/ 取消；長按改劑量
-                for (final item in CheckItem.values)
-                  GestureDetector(
-                    onLongPress: () => _editDose(item, checked[item]),
-                    child: FilterChip(
-                      label: Text(
-                        checked.containsKey(item)
-                            ? '${item.label} ${fmtNum(checked[item])}${checked[item] == null ? '' : item.unit}'
-                                  .trim()
-                            : item.label,
-                      ),
-                      selected: checked.containsKey(item),
-                      onSelected: (v) => widget.checks.set(_day, item, v),
-                    ),
-                  ),
-              ],
-            );
-          },
-        ),
+                ),
+            ],
+          );
+        },
       ),
     );
-  }
-
-  static String _pinnedLabel(MealTemplate t, List<FoodEntry> entries) {
-    final count = entries
-        .where((e) => e.templateId == t.id)
-        .fold<double>(0, (sum, e) => sum + e.servings);
-    return count == 0 ? t.name : '${t.name} · ${fmtNum(count, maxDecimals: 2)}';
   }
 }
 

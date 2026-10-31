@@ -1,3 +1,4 @@
+import 'package:body_lab/data/activity_repository.dart';
 import 'package:body_lab/data/body_repository.dart';
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
@@ -246,6 +247,81 @@ void main() {
     await settle();
     expect(find.text('超過上限 10 g'), findsOneWidget);
     expect(find.text('上限 70 g'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(db.close);
+  });
+  testWidgets('每天卡片顯示手錶活動消耗；今天標示「到目前」，沒資料的天顯示「—」', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    final db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    final today = dateOnly(DateTime.now());
+    final yesterday = addDays(today, -1);
+    final twoDaysAgo = addDays(today, -2);
+    await tester.runAsync(() async {
+      for (final day in [today, yesterday, twoDaysAgo]) {
+        await db
+            .into(db.dailyBodyMetrics)
+            .insert(
+              DailyBodyMetricsCompanion.insert(
+                day: dayKey(day),
+                measuredAt: day.add(const Duration(hours: 7)),
+                weightKg: 70,
+                syncedAt: DateTime.now(),
+              ),
+            );
+      }
+      // 前天沒有活動資料（沒戴手錶）；昨天沒有飲食但有活動
+      final health = HealthService();
+      await ActivityRepository(
+        db,
+        health,
+      ).replaceFrom(yesterday, {yesterday: 320.4, today: 150});
+    });
+
+    final health = HealthService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(Brightness.light),
+        home: BodyScreen(
+          health: health,
+          repository: BodyRepository(db, health),
+          activity: ActivityRepository(db, health),
+          food: FoodRepository(db),
+        ),
+      ),
+    );
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    // 今天攝取卡顯示到目前的活動消耗
+    expect(find.text('活動消耗（到目前）'), findsOneWidget);
+    expect(find.text('150 kcal'), findsOneWidget);
+    // 昨天沒飲食也要有這一列
+    expect(find.text('320 kcal'), findsOneWidget);
+    // 今天攝取卡 + 昨天 + 前天（— ）；今天的體重卡不重複顯示
+    expect(find.text('活動消耗'), findsNWidgets(2));
+    final twoDaysAgoCard = find.ancestor(
+      of: find.text(
+        '${twoDaysAgo.month}/${twoDaysAgo.day}（${['一', '二', '三', '四', '五', '六', '日'][twoDaysAgo.weekday - 1]}）',
+      ),
+      matching: find.byType(Card),
+    );
+    expect(
+      find.descendant(of: twoDaysAgoCard, matching: find.text('活動消耗')),
+      findsOneWidget,
+    );
 
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(db.close);

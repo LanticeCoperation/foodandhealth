@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('四個頁籤都能打開', (tester) async {
+  testWidgets('五個頁籤都能打開', (tester) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -37,7 +37,12 @@ void main() {
 
     await tester.tap(find.text('紀錄'));
     await settle();
-    expect(find.widgetWithText(ActionChip, '蛋白粉（1 匙）'), findsOneWidget);
+    expect(find.widgetWithText(ActionChip, '運動'), findsOneWidget);
+
+    await tester.tap(find.text('快速'));
+    await settle();
+    expect(find.text('蛋白粉（1 匙）'), findsOneWidget);
+    expect(find.byTooltip('+1'), findsWidgets);
 
     await tester.tap(find.text('趨勢'));
     await settle();
