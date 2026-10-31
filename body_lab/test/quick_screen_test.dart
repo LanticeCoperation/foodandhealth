@@ -2,6 +2,7 @@ import 'package:body_lab/data/database.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/template_repository.dart';
 import 'package:body_lab/screens/quick_screen.dart';
+import 'package:body_lab/services/catalog_updater.dart';
 import 'package:drift/drift.dart' show DatabaseConnection;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -28,7 +29,7 @@ void main() {
     }
   }
 
-  Future<void> open(WidgetTester tester) async {
+  Future<void> open(WidgetTester tester, {CatalogUpdater? updater}) async {
     tester.view.physicalSize = const Size(1080, 2340);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
@@ -37,6 +38,7 @@ void main() {
         home: QuickScreen(
           templates: TemplateRepository(db),
           food: FoodRepository(db),
+          updater: updater,
         ),
       ),
     );
@@ -77,6 +79,39 @@ void main() {
       expect(entries.single.name, '蛋白粉（1 匙）');
       expect(entries.single.kcal, 60);
     });
+
+    await close(tester);
+  });
+
+  testWidgets('右上角更新預設項目：有新項目就加進列表並提示；已是最新；失敗', (tester) async {
+    var remote = '{"version": 1, "items": []}';
+    final updater = CatalogUpdater(
+      db,
+      loadBundled: () async => '{"version": 1, "items": []}',
+      fetchRemote: () async => remote,
+    );
+    await tester.runAsync(updater.applyBundled);
+    await open(tester, updater: updater);
+    expect(find.text('無糖優格（100 g）'), findsNothing);
+
+    remote = '{"version": 2, "items": [{"key": "yogurt", "name": "無糖優格（100 g）", "kcal": 60, "protein": 3.5}]}';
+    await tester.tap(find.byTooltip('更新預設項目'));
+    await settle(tester);
+    expect(find.text('已新增 1 個項目'), findsOneWidget);
+    expect(find.text('無糖優格（100 g）'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await settle(tester);
+
+    await tester.tap(find.byTooltip('更新預設項目'));
+    await settle(tester);
+    expect(find.text('預設項目已是最新'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 5));
+    await settle(tester);
+
+    remote = '';
+    await tester.tap(find.byTooltip('更新預設項目'));
+    await settle(tester);
+    expect(find.text('無法取得更新，請檢查網路'), findsOneWidget);
 
     await close(tester);
   });

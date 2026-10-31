@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../data/food_repository.dart';
 import '../data/template_repository.dart';
+import '../data/template_catalog.dart';
+import '../services/catalog_updater.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
 import '../widgets/undo_snackbar.dart';
@@ -22,12 +24,20 @@ String templateSummary(MealTemplate t) {
 /// 「快速」分頁：一鍵 +1 項目（例如蛋白粉）。每列按 +1 記一份到今天，
 /// 顯示今天已幾份；點列編輯、置頂排序、往左滑刪除。
 class QuickScreen extends StatefulWidget {
-  const QuickScreen({super.key, required this.templates, required this.food});
+  const QuickScreen({
+    super.key,
+    required this.templates,
+    required this.food,
+    this.updater,
+  });
 
   final TemplateRepository templates;
 
   /// 今天的紀錄（算已幾份）與復原加入。
   final FoodRepository food;
+
+  /// 從 GitHub 抓預設項目目錄的更新（右上角按鈕）；null 時不顯示按鈕。
+  final CatalogUpdater? updater;
 
   @override
   State<QuickScreen> createState() => _QuickScreenState();
@@ -37,8 +47,30 @@ class _QuickScreenState extends State<QuickScreen> {
   late final Stream<List<MealTemplate>> _templates;
   late final Stream<List<FoodEntry>> _today;
   final _hidden = <int>{};
+  bool _updating = false;
 
   TemplateRepository get _repo => widget.templates;
+
+  Future<void> _updateCatalog() async {
+    if (_updating) return;
+    setState(() => _updating = true);
+    final outcome = await widget.updater!.fetchAndApply();
+    if (!mounted) return;
+    setState(() => _updating = false);
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(switch (outcome) {
+            CatalogUpdated(:final result) when result.changed =>
+              catalogChangeMessage(result),
+            CatalogUpdated() => '預設項目已是最新',
+            CatalogUpToDate() => '預設項目已是最新',
+            CatalogFailed() => '無法取得更新，請檢查網路',
+          }),
+        ),
+      );
+  }
 
   @override
   void initState() {
@@ -78,7 +110,7 @@ class _QuickScreenState extends State<QuickScreen> {
 
   Future<void> _edit(MealTemplate t) async {
     final updated = await showTemplateSheet(context, initial: t);
-    if (updated != null) await _repo.update(t.id, updated);
+    if (updated != null) await _repo.edit(t.id, updated);
   }
 
   Future<void> _archive(MealTemplate t) async {
@@ -99,7 +131,23 @@ class _QuickScreenState extends State<QuickScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(title: const Text('快速')),
+      appBar: AppBar(
+        title: const Text('快速'),
+        actions: [
+          if (widget.updater != null)
+            IconButton(
+              onPressed: _updating ? null : _updateCatalog,
+              icon: _updating
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.cloud_download_outlined),
+              tooltip: '更新預設項目',
+            ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _add,
         tooltip: '新增項目',
@@ -183,6 +231,15 @@ class _QuickScreenState extends State<QuickScreen> {
       ),
     );
   }
+}
+
+/// 目錄更新結果的提示文字，例如「已新增 2 個、更新 1 個項目」。
+String catalogChangeMessage(CatalogApplyResult r) {
+  final parts = [
+    if (r.added > 0) '新增 ${r.added} 個',
+    if (r.updated > 0) '更新 ${r.updated} 個',
+  ];
+  return '已${parts.join('、')}項目';
 }
 
 /// 新增或編輯範本，回傳要寫入的欄位；取消回傳 null。

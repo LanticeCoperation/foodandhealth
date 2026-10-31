@@ -1,5 +1,6 @@
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/main.dart';
+import 'package:body_lab/services/catalog_updater.dart';
 import 'package:body_lab/services/health_service.dart';
 import 'package:body_lab/utils/dates.dart';
 import 'package:drift/drift.dart' show DatabaseConnection, Value;
@@ -29,7 +30,15 @@ void main() {
         closeStreamsSynchronously: true,
       ),
     );
-    services = AppServices(db, health);
+    // 預設項目目錄：只用內建的，不連 GitHub
+    services = AppServices(
+      db,
+      health,
+      catalog: CatalogUpdater(
+        db,
+        fetchRemote: () async => throw Exception('整合測試不連網'),
+      ),
+    );
     await tester.pumpWidget(BodyLabApp(services: services));
     await waitFor(tester, find.text('身體組成'));
   }

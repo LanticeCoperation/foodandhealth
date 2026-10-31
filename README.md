@@ -117,7 +117,19 @@ package、iOS Bundle Identifier）。
 - 所有項目一列一個，右側 **+1** 記一份到今天（依現在時間判餐別），旁邊顯示「今天 N 份」；
   提示 4 秒內可復原。
 - 點項目編輯名稱、預設份量、每份營養；圖釘是置頂（只影響排序）；往左滑刪除可復原。
-- 預設「蛋白粉（1 匙）」60 kcal / 12 g 蛋白質，依包裝標示修改。
+- 預設項目來自 `assets/food_templates.json`（蛋白粉、雞蛋、牛奶、豆漿、麥片、大麥克、麥克雞塊），
+  可依包裝標示修改；改過的項目之後目錄更新不會覆蓋。
+- 右上角「更新預設項目」從 GitHub 抓最新目錄；開 App 時也會背景抓一次，有新項目會提示。
+
+#### 更新預設項目目錄
+
+改 `body_lab/assets/food_templates.json`、把 `version` +1、push 到 main，
+App 下次啟動（或按更新按鈕）就會合併，不用重新發版：
+
+- 新的 `key`：新增項目（`pinned` 決定是否置頂）。
+- 既有 `key`、使用者沒編輯過也沒刪除：名稱 / 份量 / 營養素更新成目錄的值。
+- 使用者編輯過或刪除過的：不動，也不會加回來。
+- `key` 一旦發佈就不要改，改了會被當成新項目。
 
 ### 趨勢
 
@@ -231,7 +243,9 @@ body_lab/
     screens/body_screen.dart      身體組成列表
     screens/food_screen.dart      單日飲食、快速列
     screens/food_entry_sheet.dart 自訂輸入 / 編輯飲食
-    screens/quick_screen.dart     快速分頁：一鍵 +1 項目
+    screens/quick_screen.dart     快速分頁：一鍵 +1 項目、更新預設項目
+    data/template_catalog.dart    預設項目目錄（JSON）解析與合併規則
+    services/catalog_updater.dart 套用內建目錄、從 GitHub 抓更新、記住版本
     screens/profile_screen.dart   個人資料與每日消耗設定
     screens/extra_burn_sheet.dart 運動（自訂消耗）新增 / 刪除
     screens/body_entry_sheet.dart 手動記錄體重 / 體脂率
@@ -249,11 +263,12 @@ body_lab/
   test/                           單元測試 + widget 測試（手機尺寸 360 × 780）
     drift/                        schema migration 測試（make-migrations 產生）
   drift_schemas/                  各版 schema 快照
+  assets/food_templates.json      預設一鍵項目目錄（同一份也是 GitHub 上的更新來源）
 ```
 
 ## 本地資料庫（drift）
 
-資料庫檔案在 App 文件目錄下的 `body_lab.sqlite`，目前 schema v8。
+資料庫檔案在 App 文件目錄下的 `body_lab.sqlite`，目前 schema v11。
 
 - **健康資料快取** `daily_body_metrics`：每天一列。第一次同步抓 90 天，之後從快取最後一天
   往前 14 天重抓，並以重抓結果取代這段範圍（健康 App 裡刪掉的天也會消失）。
@@ -261,7 +276,9 @@ body_lab/
 - **飲食紀錄** `food_entries`：時間、餐別、名稱、份量倍率，以及每份的熱量 / 蛋白質 /
   碳水 / 脂肪（都可留空），實際攝取 = 每份 × 份量。從範本加入時記錄 `template_id`，
   營養素仍複製一份，之後改範本不影響舊紀錄。
-- **餐點範本** `meal_templates`（v2）：每份營養、預設份量與餐別、釘選、使用次數。刪除只做封存。
+- **餐點範本** `meal_templates`（v2）：每份營養、預設份量與餐別、置頂、使用次數。刪除只做封存。
+  `source_key`（v11）對應預設項目目錄的 key，`customized`（v11）表示使用者編輯過。
+- **設定** `settings`（v11）：key / value，目前只有已套用的目錄版本 `catalogVersion`。
 - **每日打勾** `daily_checks`（v2）：目前只有肌酸，有紀錄 = 當天有吃。
 - **實驗階段** `phases`（v3）：名稱、起訖日、假設、熱量 / 蛋白質目標、是否吃肌酸、心得。
 - **個人資料** `profiles`（v4，只有一列）：性別、出生年、身高、活動量、計算時體重、固定 TDEE，

@@ -1397,6 +1397,32 @@ class $MealTemplatesTable extends MealTemplates
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _sourceKeyMeta = const VerificationMeta(
+    'sourceKey',
+  );
+  @override
+  late final GeneratedColumn<String> sourceKey = GeneratedColumn<String>(
+    'source_key',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _customizedMeta = const VerificationMeta(
+    'customized',
+  );
+  @override
+  late final GeneratedColumn<bool> customized = GeneratedColumn<bool>(
+    'customized',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("customized" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1412,6 +1438,8 @@ class $MealTemplatesTable extends MealTemplates
     useCount,
     lastUsedAt,
     createdAt,
+    sourceKey,
+    customized,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1502,6 +1530,18 @@ class $MealTemplatesTable extends MealTemplates
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('source_key')) {
+      context.handle(
+        _sourceKeyMeta,
+        sourceKey.isAcceptableOrUnknown(data['source_key']!, _sourceKeyMeta),
+      );
+    }
+    if (data.containsKey('customized')) {
+      context.handle(
+        _customizedMeta,
+        customized.isAcceptableOrUnknown(data['customized']!, _customizedMeta),
+      );
+    }
     return context;
   }
 
@@ -1565,6 +1605,14 @@ class $MealTemplatesTable extends MealTemplates
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      sourceKey: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}source_key'],
+      ),
+      customized: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}customized'],
+      )!,
     );
   }
 
@@ -1599,6 +1647,12 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
   final int useCount;
   final DateTime? lastUsedAt;
   final DateTime createdAt;
+
+  /// 來自預設項目目錄（assets/food_templates.json）的 key（v11）；使用者自建的是 null。
+  final String? sourceKey;
+
+  /// 使用者編輯過（v11）；目錄更新時不覆蓋。
+  final bool customized;
   const MealTemplate({
     required this.id,
     required this.name,
@@ -1613,6 +1667,8 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
     required this.useCount,
     this.lastUsedAt,
     required this.createdAt,
+    this.sourceKey,
+    required this.customized,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1644,6 +1700,10 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
       map['last_used_at'] = Variable<DateTime>(lastUsedAt);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || sourceKey != null) {
+      map['source_key'] = Variable<String>(sourceKey);
+    }
+    map['customized'] = Variable<bool>(customized);
     return map;
   }
 
@@ -1668,6 +1728,10 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
           ? const Value.absent()
           : Value(lastUsedAt),
       createdAt: Value(createdAt),
+      sourceKey: sourceKey == null && nullToAbsent
+          ? const Value.absent()
+          : Value(sourceKey),
+      customized: Value(customized),
     );
   }
 
@@ -1692,6 +1756,8 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
       useCount: serializer.fromJson<int>(json['useCount']),
       lastUsedAt: serializer.fromJson<DateTime?>(json['lastUsedAt']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      sourceKey: serializer.fromJson<String?>(json['sourceKey']),
+      customized: serializer.fromJson<bool>(json['customized']),
     );
   }
   @override
@@ -1713,6 +1779,8 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
       'useCount': serializer.toJson<int>(useCount),
       'lastUsedAt': serializer.toJson<DateTime?>(lastUsedAt),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'sourceKey': serializer.toJson<String?>(sourceKey),
+      'customized': serializer.toJson<bool>(customized),
     };
   }
 
@@ -1730,6 +1798,8 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
     int? useCount,
     Value<DateTime?> lastUsedAt = const Value.absent(),
     DateTime? createdAt,
+    Value<String?> sourceKey = const Value.absent(),
+    bool? customized,
   }) => MealTemplate(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1744,6 +1814,8 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
     useCount: useCount ?? this.useCount,
     lastUsedAt: lastUsedAt.present ? lastUsedAt.value : this.lastUsedAt,
     createdAt: createdAt ?? this.createdAt,
+    sourceKey: sourceKey.present ? sourceKey.value : this.sourceKey,
+    customized: customized ?? this.customized,
   );
   MealTemplate copyWithCompanion(MealTemplatesCompanion data) {
     return MealTemplate(
@@ -1764,6 +1836,10 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
           ? data.lastUsedAt.value
           : this.lastUsedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      sourceKey: data.sourceKey.present ? data.sourceKey.value : this.sourceKey,
+      customized: data.customized.present
+          ? data.customized.value
+          : this.customized,
     );
   }
 
@@ -1782,7 +1858,9 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
           ..write('archived: $archived, ')
           ..write('useCount: $useCount, ')
           ..write('lastUsedAt: $lastUsedAt, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('customized: $customized')
           ..write(')'))
         .toString();
   }
@@ -1802,6 +1880,8 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
     useCount,
     lastUsedAt,
     createdAt,
+    sourceKey,
+    customized,
   );
   @override
   bool operator ==(Object other) =>
@@ -1819,7 +1899,9 @@ class MealTemplate extends DataClass implements Insertable<MealTemplate> {
           other.archived == this.archived &&
           other.useCount == this.useCount &&
           other.lastUsedAt == this.lastUsedAt &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.sourceKey == this.sourceKey &&
+          other.customized == this.customized);
 }
 
 class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
@@ -1836,6 +1918,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
   final Value<int> useCount;
   final Value<DateTime?> lastUsedAt;
   final Value<DateTime> createdAt;
+  final Value<String?> sourceKey;
+  final Value<bool> customized;
   const MealTemplatesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -1850,6 +1934,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
     this.useCount = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.sourceKey = const Value.absent(),
+    this.customized = const Value.absent(),
   });
   MealTemplatesCompanion.insert({
     this.id = const Value.absent(),
@@ -1865,6 +1951,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
     this.useCount = const Value.absent(),
     this.lastUsedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.sourceKey = const Value.absent(),
+    this.customized = const Value.absent(),
   }) : name = Value(name);
   static Insertable<MealTemplate> custom({
     Expression<int>? id,
@@ -1880,6 +1968,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
     Expression<int>? useCount,
     Expression<DateTime>? lastUsedAt,
     Expression<DateTime>? createdAt,
+    Expression<String>? sourceKey,
+    Expression<bool>? customized,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1895,6 +1985,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
       if (useCount != null) 'use_count': useCount,
       if (lastUsedAt != null) 'last_used_at': lastUsedAt,
       if (createdAt != null) 'created_at': createdAt,
+      if (sourceKey != null) 'source_key': sourceKey,
+      if (customized != null) 'customized': customized,
     });
   }
 
@@ -1912,6 +2004,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
     Value<int>? useCount,
     Value<DateTime?>? lastUsedAt,
     Value<DateTime>? createdAt,
+    Value<String?>? sourceKey,
+    Value<bool>? customized,
   }) {
     return MealTemplatesCompanion(
       id: id ?? this.id,
@@ -1927,6 +2021,8 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
       useCount: useCount ?? this.useCount,
       lastUsedAt: lastUsedAt ?? this.lastUsedAt,
       createdAt: createdAt ?? this.createdAt,
+      sourceKey: sourceKey ?? this.sourceKey,
+      customized: customized ?? this.customized,
     );
   }
 
@@ -1974,6 +2070,12 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (sourceKey.present) {
+      map['source_key'] = Variable<String>(sourceKey.value);
+    }
+    if (customized.present) {
+      map['customized'] = Variable<bool>(customized.value);
+    }
     return map;
   }
 
@@ -1992,7 +2094,9 @@ class MealTemplatesCompanion extends UpdateCompanion<MealTemplate> {
           ..write('archived: $archived, ')
           ..write('useCount: $useCount, ')
           ..write('lastUsedAt: $lastUsedAt, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('sourceKey: $sourceKey, ')
+          ..write('customized: $customized')
           ..write(')'))
         .toString();
   }
@@ -4115,6 +4219,211 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
   }
 }
 
+class $SettingsTable extends Settings with TableInfo<$SettingsTable, Setting> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $SettingsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _keyMeta = const VerificationMeta('key');
+  @override
+  late final GeneratedColumn<String> key = GeneratedColumn<String>(
+    'key',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _valueMeta = const VerificationMeta('value');
+  @override
+  late final GeneratedColumn<String> value = GeneratedColumn<String>(
+    'value',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [key, value];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'settings';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<Setting> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('key')) {
+      context.handle(
+        _keyMeta,
+        key.isAcceptableOrUnknown(data['key']!, _keyMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_keyMeta);
+    }
+    if (data.containsKey('value')) {
+      context.handle(
+        _valueMeta,
+        value.isAcceptableOrUnknown(data['value']!, _valueMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_valueMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {key};
+  @override
+  Setting map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Setting(
+      key: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}key'],
+      )!,
+      value: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}value'],
+      )!,
+    );
+  }
+
+  @override
+  $SettingsTable createAlias(String alias) {
+    return $SettingsTable(attachedDatabase, alias);
+  }
+}
+
+class Setting extends DataClass implements Insertable<Setting> {
+  final String key;
+  final String value;
+  const Setting({required this.key, required this.value});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['key'] = Variable<String>(key);
+    map['value'] = Variable<String>(value);
+    return map;
+  }
+
+  SettingsCompanion toCompanion(bool nullToAbsent) {
+    return SettingsCompanion(key: Value(key), value: Value(value));
+  }
+
+  factory Setting.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Setting(
+      key: serializer.fromJson<String>(json['key']),
+      value: serializer.fromJson<String>(json['value']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'key': serializer.toJson<String>(key),
+      'value': serializer.toJson<String>(value),
+    };
+  }
+
+  Setting copyWith({String? key, String? value}) =>
+      Setting(key: key ?? this.key, value: value ?? this.value);
+  Setting copyWithCompanion(SettingsCompanion data) {
+    return Setting(
+      key: data.key.present ? data.key.value : this.key,
+      value: data.value.present ? data.value.value : this.value,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Setting(')
+          ..write('key: $key, ')
+          ..write('value: $value')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(key, value);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Setting && other.key == this.key && other.value == this.value);
+}
+
+class SettingsCompanion extends UpdateCompanion<Setting> {
+  final Value<String> key;
+  final Value<String> value;
+  final Value<int> rowid;
+  const SettingsCompanion({
+    this.key = const Value.absent(),
+    this.value = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  SettingsCompanion.insert({
+    required String key,
+    required String value,
+    this.rowid = const Value.absent(),
+  }) : key = Value(key),
+       value = Value(value);
+  static Insertable<Setting> custom({
+    Expression<String>? key,
+    Expression<String>? value,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (key != null) 'key': key,
+      if (value != null) 'value': value,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  SettingsCompanion copyWith({
+    Value<String>? key,
+    Value<String>? value,
+    Value<int>? rowid,
+  }) {
+    return SettingsCompanion(
+      key: key ?? this.key,
+      value: value ?? this.value,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (key.present) {
+      map['key'] = Variable<String>(key.value);
+    }
+    if (value.present) {
+      map['value'] = Variable<String>(value.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('SettingsCompanion(')
+          ..write('key: $key, ')
+          ..write('value: $value, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4128,6 +4437,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $ProfilesTable profiles = $ProfilesTable(this);
   late final $DailyActivityTable dailyActivity = $DailyActivityTable(this);
   late final $ExtraBurnsTable extraBurns = $ExtraBurnsTable(this);
+  late final $SettingsTable settings = $SettingsTable(this);
   late final Index foodEntriesEatenAt = Index(
     'food_entries_eaten_at',
     'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
@@ -4145,6 +4455,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     profiles,
     dailyActivity,
     extraBurns,
+    settings,
     foodEntriesEatenAt,
   ];
 }
@@ -4788,6 +5099,8 @@ typedef $$MealTemplatesTableCreateCompanionBuilder =
       Value<int> useCount,
       Value<DateTime?> lastUsedAt,
       Value<DateTime> createdAt,
+      Value<String?> sourceKey,
+      Value<bool> customized,
     });
 typedef $$MealTemplatesTableUpdateCompanionBuilder =
     MealTemplatesCompanion Function({
@@ -4804,6 +5117,8 @@ typedef $$MealTemplatesTableUpdateCompanionBuilder =
       Value<int> useCount,
       Value<DateTime?> lastUsedAt,
       Value<DateTime> createdAt,
+      Value<String?> sourceKey,
+      Value<bool> customized,
     });
 
 class $$MealTemplatesTableFilterComposer
@@ -4878,6 +5193,16 @@ class $$MealTemplatesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get customized => $composableBuilder(
+    column: $table.customized,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4955,6 +5280,16 @@ class $$MealTemplatesTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get sourceKey => $composableBuilder(
+    column: $table.sourceKey,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get customized => $composableBuilder(
+    column: $table.customized,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$MealTemplatesTableAnnotationComposer
@@ -5008,6 +5343,14 @@ class $$MealTemplatesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get sourceKey =>
+      $composableBuilder(column: $table.sourceKey, builder: (column) => column);
+
+  GeneratedColumn<bool> get customized => $composableBuilder(
+    column: $table.customized,
+    builder: (column) => column,
+  );
 }
 
 class $$MealTemplatesTableTableManager
@@ -5054,6 +5397,8 @@ class $$MealTemplatesTableTableManager
                 Value<int> useCount = const Value.absent(),
                 Value<DateTime?> lastUsedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> sourceKey = const Value.absent(),
+                Value<bool> customized = const Value.absent(),
               }) => MealTemplatesCompanion(
                 id: id,
                 name: name,
@@ -5068,6 +5413,8 @@ class $$MealTemplatesTableTableManager
                 useCount: useCount,
                 lastUsedAt: lastUsedAt,
                 createdAt: createdAt,
+                sourceKey: sourceKey,
+                customized: customized,
               ),
           createCompanionCallback:
               ({
@@ -5084,6 +5431,8 @@ class $$MealTemplatesTableTableManager
                 Value<int> useCount = const Value.absent(),
                 Value<DateTime?> lastUsedAt = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> sourceKey = const Value.absent(),
+                Value<bool> customized = const Value.absent(),
               }) => MealTemplatesCompanion.insert(
                 id: id,
                 name: name,
@@ -5098,6 +5447,8 @@ class $$MealTemplatesTableTableManager
                 useCount: useCount,
                 lastUsedAt: lastUsedAt,
                 createdAt: createdAt,
+                sourceKey: sourceKey,
+                customized: customized,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -6274,6 +6625,140 @@ typedef $$ExtraBurnsTableProcessedTableManager =
       ExtraBurn,
       PrefetchHooks Function()
     >;
+typedef $$SettingsTableCreateCompanionBuilder = SettingsCompanion Function({
+  required String key,
+  required String value,
+  Value<int> rowid,
+});
+typedef $$SettingsTableUpdateCompanionBuilder = SettingsCompanion Function({
+  Value<String> key,
+  Value<String> value,
+  Value<int> rowid,
+});
+
+class $$SettingsTableFilterComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$SettingsTableOrderingComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get key => $composableBuilder(
+    column: $table.key,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get value => $composableBuilder(
+    column: $table.value,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$SettingsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $SettingsTable> {
+  $$SettingsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get key =>
+      $composableBuilder(column: $table.key, builder: (column) => column);
+
+  GeneratedColumn<String> get value =>
+      $composableBuilder(column: $table.value, builder: (column) => column);
+}
+
+class $$SettingsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $SettingsTable,
+          Setting,
+          $$SettingsTableFilterComposer,
+          $$SettingsTableOrderingComposer,
+          $$SettingsTableAnnotationComposer,
+          $$SettingsTableCreateCompanionBuilder,
+          $$SettingsTableUpdateCompanionBuilder,
+          (Setting, BaseReferences<_$AppDatabase, $SettingsTable, Setting>),
+          Setting,
+          PrefetchHooks Function()
+        > {
+  $$SettingsTableTableManager(_$AppDatabase db, $SettingsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$SettingsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$SettingsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$SettingsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<String> key = const Value.absent(),
+            Value<String> value = const Value.absent(),
+            Value<int> rowid = const Value.absent(),
+          }) => SettingsCompanion(key: key, value: value, rowid: rowid),
+          createCompanionCallback: ({
+            required String key,
+            required String value,
+            Value<int> rowid = const Value.absent(),
+          }) => SettingsCompanion.insert(key: key, value: value, rowid: rowid),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$SettingsTable, Setting>(table),
+                  BaseReferences<_$AppDatabase, $SettingsTable, Setting>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$SettingsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $SettingsTable,
+      Setting,
+      $$SettingsTableFilterComposer,
+      $$SettingsTableOrderingComposer,
+      $$SettingsTableAnnotationComposer,
+      $$SettingsTableCreateCompanionBuilder,
+      $$SettingsTableUpdateCompanionBuilder,
+      (Setting, BaseReferences<_$AppDatabase, $SettingsTable, Setting>),
+      Setting,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6294,4 +6779,6 @@ class $AppDatabaseManager {
       $$DailyActivityTableTableManager(_db, _db.dailyActivity);
   $$ExtraBurnsTableTableManager get extraBurns =>
       $$ExtraBurnsTableTableManager(_db, _db.extraBurns);
+  $$SettingsTableTableManager get settings =>
+      $$SettingsTableTableManager(_db, _db.settings);
 }

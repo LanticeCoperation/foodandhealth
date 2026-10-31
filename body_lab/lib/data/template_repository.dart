@@ -42,6 +42,10 @@ class TemplateRepository {
     _db.mealTemplates,
   )..where((r) => r.id.equals(id))).write(template);
 
+  /// 使用者從表單編輯：同時標記 customized，之後預設項目目錄更新不覆蓋。
+  Future<void> edit(int id, MealTemplatesCompanion template) =>
+      update(id, template.copyWith(customized: const Value(true)));
+
   Future<void> setPinned(int id, bool pinned) =>
       update(id, MealTemplatesCompanion(pinned: Value(pinned)));
 

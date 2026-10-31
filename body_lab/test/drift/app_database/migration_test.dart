@@ -12,6 +12,7 @@ import 'generated/schema_v2.dart' as v2;
 import 'generated/schema_v8.dart' as v8;
 import 'generated/schema_v9.dart' as v9;
 import 'generated/schema_v10.dart' as v10;
+import 'generated/schema_v11.dart' as v11;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -206,6 +207,59 @@ void main() {
           '大麥克（去醬）',
           '麥克雞塊（4 塊）',
         ]);
+      },
+    );
+  });
+
+  test('v10 → v11 舊版改過的預設項目標成 customized，沒改過的和使用者自建的分開', () async {
+    final createdAt = DateTime(2026, 10, 1).millisecondsSinceEpoch ~/ 1000;
+    v10.MealTemplatesData old(
+      int id,
+      String name, {
+      required double kcal,
+      double? protein,
+      double? carbs,
+      double? fat,
+    }) => v10.MealTemplatesData(
+      id: id,
+      name: name,
+      defaultServings: 1,
+      kcal: kcal,
+      proteinG: protein,
+      carbsG: carbs,
+      fatG: fat,
+      pinned: 1,
+      archived: 0,
+      useCount: 0,
+      createdAt: createdAt,
+    );
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 10,
+      newVersion: 11,
+      createOld: v10.DatabaseAtV10.new,
+      createNew: v11.DatabaseAtV11.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insertAll(oldDb.mealTemplates, [
+          // 使用者依包裝把蛋白粉改成 120 kcal
+          old(1, '蛋白粉（1 匙）', kcal: 120, protein: 24, carbs: 3, fat: 1.5),
+          // 雞蛋沒動
+          old(2, '雞蛋（1 顆）', kcal: 75, protein: 7, carbs: 1, fat: 5),
+          // 使用者自建
+          old(3, '水煮蛋', kcal: 70),
+        ]);
+      },
+      validateItems: (newDb) async {
+        final rows = await newDb.select(newDb.mealTemplates).get();
+        final byName = {for (final r in rows) r.name: r};
+        expect(byName['蛋白粉（1 匙）']!.customized, 1);
+        expect(byName['雞蛋（1 顆）']!.customized, 0);
+        expect(byName['水煮蛋']!.customized, 1);
+        // 預設項目（不管改沒改過）都接上目錄的 key，之後目錄套用才不會重複新增
+        expect(byName['蛋白粉（1 匙）']!.sourceKey, 'protein_powder');
+        expect(byName['雞蛋（1 顆）']!.sourceKey, 'egg');
+        expect(byName['水煮蛋']!.sourceKey, null);
       },
     );
   });

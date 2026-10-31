@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "items": [
+    { "key": "protein_powder", "name": "蛋白粉（1 匙）", "servings": 1, "kcal": 60, "protein": 12, "carbs": 1.5, "fat": 0.75, "pinned": true },
+    { "key": "egg", "name": "雞蛋（1 顆）", "servings": 1, "kcal": 75, "protein": 7, "carbs": 1, "fat": 5, "pinned": true },
+    { "key": "milk_100ml", "name": "牛奶（100 ml）", "servings": 1, "kcal": 63, "protein": 3.1, "carbs": 4.8, "fat": 3.6, "pinned": true },
+    { "key": "soy_milk_100ml", "name": "豆漿（100 ml）", "servings": 1, "kcal": 35, "protein": 3.6, "carbs": 1, "fat": 1.9, "pinned": true },
+    { "key": "oats_20g", "name": "麥片（20 g）", "servings": 1, "kcal": 78, "protein": 2.7, "carbs": 13.4, "fat": 1.4, "pinned": true },
+    { "key": "big_mac_no_sauce", "name": "大麥克（去醬）", "servings": 1, "kcal": 450, "protein": 26, "carbs": 43, "fat": 19, "pinned": true },
+    { "key": "mcnuggets_4", "name": "麥克雞塊（4 塊）", "servings": 1, "kcal": 180, "protein": 10, "carbs": 10, "fat": 11, "pinned": true }
+  ]
+}

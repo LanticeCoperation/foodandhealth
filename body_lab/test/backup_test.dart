@@ -188,6 +188,50 @@ void main() {
     expect(names, isNot(contains('大麥克（去醬）')));
   });
 
+  test('匯入 v11 之前的備份：一鍵項目沒有 sourceKey / customized 也能讀', () async {
+    await seed(source);
+    final json = await BackupService(source).export();
+    json['schemaVersion'] = 10;
+    for (final t in json['mealTemplates'] as List) {
+      (t as Map).remove('sourceKey');
+      t.remove('customized');
+    }
+    await BackupService(target).restore(json);
+    final rows = await target.select(target.mealTemplates).get();
+    expect(rows, hasLength(7));
+    expect(rows.every((t) => !t.customized), isTrue);
+  });
+
+  test('匯入 v11 之前的備份：改過的預設項目標成 customized 並接上 key', () async {
+    await seed(source);
+    await source.customStatement(
+      "UPDATE meal_templates SET kcal = 120 WHERE name = '蛋白粉（1 匙）'",
+    );
+    final json = await BackupService(source).export();
+    json['schemaVersion'] = 10;
+    for (final t in json['mealTemplates'] as List) {
+      (t as Map).remove('sourceKey');
+      t.remove('customized');
+    }
+    await BackupService(target).restore(json);
+    final rows = await target.select(target.mealTemplates).get();
+    final powder = rows.firstWhere((t) => t.name == '蛋白粉（1 匙）');
+    expect(powder.customized, isTrue);
+    expect(powder.sourceKey, 'protein_powder');
+    final egg = rows.firstWhere((t) => t.name == '雞蛋（1 顆）');
+    expect(egg.customized, isFalse);
+    expect(egg.sourceKey, 'egg');
+  });
+
+  test('匯入後清掉記住的目錄版本，下次啟動會重新套用目錄', () async {
+    await seed(source);
+    await target
+        .into(target.settings)
+        .insert(SettingsCompanion.insert(key: 'catalogVersion', value: '3'));
+    await BackupService(target).restore(await BackupService(source).export());
+    expect(await target.select(target.settings).get(), isEmpty);
+  });
+
   test('inspect 只看內容不寫入', () async {
     await seed(source);
     final json = await BackupService(source).export();

@@ -85,6 +85,21 @@ class MealTemplates extends Table {
   IntColumn get useCount => integer().withDefault(const Constant(0))();
   DateTimeColumn get lastUsedAt => dateTime().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// 來自預設項目目錄（assets/food_templates.json）的 key（v11）；使用者自建的是 null。
+  TextColumn get sourceKey => text().nullable()();
+
+  /// 使用者編輯過（v11）；目錄更新時不覆蓋。
+  BoolColumn get customized => boolean().withDefault(const Constant(false))();
+}
+
+/// 零碎設定（v11）：目前只有已套用的預設項目目錄版本。
+class Settings extends Table {
+  TextColumn get key => text()();
+  TextColumn get value => text()();
+
+  @override
+  Set<Column> get primaryKey => {key};
 }
 
 /// 每日打勾項目，存成文字。
@@ -232,6 +247,7 @@ class Profiles extends Table {
     Profiles,
     DailyActivity,
     ExtraBurns,
+    Settings,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -240,7 +256,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -286,10 +302,45 @@ class AppDatabase extends _$AppDatabase {
       from9To10: (m, schema) async {
         await seedBasicTemplates();
       },
+      // 預設項目改由 JSON 目錄維護：加 sourceKey / customized，既有項目會在
+      // 啟動時套用目錄依名稱接上 key
+      from10To11: (m, schema) async {
+        await m.addColumn(schema.mealTemplates, schema.mealTemplates.sourceKey);
+        await m.addColumn(
+          schema.mealTemplates,
+          schema.mealTemplates.customized,
+        );
+        await m.createTable(schema.settings);
+        await adoptLegacyTemplates();
+      },
     ),
   );
 
-  /// 預設釘選的一鍵項目，數值可在範本管理修改。
+  /// v11 之前的資料（升級或匯入舊備份）沒有 customized / sourceKey：
+  ///
+  /// - 名稱是預設項目的接上目錄的 key，之後套用目錄不會重複新增。
+  /// - 分不出使用者有沒有改過，保守起見先全部視為改過，只有數值和原本種下的
+  ///   預設值完全一致的才算沒改過（之後目錄更新會更新這些）。
+  /// - 使用者自建的項目也會是 customized，目錄套用時不會依名稱把它接上 key。
+  Future<void> adoptLegacyTemplates() async {
+    await customStatement('UPDATE meal_templates SET customized = 1');
+    for (final (key, name, kcal, protein, carbs, fat) in _seededTemplates) {
+      await customStatement(
+        'UPDATE meal_templates SET source_key = ? '
+        'WHERE name = ? AND source_key IS NULL',
+        [key, name],
+      );
+      await customStatement(
+        'UPDATE meal_templates SET customized = 0 '
+        'WHERE source_key = ? AND default_servings = 1 AND kcal = ? '
+        'AND protein_g = ? AND carbs_g = ? AND fat_g = ?',
+        [key, kcal, protein, carbs, fat],
+      );
+    }
+  }
+
+  /// 建新資料庫時用 SQL 種下預設一鍵項目（這裡拿不到 asset）；
+  /// 正本是 assets/food_templates.json，啟動時 CatalogUpdater 會依名稱接上 key 並更新數值。
   Future<void> seedDefaultTemplates() async {
     await _seedProteinPowder();
     await seedBasicTemplates();
@@ -303,19 +354,25 @@ class AppDatabase extends _$AppDatabase {
     "VALUES ('蛋白粉（1 匙）', 1, 60, 12, 1.5, 0.75, 1)",
   );
 
+  // 目錄 key, 名稱, kcal, 蛋白質, 碳水, 脂肪
+  // （v1 / v9 用 SQL 種下的值；之後的更新走 assets/food_templates.json，key 要一致）
+  static const _seededTemplates = [
+    ('protein_powder', '蛋白粉（1 匙）', 60, 12, 1.5, 0.75),
+    ..._basicTemplates,
+  ];
+  static const _basicTemplates = [
+    ('egg', '雞蛋（1 顆）', 75, 7, 1, 5),
+    ('milk_100ml', '牛奶（100 ml）', 63, 3.1, 4.8, 3.6),
+    ('soy_milk_100ml', '豆漿（100 ml）', 35, 3.6, 1, 1.9),
+    ('oats_20g', '麥片（20 g）', 78, 2.7, 13.4, 1.4),
+    ('big_mac_no_sauce', '大麥克（去醬）', 450, 26, 43, 19),
+    ('mcnuggets_4', '麥克雞塊（4 塊）', 180, 10, 10, 11),
+  ];
+
   /// 雞蛋、牛奶（全脂）、豆漿（無糖）、麥片、大麥克（去醬）、麥克雞塊（v9 加入）。已有同名項目就跳過，
   /// 以免和使用者自己建的重複。
   Future<void> seedBasicTemplates() async {
-    const templates = [
-      // 名稱, kcal, 蛋白質, 碳水, 脂肪
-      ('雞蛋（1 顆）', 75, 7, 1, 5),
-      ('牛奶（100 ml）', 63, 3.1, 4.8, 3.6),
-      ('豆漿（100 ml）', 35, 3.6, 1, 1.9),
-      ('麥片（20 g）', 78, 2.7, 13.4, 1.4),
-      ('大麥克（去醬）', 450, 26, 43, 19),
-      ('麥克雞塊（4 塊）', 180, 10, 10, 11),
-    ];
-    for (final (name, kcal, protein, carbs, fat) in templates) {
+    for (final (_, name, kcal, protein, carbs, fat) in _basicTemplates) {
       await customStatement(
         "INSERT INTO meal_templates "
         "(name, default_servings, kcal, protein_g, carbs_g, fat_g, pinned) "

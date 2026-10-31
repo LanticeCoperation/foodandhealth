@@ -112,6 +112,23 @@ void main() {
     expect(await names(), contains('B'));
   });
 
+  test('使用者從表單編輯過的範本標記 customized；置頂 / 封存不算', () async {
+    final id = await templates.add(template('A', kcal: 100));
+    Future<MealTemplate> row() async =>
+        (await templates.watchTemplates(query: 'A').first).single;
+    expect((await row()).customized, isFalse);
+
+    await templates.setPinned(id, true);
+    await templates.archive(id);
+    await templates.unarchive(id);
+    expect((await row()).customized, isFalse);
+
+    await templates.edit(id, const MealTemplatesCompanion(kcal: Value(120)));
+    final edited = await row();
+    expect(edited.kcal, 120);
+    expect(edited.customized, isTrue);
+  });
+
   test('飲食紀錄存成範本', () async {
     await food.add(
       FoodEntriesCompanion.insert(

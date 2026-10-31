@@ -23,6 +23,7 @@ import 'screens/profile_screen.dart';
 import 'screens/quick_screen.dart';
 import 'screens/analysis_screen.dart';
 import 'screens/trend_screen.dart';
+import 'services/catalog_updater.dart';
 import 'services/health_service.dart';
 import 'theme/app_theme.dart';
 
@@ -39,8 +40,9 @@ void main() {
 
 /// App 共用的資料庫、健康資料與 repository。
 class AppServices {
-  AppServices(this.db, this.health)
-    : body = BodyRepository(db, health),
+  AppServices(this.db, this.health, {CatalogUpdater? catalog})
+    : catalog = catalog ?? CatalogUpdater(db),
+      body = BodyRepository(db, health),
       food = FoodRepository(db),
       templates = TemplateRepository(db),
       checks = CheckRepository(db),
@@ -62,6 +64,9 @@ class AppServices {
 
   final AppDatabase db;
   final HealthService health;
+
+  /// 預設一鍵項目目錄：啟動時套用內建的，再從 GitHub 抓更新。
+  final CatalogUpdater catalog;
   final BodyRepository body;
   final FoodRepository food;
   final TemplateRepository templates;
@@ -153,7 +158,7 @@ class _HomeShellState extends State<_HomeShell> {
         activity: s.activity,
         extraBurns: s.extraBurns,
       ),
-      QuickScreen(templates: s.templates, food: s.food),
+      QuickScreen(templates: s.templates, food: s.food, updater: s.catalog),
       TrendScreen(dataset: s.dataset, profile: s.profile),
       AnalysisScreen(
         phases: s.phases,
@@ -162,6 +167,28 @@ class _HomeShellState extends State<_HomeShell> {
         bottomBanner: widget.analysisBanner,
       ),
     ];
+    _updateCatalog();
+  }
+
+  /// 啟動時先套用 App 內建的預設項目目錄，再背景從 GitHub 抓較新的版本；
+  /// 有變動時提示一下。沒網路就靜靜跳過。
+  Future<void> _updateCatalog() async {
+    final updater = widget.services.catalog;
+    try {
+      await updater.applyBundled();
+    } catch (e, st) {
+      debugPrint('[catalog] 內建目錄套用失敗：$e\n$st');
+    }
+    final outcome = await updater.fetchAndApply();
+    if (!mounted) return;
+    if (outcome case CatalogUpdated(:final result) when result.changed) {
+      final parts = [
+        if (result.added > 0) '新增 ${result.added} 個',
+        if (result.updated > 0) '更新 ${result.updated} 個',
+      ];
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('預設項目已更新：${parts.join('、')}')));
+    }
   }
 
   @override

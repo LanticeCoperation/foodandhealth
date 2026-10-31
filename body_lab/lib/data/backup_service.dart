@@ -107,7 +107,11 @@ class BackupService {
     final List<ExtraBurn> extra;
     try {
       food = list('foodEntries').map(FoodEntry.fromJson).toList();
-      templates = list('mealTemplates').map(MealTemplate.fromJson).toList();
+      // v11 之前的備份沒有 sourceKey / customized
+      templates = [
+        for (final t in list('mealTemplates'))
+          MealTemplate.fromJson({'sourceKey': null, 'customized': false, ...t}),
+      ];
       checks = list('dailyChecks').map(DailyCheck.fromJson).toList();
       phases = list('phases').map(Phase.fromJson).toList();
       final p = json['profile'];
@@ -125,6 +129,8 @@ class BackupService {
         _db.phases,
         _db.profiles,
         _db.extraBurns,
+        // 清掉記住的目錄版本，下次啟動重新套用預設項目目錄
+        _db.settings,
       ]) {
         await _db.delete(table).go();
       }
@@ -139,6 +145,8 @@ class BackupService {
       // v9 之前的備份沒有雞蛋、牛奶等預設項目，補上（已有同名就跳過）
       final schema = json['schemaVersion'];
       if (schema is! int || schema < 9) await _db.seedBasicTemplates();
+      // v11 之前的備份沒有 customized / sourceKey，照升級的規則補
+      if (schema is! int || schema < 11) await _db.adoptLegacyTemplates();
     });
     return counts;
   }
