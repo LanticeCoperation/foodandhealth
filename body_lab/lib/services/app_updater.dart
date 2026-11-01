@@ -52,6 +52,14 @@ class AppRelease {
   }
 }
 
+/// GitHub 上還沒有 version.json（還沒有任何帶版本資訊的發佈，或正在發佈中）。
+class VersionInfoMissing implements Exception {
+  const VersionInfoMissing();
+
+  @override
+  String toString() => 'VersionInfoMissing';
+}
+
 /// 目前安裝的版本。
 class InstalledVersion {
   const InstalledVersion(this.version, this.build);
@@ -77,6 +85,7 @@ class AppUpdater {
     final response = await http
         .get(Uri.parse(kVersionUrl))
         .timeout(const Duration(seconds: 10));
+    if (response.statusCode == 404) throw const VersionInfoMissing();
     if (response.statusCode != 200) {
       throw http.ClientException(
         'HTTP ${response.statusCode}',

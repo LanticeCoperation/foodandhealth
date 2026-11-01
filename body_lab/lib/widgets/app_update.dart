@@ -123,6 +123,13 @@ class _AppVersionTileState extends State<AppVersionTile> {
       } else {
         await showUpdateDialog(context, release, current: _current);
       }
+    } on VersionInfoMissing {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('伺服器上還沒有版本資訊，請稍後再試')),
+      );
+    } on FormatException catch (e) {
+      debugPrint('[update] 版本資訊格式錯誤：$e');
+      messenger.showSnackBar(const SnackBar(content: Text('版本資訊格式錯誤')));
     } catch (e) {
       debugPrint('[update] 檢查失敗：$e');
       messenger.showSnackBar(const SnackBar(content: Text('檢查更新失敗，請確認網路')));
