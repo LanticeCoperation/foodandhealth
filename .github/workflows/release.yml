@@ -34,7 +34,8 @@ jobs:
           cache: true
       - run: flutter pub get
       # 不簽名：Sideloadly 安裝時會用使用者自己的 Apple ID 重簽，HealthKit entitlements 會一併保留。
-      - run: flutter build ios --release --no-codesign
+      # build number 用 workflow run number，每次發佈自動 +1；版本名稱沿用 pubspec.yaml
+      - run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
       - name: Package unsigned ipa
         run: |
           rm -rf ipa && mkdir -p ipa/Payload
@@ -81,7 +82,8 @@ jobs:
           keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           EOP
-      - run: flutter build apk --release
+      # build number（versionCode）用 workflow run number，只增不減；App 用它判斷有沒有新版
+      - run: flutter build apk --release --build-number=${{ github.run_number }}
       - run: cp build/app/outputs/flutter-apk/app-release.apk build/body_lab.apk
       - uses: actions/upload-artifact@v4
         with:
@@ -106,15 +108,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ls -l dist
+          VERSION=$(grep -E '^version:' body_lab/pubspec.yaml | sed -E 's/version: *([^+ ]+).*/\1/')
+          BUILD=${{ github.run_number }}
+          REPO_URL="https://github.com/${{ github.repository }}"
+          # App 啟動時讀這個檔比對 build number；APK 先上傳完才更新它
+          cat > dist/version.json <<EOJ
+          {
+            "version": "$VERSION",
+            "build": $BUILD,
+            "commit": "${GITHUB_SHA::7}",
+            "apkUrl": "$REPO_URL/releases/download/latest/body_lab.apk"
+          }
+          EOJ
+          cat dist/version.json
           git tag -f latest
           git push -f origin latest
-          NOTES="來自 commit ${GITHUB_SHA::7}（$(date -u +'%Y-%m-%d %H:%M UTC')）。
+          NOTES="版本 $VERSION（build $BUILD），來自 commit ${GITHUB_SHA::7}（$(date -u +'%Y-%m-%d %H:%M UTC')）。
 
-          - **body_lab.apk**：Android，手機瀏覽器下載後開啟安裝；第一次要允許「安裝未知來源 App」。簽名固定，之後可直接覆蓋安裝升級。
+          - **body_lab.apk**：Android，手機瀏覽器下載後開啟安裝；第一次要允許「安裝未知來源 App」。簽名固定，之後可直接覆蓋安裝升級；App 啟動時會自動提示新版本。
           - **body_lab-unsigned.ipa**：iOS，未簽名。Windows 用 Sideloadly 以自己的 Apple ID 重新簽名後裝進 iPhone；免費 Apple ID 7 天到期後重裝一次即可。"
+          TITLE="最新版 $VERSION（$BUILD）— Android APK + iOS IPA"
           if gh release view latest >/dev/null 2>&1; then
-            gh release edit latest --title "最新版（Android APK + iOS IPA）" --notes "$NOTES"
+            gh release edit latest --title "$TITLE" --notes "$NOTES"
           else
-            gh release create latest --title "最新版（Android APK + iOS IPA）" --notes "$NOTES"
+            gh release create latest --title "$TITLE" --notes "$NOTES"
           fi
           gh release upload latest dist/body_lab.apk dist/body_lab-unsigned.ipa --clobber
+          gh release upload latest dist/version.json --clobber

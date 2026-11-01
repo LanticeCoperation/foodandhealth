@@ -26,6 +26,7 @@ import 'screens/trend_screen.dart';
 import 'services/catalog_updater.dart';
 import 'services/health_service.dart';
 import 'theme/app_theme.dart';
+import 'widgets/app_update.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -103,7 +104,9 @@ class BodyLabApp extends StatelessWidget {
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       theme: buildAppTheme(Brightness.light),
       darkTheme: buildAppTheme(Brightness.dark),
-      home: _HomeShell(services: services, analysisBanner: analysisBanner),
+      home: UpdateChecker(
+        child: _HomeShell(services: services, analysisBanner: analysisBanner),
+      ),
     );
   }
 }

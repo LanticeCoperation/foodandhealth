@@ -10,6 +10,7 @@ import '../data/database.dart';
 import '../data/profile_repository.dart';
 import '../utils/dates.dart';
 import '../utils/trend.dart';
+import '../widgets/app_update.dart';
 import '../widgets/backup_section.dart';
 import '../widgets/nutrition_fields.dart';
 
@@ -389,6 +390,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 24),
                     BackupSection(backup: widget.backup),
                   ],
+                  const SizedBox(height: 24),
+                  const AppVersionTile(),
                 ],
               ),
             ),

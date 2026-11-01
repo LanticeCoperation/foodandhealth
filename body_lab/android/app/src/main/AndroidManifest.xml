@@ -10,7 +10,7 @@
     <uses-permission android:name="android.permission.health.READ_ACTIVE_CALORIES_BURNED"/>
     <!-- 讀取超過 30 天的歷史資料 -->
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY"/>
-    <!-- 從 GitHub 抓預設一鍵項目目錄的更新 -->
+    <!-- 從 GitHub 抓預設一鍵項目目錄與新版本資訊 -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="Body Lab"
@@ -73,6 +73,11 @@
         <package android:name="com.google.android.apps.healthdata" />
         <intent>
             <action android:name="androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE" />
+        </intent>
+        <!-- 用瀏覽器開啟新版 APK 的下載連結（url_launcher） -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
         </intent>
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
