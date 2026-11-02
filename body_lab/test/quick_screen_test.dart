@@ -138,4 +138,28 @@ void main() {
 
     await close(tester);
   });
+
+  testWidgets('搜尋過濾項目：即時篩選、雞與鷄互通、無結果提示、清除恢復', (tester) async {
+    await open(tester);
+
+    expect(find.text('蛋白粉（1 匙）'), findsOneWidget);
+    expect(find.text('麥克雞塊（4 塊）'), findsOneWidget);
+
+    final searchField = find.widgetWithText(TextField, '搜尋項目…');
+    await tester.enterText(searchField, '鷄塊');
+    await settle(tester);
+    expect(find.text('麥克雞塊（4 塊）'), findsOneWidget);
+    expect(find.text('蛋白粉（1 匙）'), findsNothing);
+
+    await tester.enterText(searchField, '不存在的食物');
+    await settle(tester);
+    expect(find.text('找不到符合「不存在的食物」的項目'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('清除搜尋'));
+    await settle(tester);
+    expect(find.text('蛋白粉（1 匙）'), findsOneWidget);
+    expect(find.text('麥克雞塊（4 塊）'), findsOneWidget);
+
+    await close(tester);
+  });
 }

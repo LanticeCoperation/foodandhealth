@@ -46,10 +46,21 @@ class QuickScreen extends StatefulWidget {
 class _QuickScreenState extends State<QuickScreen> {
   late final Stream<List<MealTemplate>> _templates;
   late final Stream<List<FoodEntry>> _today;
+  final _search = TextEditingController();
   final _hidden = <int>{};
   bool _updating = false;
 
   TemplateRepository get _repo => widget.templates;
+
+  static String _normalize(String s) =>
+      s.toLowerCase().replaceAll('鷄', '雞').replaceAll('臺', '台');
+
+  bool _matches(MealTemplate t, String query) {
+    final q = _normalize(query.trim());
+    if (q.isEmpty) return true;
+    final name = _normalize(t.name);
+    return q.split(RegExp(r'\s+')).every(name.contains);
+  }
 
   Future<void> _updateCatalog() async {
     if (_updating) return;
@@ -77,6 +88,13 @@ class _QuickScreenState extends State<QuickScreen> {
     super.initState();
     _templates = _repo.watchTemplates();
     _today = widget.food.watchDay(dateOnly(DateTime.now()));
+    _search.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
   /// 記一份到今天（依現在時間判斷餐別），可復原。
@@ -163,67 +181,104 @@ class _QuickScreenState extends State<QuickScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             final today = todaySnap.data ?? const <FoodEntry>[];
-            final list = data.where((t) => !_hidden.contains(t.id)).toList();
-            if (list.isEmpty) {
+            final all = data.where((t) => !_hidden.contains(t.id)).toList();
+            if (all.isEmpty) {
               return const Center(child: Text('還沒有項目，按 + 新增。'));
             }
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 88),
+            final query = _search.text;
+            final list = all.where((t) => _matches(t, query)).toList();
+            return Column(
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                  child: Text(
-                    '按 +1 就記一份到今天（例如蛋白粉）；點項目可以編輯。',
-                    style: theme.textTheme.bodySmall,
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: TextField(
+                    controller: _search,
+                    decoration: InputDecoration(
+                      hintText: '搜尋項目…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: query.isEmpty
+                          ? null
+                          : IconButton(
+                              onPressed: _search.clear,
+                              icon: const Icon(Icons.clear),
+                              tooltip: '清除搜尋',
+                            ),
+                      isDense: true,
+                    ),
                   ),
                 ),
-                for (final t in list)
-                  Dismissible(
-                    key: ValueKey(t.id),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      color: theme.colorScheme.errorContainer,
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.only(right: 24),
-                      child: Icon(
-                        Icons.delete_outline,
-                        color: theme.colorScheme.onErrorContainer,
-                      ),
-                    ),
-                    onDismissed: (_) => _archive(t),
-                    child: ListTile(
-                      leading: IconButton(
-                        onPressed: () => _repo.setPinned(t.id, !t.pinned),
-                        icon: Icon(
-                          t.pinned ? Icons.push_pin : Icons.push_pin_outlined,
-                        ),
-                        tooltip: t.pinned ? '取消置頂' : '置頂',
-                      ),
-                      title: Text(t.name),
-                      subtitle: Text(templateSummary(t)),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (_todayLabel(t, today) case final label?)
+                Expanded(
+                  child: list.isEmpty
+                      ? Center(child: Text('找不到符合「${query.trim()}」的項目'))
+                      : ListView(
+                          padding: const EdgeInsets.only(bottom: 88),
+                          children: [
                             Padding(
-                              padding: const EdgeInsets.only(right: 4),
+                              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                               child: Text(
-                                label,
-                                style: theme.textTheme.labelMedium?.copyWith(
-                                  color: theme.colorScheme.primary,
-                                ),
+                                '按 +1 就記一份到今天（例如蛋白粉）；點項目可以編輯。',
+                                style: theme.textTheme.bodySmall,
                               ),
                             ),
-                          IconButton.filledTonal(
-                            onPressed: () => _quickAdd(t),
-                            icon: const Icon(Icons.add),
-                            tooltip: '+1',
-                          ),
-                        ],
-                      ),
-                      onTap: () => _edit(t),
-                    ),
-                  ),
+                            for (final t in list)
+                              Dismissible(
+                                key: ValueKey(t.id),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  color: theme.colorScheme.errorContainer,
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.only(right: 24),
+                                  child: Icon(
+                                    Icons.delete_outline,
+                                    color: theme.colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                                onDismissed: (_) => _archive(t),
+                                child: ListTile(
+                                  leading: IconButton(
+                                    onPressed: () =>
+                                        _repo.setPinned(t.id, !t.pinned),
+                                    icon: Icon(
+                                      t.pinned
+                                          ? Icons.push_pin
+                                          : Icons.push_pin_outlined,
+                                    ),
+                                    tooltip: t.pinned ? '取消置頂' : '置頂',
+                                  ),
+                                  title: Text(t.name),
+                                  subtitle: Text(templateSummary(t)),
+                                  trailing: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      if (_todayLabel(t, today)
+                                          case final label?)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            right: 4,
+                                          ),
+                                          child: Text(
+                                            label,
+                                            style: theme.textTheme.labelMedium
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .primary,
+                                                ),
+                                          ),
+                                        ),
+                                      IconButton.filledTonal(
+                                        onPressed: () => _quickAdd(t),
+                                        icon: const Icon(Icons.add),
+                                        tooltip: '+1',
+                                      ),
+                                    ],
+                                  ),
+                                  onTap: () => _edit(t),
+                                ),
+                              ),
+                          ],
+                        ),
+                ),
               ],
             );
           },
