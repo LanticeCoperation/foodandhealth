@@ -2,16 +2,22 @@ import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 
 import '../data/database.dart';
+import '../services/food_ai.dart';
 import '../widgets/nutrition_fields.dart';
+
+/// 問 AI 一份食物的營養；失敗時丟 [FoodAiException]。
+typedef AskFoodAi = Future<FoodNutrition> Function(String description);
 
 /// 新增或編輯一筆飲食：選餐別、輸入熱量（蛋白質、脂肪選填）。
 /// 按儲存回傳要寫入的 companion（編輯時含原本的 id），取消回傳 null。
 /// 編輯時有 [onDelete] 會顯示「刪除」按鈕：關閉表單後呼叫它。
+/// 給了 [askAi] 才會顯示「用 AI 估熱量」。
 Future<FoodEntriesCompanion?> showFoodEntrySheet(
   BuildContext context, {
   required DateTime defaultTime,
   FoodEntry? initial,
   VoidCallback? onDelete,
+  AskFoodAi? askAi,
 }) {
   return showModalBottomSheet<FoodEntriesCompanion>(
     context: context,
@@ -20,6 +26,7 @@ Future<FoodEntriesCompanion?> showFoodEntrySheet(
       defaultTime: defaultTime,
       initial: initial,
       onDelete: onDelete,
+      askAi: askAi,
     ),
   );
 }
@@ -29,11 +36,13 @@ class _FoodEntryForm extends StatefulWidget {
     required this.defaultTime,
     this.initial,
     this.onDelete,
+    this.askAi,
   });
 
   final DateTime defaultTime;
   final FoodEntry? initial;
   final VoidCallback? onDelete;
+  final AskFoodAi? askAi;
 
   @override
   State<_FoodEntryForm> createState() => _FoodEntryFormState();
@@ -65,6 +74,20 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     _protein.dispose();
     _fat.dispose();
     super.dispose();
+  }
+
+  /// 問 AI 之後把估計值填進欄位；使用者可以再改，按儲存才會寫進去。
+  Future<void> _askAi() async {
+    final n = await showDialog<FoodNutrition>(
+      context: context,
+      builder: (_) => _AiLookupDialog(askAi: widget.askAi!),
+    );
+    if (n == null || !mounted) return;
+    setState(() {
+      _kcal.text = fmtNum(n.kcal);
+      _protein.text = fmtNum(n.proteinG);
+      _fat.text = fmtNum(n.fatG);
+    });
   }
 
   Future<void> _pickTime() async {
@@ -157,6 +180,15 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
               onSelectionChanged: (s) => setState(() => _meal = s.single),
             ),
             const SizedBox(height: 16),
+            if (widget.askAi != null)
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton.filledTonal(
+                  onPressed: _askAi,
+                  tooltip: '用 AI 估熱量',
+                  icon: const Icon(Icons.auto_awesome, size: 20),
+                ),
+              ),
             TextFormField(
               controller: _kcal,
               autofocus: widget.initial == null,
@@ -237,6 +269,102 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 輸入一句食物描述，問 AI 要熱量 / 蛋白質 / 脂肪。
+/// 查到了就 pop 出 [FoodNutrition]，失敗就留在原地顯示訊息。
+class _AiLookupDialog extends StatefulWidget {
+  const _AiLookupDialog({required this.askAi});
+
+  final AskFoodAi askAi;
+
+  @override
+  State<_AiLookupDialog> createState() => _AiLookupDialogState();
+}
+
+class _AiLookupDialogState extends State<_AiLookupDialog> {
+  final _input = TextEditingController();
+  bool _loading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _input.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    String message;
+    try {
+      final n = await widget.askAi(_input.text);
+      if (!mounted) return;
+      Navigator.pop(context, n);
+      return;
+    } on FoodAiException catch (e) {
+      message = e.message;
+    } catch (e) {
+      message = '查詢失敗：$e';
+    }
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      _error = message;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AlertDialog(
+      title: const Text('用 AI 估熱量'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _input,
+            autofocus: true,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _loading ? null : _submit(),
+            decoration: const InputDecoration(
+              labelText: '吃了什麼',
+              hintText: '一碗滷肉飯',
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (_error != null) ...[
+            Text(
+              _error!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Text(
+            'AI 給的是估計值，存檔前自己看一下合不合理。',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _loading ? null : _submit,
+          child: const Text('查詢'),
+        ),
+      ],
     );
   }
 }

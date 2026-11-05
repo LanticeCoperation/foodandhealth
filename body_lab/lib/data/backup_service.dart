@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import 'database.dart';
+import 'settings_repository.dart';
 
 /// 備份檔格式版本；改了內容結構就 +1，並在 [BackupService.restore] 處理舊版。
 ///
@@ -129,11 +130,12 @@ class BackupService {
         _db.phases,
         _db.profiles,
         _db.extraBurns,
-        // 清掉記住的目錄版本，下次啟動重新套用預設項目目錄
-        _db.settings,
       ]) {
         await _db.delete(table).go();
       }
+      // 忘掉記住的目錄版本，下次啟動重新套用預設項目目錄。
+      // 只清這一筆：別的設定（例如 Gemini API key）要留著。
+      await SettingsRepository(_db).clearCatalogVersion();
       await _db.batch((b) {
         b.insertAll(_db.mealTemplates, templates);
         b.insertAll(_db.foodEntries, food);

@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 import '../analysis/phase_summary.dart' show kKcalTolerance;
 import '../analysis/energy.dart';
@@ -12,6 +13,8 @@ import '../data/database.dart';
 import '../data/food_repository.dart';
 import '../data/phase_repository.dart';
 import '../data/profile_repository.dart';
+import '../data/settings_repository.dart';
+import '../services/food_ai.dart';
 import '../theme/app_theme.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
@@ -30,6 +33,7 @@ class FoodScreen extends StatefulWidget {
     required this.profile,
     this.activity,
     this.extraBurns,
+    this.settings,
   });
 
   final FoodRepository repository;
@@ -40,6 +44,9 @@ class FoodScreen extends StatefulWidget {
 
   /// 運動（手錶沒記錄到的活動，自己輸入消耗）。
   final ExtraBurnRepository? extraBurns;
+
+  /// 有設定才會出現「用 AI 估熱量」：裡面存著 Gemini API key。
+  final SettingsRepository? settings;
 
   @override
   State<FoodScreen> createState() => _FoodScreenState();
@@ -94,10 +101,23 @@ class _FoodScreenState extends State<FoodScreen> {
     return _isToday ? now : DateTime(_day.year, _day.month, _day.day, 12);
   }
 
+  /// 問 Gemini；每次都重讀 API key，設定頁改完不用重開 App。
+  Future<FoodNutrition> _askAi(String description) async {
+    final settings = widget.settings!;
+    final key = await settings.geminiApiKey();
+    final client = http.Client();
+    try {
+      return await FoodAi(client: client, apiKey: key ?? '').lookup(description);
+    } finally {
+      client.close();
+    }
+  }
+
   Future<void> _add() async {
     final entry = await showFoodEntrySheet(
       context,
       defaultTime: _defaultTime(),
+      askAi: widget.settings == null ? null : _askAi,
     );
     if (entry != null) await widget.repository.add(entry);
   }
@@ -108,6 +128,7 @@ class _FoodScreenState extends State<FoodScreen> {
       defaultTime: e.eatenAt,
       initial: e,
       onDelete: () => _delete(e),
+      askAi: widget.settings == null ? null : _askAi,
     );
     if (entry != null) await widget.repository.save(entry);
   }

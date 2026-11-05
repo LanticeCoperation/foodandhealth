@@ -15,6 +15,7 @@ import 'data/database.dart';
 import 'data/food_repository.dart';
 import 'data/phase_repository.dart';
 import 'data/profile_repository.dart';
+import 'data/settings_repository.dart';
 import 'data/template_repository.dart';
 import 'dev/demo_data_menu.dart';
 import 'screens/body_screen.dart';
@@ -51,7 +52,8 @@ class AppServices {
       profile = ProfileRepository(db),
       activity = ActivityRepository(db, health),
       backup = BackupService(db),
-      extraBurns = ExtraBurnRepository(db) {
+      extraBurns = ExtraBurnRepository(db),
+      settings = SettingsRepository(db) {
     dataset = DatasetRepository(
       db,
       body,
@@ -65,6 +67,9 @@ class AppServices {
 
   final AppDatabase db;
   final HealthService health;
+
+  /// 零碎設定（目前是 Gemini API key）。
+  final SettingsRepository settings;
 
   /// 預設一鍵項目目錄：啟動時套用內建的，再從 GitHub 抓更新。
   final CatalogUpdater catalog;
@@ -138,7 +143,12 @@ class _HomeShellState extends State<_HomeShell> {
         phases: s.phases,
         profile: s.profile,
         extraActions: [
-          ProfileButton(profile: s.profile, body: s.body, backup: s.backup),
+          ProfileButton(
+            profile: s.profile,
+            body: s.body,
+            backup: s.backup,
+            settings: s.settings,
+          ),
           if (kDebugMode)
             DemoDataMenu(
               db: s.db,
@@ -155,6 +165,7 @@ class _HomeShellState extends State<_HomeShell> {
       ),
       FoodScreen(
         repository: s.food,
+        settings: s.settings,
         checks: s.checks,
         phases: s.phases,
         profile: s.profile,

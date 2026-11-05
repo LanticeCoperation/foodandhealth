@@ -7,7 +7,9 @@ import 'package:body_lab/data/extra_burn_repository.dart';
 import 'package:body_lab/data/food_repository.dart';
 import 'package:body_lab/data/phase_repository.dart';
 import 'package:body_lab/data/profile_repository.dart';
+import 'package:body_lab/data/settings_repository.dart';
 import 'package:body_lab/data/template_repository.dart';
+import 'package:body_lab/services/catalog_updater.dart';
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -229,7 +231,20 @@ void main() {
         .into(target.settings)
         .insert(SettingsCompanion.insert(key: 'catalogVersion', value: '3'));
     await BackupService(target).restore(await BackupService(source).export());
-    expect(await target.select(target.settings).get(), isEmpty);
+    expect(await CatalogUpdater(target).appliedVersion(), 0);
+  });
+
+  test('匯入不會洗掉設定的 Gemini API key', () async {
+    await seed(source);
+    await SettingsRepository(target).setGeminiApiKey('AIza-test');
+    await target
+        .into(target.settings)
+        .insert(SettingsCompanion.insert(key: 'catalogVersion', value: '3'));
+
+    await BackupService(target).restore(await BackupService(source).export());
+
+    expect(await SettingsRepository(target).geminiApiKey(), 'AIza-test');
+    expect(await CatalogUpdater(target).appliedVersion(), 0);
   });
 
   test('inspect 只看內容不寫入', () async {

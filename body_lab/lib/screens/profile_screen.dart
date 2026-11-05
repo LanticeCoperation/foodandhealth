@@ -11,7 +11,9 @@ import '../data/profile_repository.dart';
 import '../utils/dates.dart';
 import '../utils/trend.dart';
 import '../widgets/app_update.dart';
+import '../data/settings_repository.dart';
 import '../widgets/backup_section.dart';
+import '../widgets/gemini_key_section.dart';
 import '../widgets/nutrition_fields.dart';
 
 /// 身體頁右上角的入口。
@@ -21,11 +23,13 @@ class ProfileButton extends StatelessWidget {
     required this.profile,
     required this.body,
     required this.backup,
+    required this.settings,
   });
 
   final ProfileRepository profile;
   final BodyRepository body;
   final BackupService backup;
+  final SettingsRepository settings;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +37,12 @@ class ProfileButton extends StatelessWidget {
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
           builder: (_) =>
-              ProfileScreen(profile: profile, body: body, backup: backup),
+              ProfileScreen(
+            profile: profile,
+            body: body,
+            backup: backup,
+            settings: settings,
+          ),
         ),
       ),
       icon: const Icon(Icons.person_outline),
@@ -49,11 +58,13 @@ class ProfileScreen extends StatefulWidget {
     required this.profile,
     required this.body,
     required this.backup,
+    required this.settings,
   });
 
   final ProfileRepository profile;
   final BodyRepository body;
   final BackupService backup;
+  final SettingsRepository settings;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -390,6 +401,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 24),
                     BackupSection(backup: widget.backup),
                   ],
+                  const SizedBox(height: 24),
+                  GeminiKeySection(settings: widget.settings),
                   const SizedBox(height: 24),
                   const AppVersionTile(),
                 ],
