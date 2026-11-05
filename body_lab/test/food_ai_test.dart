@@ -50,6 +50,23 @@ void main() {
     expect(n.fatG, 22);
   });
 
+  test('真實回應（實際打過 API 拿回來的）解得出來', () async {
+    // fixtures/gemini_interaction.json 是 2026-11-05 對 gemini-3.5-flash-lite
+    // 實際打一次拿回來的回應原文，只縮短了 id 與 signature。
+    final body = File(
+      'test/fixtures/gemini_interaction.json',
+    ).readAsStringSync();
+    final service = ai(
+      (_) async => http.Response.bytes(utf8.encode(body), 200),
+    );
+
+    final n = await service.lookup('一碗滷肉飯');
+
+    expect(n.kcal, 550);
+    expect(n.proteinG, 12);
+    expect(n.fatG, 20);
+  });
+
   test('蛋白質、脂肪可以缺少', () async {
     final n = await ok('{"kcal": 90}').lookup('一顆蘋果');
 

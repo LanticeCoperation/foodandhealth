@@ -11,10 +11,12 @@ const kGeminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/intera
 /// 請求格式的版本，官方範例固定帶這個標頭。
 const kGeminiApiRevision = '2026-05-20';
 
-/// 用免費額度就夠的 Flash 模型。換模型只要改這裡。
-const kGeminiModel = 'gemini-3.8-flash';
+/// 估個熱量用這個就夠，也是官方標示最快最省的一款。
+/// 2026-11-05 實測可用，一次查詢約 5.7 秒。換模型只要改這裡。
+const kGeminiModel = 'gemini-3.5-flash-lite';
 
-const _timeout = Duration(seconds: 20);
+/// 實測約 5.7 秒，留足夠的餘裕給慢的時候。
+const _timeout = Duration(seconds: 30);
 
 /// 查詢失敗時丟出，[message] 可以直接顯示給使用者。
 class FoodAiException implements Exception {
