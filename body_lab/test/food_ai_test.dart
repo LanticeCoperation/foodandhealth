@@ -127,6 +127,21 @@ void main() {
     );
   });
 
+  test('402：提示帳戶點數用完，不是網路問題', () async {
+    final service = ai((_) async => http.Response('depleted', 402));
+
+    await expectLater(
+      service.lookup('一碗飯'),
+      throwsA(
+        isA<FoodAiException>().having(
+          (e) => e.message,
+          'message',
+          contains('點數'),
+        ),
+      ),
+    );
+  });
+
   test('401/403：提示 key 可能無效', () async {
     final service = ai((_) async => http.Response('denied', 403));
 
