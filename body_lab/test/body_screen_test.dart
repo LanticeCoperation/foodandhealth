@@ -419,7 +419,10 @@ void main() {
     // d3 的過去 7 天（d9..d3）有 d3(1600) 與 d8(3000) → 平均 2300 kcal
     expect(find.text('7 日平均 2300 kcal'), findsOneWidget);
     // d16 的過去 7 天完全沒熱量紀錄 → 只有 today 與 d3 兩張卡片有顯示 7 日平均熱量
-    expect(find.textContaining('kcal'), findsNWidgets(3)); // d3 當天 1600 kcal + 兩個 7 日平均
+    expect(
+      find.textContaining('kcal'),
+      findsNWidgets(3),
+    ); // d3 當天 1600 kcal + 兩個 7 日平均
 
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(db.close);

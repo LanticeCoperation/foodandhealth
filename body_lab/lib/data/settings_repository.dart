@@ -1,4 +1,3 @@
-
 import '../services/catalog_updater.dart';
 import 'database.dart';
 
@@ -40,8 +39,7 @@ class SettingsRepository {
 
   /// 忘掉已套用的目錄版本，下次啟動重新套用預設項目目錄。
   /// 只刪這一筆，別的設定（例如 API key）要留著。
-  Future<void> clearCatalogVersion() =>
-      (_db.delete(_db.settings)
-            ..where((s) => s.key.equals(kCatalogVersionKey)))
-          .go();
+  Future<void> clearCatalogVersion() => (_db.delete(
+    _db.settings,
+  )..where((s) => s.key.equals(kCatalogVersionKey))).go();
 }

@@ -286,6 +286,7 @@ class _BodyScreenState extends State<BodyScreen> {
                           if (values.isEmpty) return null;
                           return values.reduce((a, b) => a + b) / values.length;
                         }
+
                         // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
                         final header = widget.food == null ? 1 : 2;
                         return RefreshIndicator(

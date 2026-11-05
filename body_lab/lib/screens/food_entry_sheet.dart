@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../services/food_ai.dart';
 import '../widgets/nutrition_fields.dart';
+import '../widgets/sheet_title.dart';
 
 /// 問 AI 一份食物的營養；失敗時丟 [FoodAiException]。
 typedef AskFoodAi = Future<FoodNutrition> Function(String description);
@@ -55,6 +56,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
   late final TextEditingController _kcal;
   late final TextEditingController _protein;
   late final TextEditingController _fat;
+  late final TextEditingController _note;
 
   @override
   void initState() {
@@ -66,6 +68,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     _kcal = TextEditingController(text: fmtNum(e?.totalKcal));
     _protein = TextEditingController(text: fmtNum(e?.totalProteinG));
     _fat = TextEditingController(text: fmtNum(e?.totalFatG));
+    _note = TextEditingController(text: e?.note ?? '');
   }
 
   @override
@@ -73,6 +76,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     _kcal.dispose();
     _protein.dispose();
     _fat.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -80,7 +84,8 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
   Future<void> _askAi() async {
     final n = await showDialog<FoodNutrition>(
       context: context,
-      builder: (_) => _AiLookupDialog(askAi: widget.askAi!),
+      builder: (_) =>
+          _AiLookupDialog(askAi: widget.askAi!, note: _note.text.trim()),
     );
     if (n == null || !mounted) return;
     setState(() {
@@ -113,6 +118,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
     final kcal = parseNum(_kcal.text)!;
     final protein = parseNum(_protein.text);
     final fat = parseNum(_fat.text);
+    final note = _note.text.trim().isEmpty ? null : _note.text.trim();
 
     if (e == null) {
       Navigator.pop(
@@ -124,6 +130,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
           kcal: Value(kcal),
           proteinG: Value(protein),
           fatG: Value(fat),
+          note: Value(note),
         ),
       );
       return;
@@ -142,6 +149,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
             kcal: Value(kcal / s),
             proteinG: Value(protein == null ? null : protein / s),
             fatG: Value(fat == null ? null : fat / s),
+            note: Value(note),
           )
           .toCompanion(true),
     );
@@ -165,10 +173,7 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              widget.initial == null ? '新增飲食' : '編輯飲食',
-              style: theme.textTheme.titleLarge,
-            ),
+            SheetTitle(widget.initial == null ? '新增飲食' : '編輯飲食'),
             const SizedBox(height: 16),
             SegmentedButton<MealType>(
               segments: [
@@ -239,6 +244,17 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _note,
+              maxLines: 2,
+              minLines: 1,
+              textInputAction: TextInputAction.done,
+              decoration: const InputDecoration(
+                labelText: '備註（選填）',
+                hintText: '例如：半碗飯、少糖、外食',
+              ),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -276,9 +292,12 @@ class _FoodEntryFormState extends State<_FoodEntryForm> {
 /// 輸入一句食物描述，問 AI 要熱量 / 蛋白質 / 脂肪。
 /// 查到了就 pop 出 [FoodNutrition]，失敗就留在原地顯示訊息。
 class _AiLookupDialog extends StatefulWidget {
-  const _AiLookupDialog({required this.askAi});
+  const _AiLookupDialog({required this.askAi, this.note = ''});
 
   final AskFoodAi askAi;
+
+  /// 表單上已填的備註，查詢時一起交給 AI 參考。
+  final String note;
 
   @override
   State<_AiLookupDialog> createState() => _AiLookupDialogState();
@@ -302,7 +321,10 @@ class _AiLookupDialogState extends State<_AiLookupDialog> {
     });
     String message;
     try {
-      final n = await widget.askAi(_input.text);
+      final text = _input.text.trim();
+      final n = await widget.askAi(
+        widget.note.isEmpty || text.isEmpty ? text : '$text（備註：${widget.note}）',
+      );
       if (!mounted) return;
       Navigator.pop(context, n);
       return;
@@ -346,6 +368,15 @@ class _AiLookupDialogState extends State<_AiLookupDialog> {
               ),
             ),
             const SizedBox(height: 8),
+          ],
+          if (widget.note.isNotEmpty) ...[
+            Text(
+              '會一併參考備註：${widget.note}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
           ],
           Text(
             'AI 給的是估計值，存檔前自己看一下合不合理。',

@@ -50,9 +50,8 @@ class _GeminiKeySectionState extends State<GeminiKeySection> {
     _input.clear();
     await _load();
     if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('已儲存 API key')));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('已儲存 API key')));
   }
 
   Future<void> _clear() async {
@@ -114,8 +113,7 @@ class _GeminiKeySectionState extends State<GeminiKeySection> {
               child: const Text('儲存 API key'),
             ),
             const SizedBox(width: 8),
-            if (_saved)
-              TextButton(onPressed: _clear, child: const Text('清除')),
+            if (_saved) TextButton(onPressed: _clear, child: const Text('清除')),
             const Spacer(),
             TextButton(
               onPressed: () => launchUrl(

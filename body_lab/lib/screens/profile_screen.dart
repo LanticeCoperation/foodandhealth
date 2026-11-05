@@ -36,8 +36,7 @@ class ProfileButton extends StatelessWidget {
     return IconButton(
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute<void>(
-          builder: (_) =>
-              ProfileScreen(
+          builder: (_) => ProfileScreen(
             profile: profile,
             body: body,
             backup: backup,

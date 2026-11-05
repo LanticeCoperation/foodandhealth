@@ -6,7 +6,8 @@ import 'package:http/http.dart' as http;
 
 /// Gemini Developer API 的 Interactions 端點。
 /// （舊的 `:generateContent` 已被官方標為 legacy。）
-const kGeminiEndpoint = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+const kGeminiEndpoint =
+    'https://generativelanguage.googleapis.com/v1beta/interactions';
 
 /// 請求格式的版本，官方範例固定帶這個標頭。
 const kGeminiApiRevision = '2026-05-20';

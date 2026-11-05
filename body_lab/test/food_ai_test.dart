@@ -33,17 +33,15 @@ void main() {
   http.Response utf8Response(String body, int status) =>
       http.Response.bytes(utf8.encode(body), status);
 
-  FoodAi ok(String jsonText, {void Function(http.Request)? capture}) => ai((
-    req,
-  ) async {
-    capture?.call(req);
-    return utf8Response(reply(jsonText), 200);
-  });
+  FoodAi ok(String jsonText, {void Function(http.Request)? capture}) =>
+      ai((req) async {
+        capture?.call(req);
+        return utf8Response(reply(jsonText), 200);
+      });
 
   test('解析熱量、蛋白質、脂肪', () async {
-    final n = await ok(
-      '{"kcal": 620, "protein_g": 18.5, "fat_g": 22}',
-    ).lookup('一碗滷肉飯');
+    final n = await ok('{"kcal": 620, "protein_g": 18.5, "fat_g": 22}')
+        .lookup('一碗滷肉飯');
 
     expect(n.kcal, 620);
     expect(n.proteinG, 18.5);
@@ -53,9 +51,8 @@ void main() {
   test('真實回應（實際打過 API 拿回來的）解得出來', () async {
     // fixtures/gemini_interaction.json 是 2026-11-05 對 gemini-3.5-flash-lite
     // 實際打一次拿回來的回應原文，只縮短了 id 與 signature。
-    final body = File(
-      'test/fixtures/gemini_interaction.json',
-    ).readAsStringSync();
+    final body = File('test/fixtures/gemini_interaction.json')
+        .readAsStringSync();
     final service = ai(
       (_) async => http.Response.bytes(utf8.encode(body), 200),
     );
@@ -77,10 +74,7 @@ void main() {
 
   test('送出的請求帶著模型、描述與 JSON schema', () async {
     late http.Request sent;
-    await ok(
-      '{"kcal": 100}',
-      capture: (r) => sent = r,
-    ).lookup('雞腿便當');
+    await ok('{"kcal": 100}', capture: (r) => sent = r).lookup('雞腿便當');
 
     expect(sent.method, 'POST');
     expect(sent.url.toString(), kGeminiEndpoint);
@@ -94,7 +88,10 @@ void main() {
     final schema =
         (body['response_format'] as Map)['schema'] as Map<String, dynamic>;
     expect((body['response_format'] as Map)['mime_type'], 'application/json');
-    expect((schema['properties'] as Map).keys, containsAll(['kcal', 'protein_g', 'fat_g']));
+    expect(
+      (schema['properties'] as Map).keys,
+      containsAll(['kcal', 'protein_g', 'fat_g']),
+    );
     expect(schema['required'], contains('kcal'));
   });
 
@@ -237,10 +234,7 @@ void main() {
   test('回覆缺少熱量：提示看不懂', () async {
     final service = ok('{"protein_g": 10}');
 
-    await expectLater(
-      service.lookup('一碗飯'),
-      throwsA(isA<FoodAiException>()),
-    );
+    await expectLater(service.lookup('一碗飯'), throwsA(isA<FoodAiException>()));
   });
 
   test('整包回覆少了 model_output：提示看不懂', () async {
@@ -256,9 +250,6 @@ void main() {
       ),
     );
 
-    await expectLater(
-      service.lookup('一碗飯'),
-      throwsA(isA<FoodAiException>()),
-    );
+    await expectLater(service.lookup('一碗飯'), throwsA(isA<FoodAiException>()));
   });
 }

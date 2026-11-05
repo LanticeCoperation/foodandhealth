@@ -8,6 +8,7 @@ import '../data/template_catalog.dart';
 import '../services/catalog_updater.dart';
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
+import '../widgets/sheet_title.dart';
 import '../widgets/undo_snackbar.dart';
 
 /// 項目的一行摘要：每份營養、預設份量、使用次數。
@@ -260,9 +261,8 @@ class _QuickScreenState extends State<QuickScreen> {
                                             label,
                                             style: theme.textTheme.labelMedium
                                                 ?.copyWith(
-                                                  color: theme
-                                                      .colorScheme
-                                                      .primary,
+                                                  color:
+                                                      theme.colorScheme.primary,
                                                 ),
                                           ),
                                         ),
@@ -386,10 +386,7 @@ class _TemplateFormState extends State<_TemplateForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                widget.initial == null ? '新增項目' : '編輯項目',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
+              SheetTitle(widget.initial == null ? '新增項目' : '編輯項目'),
               const SizedBox(height: 8),
               Row(
                 children: [

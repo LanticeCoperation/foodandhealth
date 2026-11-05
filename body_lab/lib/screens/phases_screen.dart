@@ -12,6 +12,7 @@ import '../data/profile_repository.dart';
 import '../utils/dates.dart';
 import '../widgets/intake_chart.dart';
 import '../widgets/nutrition_fields.dart';
+import '../widgets/sheet_title.dart';
 import '../widgets/phase_style.dart';
 import 'trend_screen.dart';
 
@@ -702,10 +703,7 @@ class _PhaseFormState extends State<_PhaseForm> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                widget.initial == null ? '新增階段' : '編輯階段',
-                style: theme.textTheme.titleLarge,
-              ),
+              SheetTitle(widget.initial == null ? '新增階段' : '編輯階段'),
               TextFormField(
                 controller: _name,
                 autofocus: widget.initial == null,

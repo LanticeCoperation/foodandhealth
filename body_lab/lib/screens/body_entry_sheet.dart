@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../utils/dates.dart';
 import '../widgets/nutrition_fields.dart';
+import '../widgets/sheet_title.dart';
 
 typedef BodyEntry = ({DateTime time, double weightKg, double? bodyFatPercent});
 
@@ -113,7 +114,7 @@ class _BodyEntryFormState extends State<_BodyEntryForm> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('記錄體重', style: theme.textTheme.titleLarge),
+            const SheetTitle('記錄體重'),
             const SizedBox(height: 6),
             Text(
               '會寫入 Apple 健康，和體脂計的資料放在一起。'

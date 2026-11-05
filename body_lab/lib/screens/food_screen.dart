@@ -107,7 +107,10 @@ class _FoodScreenState extends State<FoodScreen> {
     final key = await settings.geminiApiKey();
     final client = http.Client();
     try {
-      return await FoodAi(client: client, apiKey: key ?? '').lookup(description);
+      return await FoodAi(
+        client: client,
+        apiKey: key ?? '',
+      ).lookup(description);
     } finally {
       client.close();
     }
