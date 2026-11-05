@@ -174,6 +174,21 @@ void main() {
     );
   });
 
+  test('503：提示伺服器忙碌，等一下再試', () async {
+    final service = ai((_) async => http.Response('high demand', 503));
+
+    await expectLater(
+      service.lookup('一碗飯'),
+      throwsA(
+        isA<FoodAiException>().having(
+          (e) => e.message,
+          'message',
+          contains('忙'),
+        ),
+      ),
+    );
+  });
+
   test('其他 HTTP 錯誤：帶上狀態碼', () async {
     final service = ai((_) async => http.Response('boom', 500));
 

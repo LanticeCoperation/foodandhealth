@@ -109,6 +109,9 @@ class FoodAi {
         break;
       case 429:
         throw const FoodAiException('今天的免費額度用完了，等一下再試。');
+      // 模型當下負載太高，跟額度、權限都無關，等一下通常就好了。
+      case 503:
+        throw const FoodAiException('Gemini 現在很忙，等一下再試一次。');
       // 預付點數歸零；整個帳戶底下的 key 都會停掉，重試沒用。
       case 402:
         throw const FoodAiException('Gemini 帳戶的點數用完了，要去 AI Studio 加值或換一把 key。');
