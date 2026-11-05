@@ -326,4 +326,102 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.runAsync(db.close);
   });
+
+  testWidgets('每張體重卡片顯示截至該日的 7 日平均熱量（只平均有熱量紀錄的天，當天沒記也顯示）', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2340);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+
+    final db = AppDatabase(
+      DatabaseConnection(
+        NativeDatabase.memory(),
+        closeStreamsSynchronously: true,
+      ),
+    );
+    final today = dateOnly(DateTime.now());
+    final d1 = addDays(today, -1);
+    final d3 = addDays(today, -3);
+    final d4 = addDays(today, -4);
+    final d8 = addDays(today, -8);
+    final d16 = addDays(today, -16);
+
+    await tester.runAsync(() async {
+      for (final day in [today, d3, d16]) {
+        await db
+            .into(db.dailyBodyMetrics)
+            .insert(
+              DailyBodyMetricsCompanion.insert(
+                day: dayKey(day),
+                measuredAt: day.add(const Duration(hours: 7)),
+                weightKg: 70,
+                syncedAt: DateTime.now(),
+              ),
+            );
+      }
+      final food = FoodRepository(db);
+      // d1: 2000 kcal（那天沒量體重，但要算進 today 的 7 日平均）
+      await food.add(
+        FoodEntriesCompanion.insert(
+          eatenAt: d1.add(const Duration(hours: 12)),
+          meal: MealType.lunch,
+          name: '午餐',
+          kcal: const Value(2000),
+        ),
+      );
+      // d3: 1600 kcal
+      await food.add(
+        FoodEntriesCompanion.insert(
+          eatenAt: d3.add(const Duration(hours: 12)),
+          meal: MealType.lunch,
+          name: '午餐',
+          kcal: const Value(1600),
+        ),
+      );
+      // d4: 只有沒填熱量的紀錄（0 kcal），不應拉低平均
+      await food.add(
+        FoodEntriesCompanion.insert(
+          eatenAt: d4.add(const Duration(hours: 8)),
+          meal: MealType.breakfast,
+          name: '肌酸',
+        ),
+      );
+      // d8: 3000 kcal（超出 today 的 7 日視窗，但在 d3 的 7 日視窗內）
+      await food.add(
+        FoodEntriesCompanion.insert(
+          eatenAt: d8.add(const Duration(hours: 12)),
+          meal: MealType.lunch,
+          name: '大餐',
+          kcal: const Value(3000),
+        ),
+      );
+    });
+
+    final health = HealthService();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildAppTheme(Brightness.light),
+        home: BodyScreen(
+          health: health,
+          repository: BodyRepository(db, health),
+          food: FoodRepository(db),
+        ),
+      ),
+    );
+    for (var i = 0; i < 5; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+    }
+
+    // today 當天沒記飲食，但過去 7 天有 d1(2000) 與 d3(1600) → 平均 1800 kcal
+    expect(find.text('7 日平均 1800 kcal'), findsOneWidget);
+    // d3 的過去 7 天（d9..d3）有 d3(1600) 與 d8(3000) → 平均 2300 kcal
+    expect(find.text('7 日平均 2300 kcal'), findsOneWidget);
+    // d16 的過去 7 天完全沒熱量紀錄 → 只有 today 與 d3 兩張卡片有顯示 7 日平均熱量
+    expect(find.textContaining('kcal'), findsNWidgets(3)); // d3 當天 1600 kcal + 兩個 7 日平均
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.runAsync(db.close);
+  });
 }

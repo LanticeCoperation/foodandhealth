@@ -278,6 +278,14 @@ class _BodyScreenState extends State<BodyScreen> {
                               .firstOrNull,
                           profile: profileSnapshot.data,
                         );
+                        double? kcalAvg(DateTime day) {
+                          final values = [
+                            for (var i = 0; i < kMovingAverageDays; i++)
+                              intake[addDays(day, -i)]?.kcal,
+                          ].whereType<double>().where((v) => v > 0).toList();
+                          if (values.isEmpty) return null;
+                          return values.reduce((a, b) => a + b) / values.length;
+                        }
                         // 有飲食資料時，橫幅下面固定一張今天攝取，沒量體重也看得到
                         final header = widget.food == null ? 1 : 2;
                         return RefreshIndicator(
@@ -301,6 +309,7 @@ class _BodyScreenState extends State<BodyScreen> {
                               final day = point.metric.date;
                               return _DayCard(
                                 point: point,
+                                kcalAvg: kcalAvg(day),
                                 // 今天的攝取已經在最上面那張
                                 intake: day == today ? null : intake[day],
                                 fatLimit: fatLimit(day),
@@ -391,6 +400,7 @@ class _BodyScreenState extends State<BodyScreen> {
 class _DayCard extends StatelessWidget {
   const _DayCard({
     required this.point,
+    this.kcalAvg,
     this.intake,
     this.fatLimit,
     this.activeKcal,
@@ -399,6 +409,9 @@ class _DayCard extends StatelessWidget {
   });
 
   final TrendPoint point;
+
+  /// 截至當天的 7 日平均攝取熱量（kcal）；7 天內都沒熱量紀錄時為 null。
+  final double? kcalAvg;
   final DayTotals? intake;
 
   /// 當天手錶記錄的活動消耗；[showActive] 為 true 但沒資料時顯示「—」。
@@ -506,11 +519,23 @@ class _DayCard extends StatelessWidget {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
-                        style: muted,
-                        textAlign: TextAlign.end,
-                        overflow: TextOverflow.ellipsis,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '7 日平均 ${point.weightAvg.toStringAsFixed(1)} kg',
+                            style: muted,
+                            textAlign: TextAlign.end,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          if (kcalAvg != null)
+                            Text(
+                              '7 日平均 ${kcalAvg!.round()} kcal',
+                              style: muted,
+                              textAlign: TextAlign.end,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                        ],
                       ),
                     ),
                   ),
