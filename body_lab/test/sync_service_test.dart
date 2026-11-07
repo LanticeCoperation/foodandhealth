@@ -14,17 +14,42 @@ class FakeSyncApi implements SyncApi {
   @override
   String? currentUserId;
 
-  final Map<String, Map<String, dynamic>> rows = {};
-  DateTime _clock = DateTime.utc(2026, 11, 7, 0, 0, 0);
+  /// 表名 → 鍵 → 列
+  final Map<String, Map<String, Map<String, dynamic>>> tables = {};
 
+  /// 一頁最多幾列（模擬伺服器的 PGRST_DB_MAX_ROWS）。測分頁時調小。
+  int pageSize = 1000;
+
+  DateTime _clock = DateTime.utc(2026, 11, 7, 0, 0, 0);
   DateTime _tick() => _clock = _clock.add(const Duration(seconds: 1));
 
+  Map<String, Map<String, dynamic>> _t(String name) =>
+      tables.putIfAbsent(name, () => {});
+
+  /// 伺服器端的衝突鍵換成這個假伺服器用的字串鍵。
+  static String _key(String onConflict, Map<String, dynamic> row) {
+    final cols = onConflict
+        .split(',')
+        .where((c) => c != 'user_id')
+        .toList();
+    return cols.isEmpty
+        ? 'single'
+        : [for (final c in cols) '${row[c]}'].join('|');
+  }
+
+  /// 飲食紀錄的列（大部分測試只看這張表）。
+  Map<String, Map<String, dynamic>> get rows => _t('food_entries');
+
   @override
-  Future<void> upsertFoodEntries(List<Map<String, dynamic>> incoming) async {
+  Future<void> upsert(
+    String table,
+    String onConflict,
+    List<Map<String, dynamic>> incoming,
+  ) async {
     for (final row in incoming) {
-      final id = row['sync_id'] as String;
-      rows[id] = {
-        ...?rows[id],
+      final k = _key(onConflict, row);
+      _t(table)[k] = {
+        ...?_t(table)[k],
         ...row,
         'user_id': currentUserId,
         'updated_at': _tick().toIso8601String(),
@@ -32,32 +57,27 @@ class FakeSyncApi implements SyncApi {
     }
   }
 
-  /// 一頁最多幾列（模擬伺服器的 PGRST_DB_MAX_ROWS）。測分頁時調小。
-  int pageSize = 1000;
-
   @override
-  Future<List<Map<String, dynamic>>> fetchFoodEntries({
+  Future<List<Map<String, dynamic>>> fetch(
+    String table, {
     DateTime? since,
     int offset = 0,
     int limit = 500,
   }) async {
     final all =
         [
-          for (final r in rows.values)
+          for (final r in _t(table).values)
             if ((currentUserId == null || r['user_id'] == currentUserId) &&
                 (since == null ||
                     !DateTime.parse(
                       r['updated_at'] as String,
                     ).isBefore(since)))
               Map<String, dynamic>.from(r),
-        ]..sort((a, b) {
-          final t = (a['updated_at'] as String).compareTo(
+        ]..sort(
+          (a, b) => (a['updated_at'] as String).compareTo(
             b['updated_at'] as String,
-          );
-          return t != 0
-              ? t
-              : (a['sync_id'] as String).compareTo(b['sync_id'] as String);
-        });
+          ),
+        );
     final take = limit < pageSize ? limit : pageSize;
     if (offset >= all.length) return const [];
     final end = offset + take;
@@ -65,12 +85,17 @@ class FakeSyncApi implements SyncApi {
   }
 
   @override
-  Future<void> markDeleted(List<String> syncIds) async {
-    for (final id in syncIds) {
-      final row = rows[id];
-      if (row == null) continue;
-      row['deleted_at'] = _tick().toIso8601String();
-      row['updated_at'] = _clock.toIso8601String();
+  Future<void> markDeleted(
+    String table,
+    List<Map<String, String>> keys,
+  ) async {
+    for (final key in keys) {
+      for (final row in _t(table).values) {
+        final matches = key.entries.every((e) => '${row[e.key]}' == e.value);
+        if (!matches) continue;
+        row['deleted_at'] = _tick().toIso8601String();
+        row['updated_at'] = _clock.toIso8601String();
+      }
     }
   }
 }
@@ -242,7 +267,7 @@ void main() {
   test('家人的資料不會寫進本機資料庫', () async {
     // 家人 B 上傳了一筆
     api.currentUserId = 'user-b';
-    await api.upsertFoodEntries([
+    await api.upsert('food_entries', 'sync_id', [
       {
         'sync_id': 'b-1',
         'eaten_at': DateTime.utc(2026, 11, 7, 10).toIso8601String(),
@@ -320,19 +345,24 @@ class _RacingApi implements SyncApi {
   String? get currentUserId => _inner.currentUserId;
 
   @override
-  Future<void> upsertFoodEntries(List<Map<String, dynamic>> rows) async {
-    await _inner.upsertFoodEntries(rows);
+  Future<void> upsert(
+    String table,
+    String onConflict,
+    List<Map<String, dynamic>> rows,
+  ) async {
+    await _inner.upsert(table, onConflict, rows);
     await _duringUpsert();
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchFoodEntries({
+  Future<List<Map<String, dynamic>>> fetch(
+    String table, {
     DateTime? since,
     int offset = 0,
     int limit = 500,
-  }) => _inner.fetchFoodEntries(since: since, offset: offset, limit: limit);
+  }) => _inner.fetch(table, since: since, offset: offset, limit: limit);
 
   @override
-  Future<void> markDeleted(List<String> syncIds) =>
-      _inner.markDeleted(syncIds);
+  Future<void> markDeleted(String table, List<Map<String, String>> keys) =>
+      _inner.markDeleted(table, keys);
 }

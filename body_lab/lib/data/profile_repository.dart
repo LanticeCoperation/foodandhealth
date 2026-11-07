@@ -41,6 +41,8 @@ class ProfileRepository {
           tdeeKcal: tdeeKcal,
           energyMode: Value(energyMode),
           updatedAt: _clock(),
+          // 同上：走更新那條路時不明寫就會留著上次同步完的 false
+          pendingSync: const Value(true),
         ),
       );
 }

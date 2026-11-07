@@ -2468,6 +2468,329 @@ i1.GeneratedColumn<int> _column_53(
     'CAST(strftime(\'%s\', CURRENT_TIMESTAMP) AS INTEGER)',
   ),
 );
+
+final class Schema13 extends i0.VersionedSchema {
+  Schema13({required super.database}) : super(version: 13);
+  @override
+  late final List<i1.DatabaseSchemaEntity> entities = [
+    dailyBodyMetrics,
+    foodEntries,
+    mealTemplates,
+    dailyChecks,
+    phases,
+    profiles,
+    dailyActivity,
+    extraBurns,
+    settings,
+    pendingDeletes,
+    foodEntriesEatenAt,
+    foodEntriesSyncId,
+    phasesSyncId,
+    extraBurnsSyncId,
+  ];
+  late final Shape10 dailyBodyMetrics = Shape10(
+    source: i0.VersionedTable(
+      entityName: 'daily_body_metrics',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(day)'],
+      columns: [
+        _column_0,
+        _column_1,
+        _column_2,
+        _column_3,
+        _column_4,
+        _column_5,
+        _column_45,
+        _column_6,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape13 foodEntries = Shape13(
+    source: i0.VersionedTable(
+      entityName: 'food_entries',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [],
+      columns: [
+        _column_7,
+        _column_8,
+        _column_9,
+        _column_10,
+        _column_11,
+        _column_12,
+        _column_13,
+        _column_14,
+        _column_15,
+        _column_16,
+        _column_17,
+        _column_18,
+        _column_50,
+        _column_51,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape11 mealTemplates = Shape11(
+    source: i0.VersionedTable(
+      entityName: 'meal_templates',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [],
+      columns: [
+        _column_7,
+        _column_10,
+        _column_19,
+        _column_20,
+        _column_12,
+        _column_13,
+        _column_14,
+        _column_15,
+        _column_21,
+        _column_22,
+        _column_23,
+        _column_24,
+        _column_18,
+        _column_46,
+        _column_47,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape15 dailyChecks = Shape15(
+    source: i0.VersionedTable(
+      entityName: 'daily_checks',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(day, item)'],
+      columns: [_column_0, _column_25, _column_26, _column_44, _column_51],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape16 phases = Shape16(
+    source: i0.VersionedTable(
+      entityName: 'phases',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [],
+      columns: [
+        _column_7,
+        _column_10,
+        _column_27,
+        _column_28,
+        _column_29,
+        _column_30,
+        _column_31,
+        _column_32,
+        _column_33,
+        _column_18,
+        _column_50,
+        _column_51,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape17 profiles = Shape17(
+    source: i0.VersionedTable(
+      entityName: 'profiles',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(id)'],
+      columns: [
+        _column_34,
+        _column_35,
+        _column_36,
+        _column_37,
+        _column_38,
+        _column_2,
+        _column_39,
+        _column_41,
+        _column_40,
+        _column_51,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape7 dailyActivity = Shape7(
+    source: i0.VersionedTable(
+      entityName: 'daily_activity',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(day)'],
+      columns: [_column_0, _column_42, _column_6],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape18 extraBurns = Shape18(
+    source: i0.VersionedTable(
+      entityName: 'extra_burns',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: [],
+      columns: [
+        _column_7,
+        _column_0,
+        _column_43,
+        _column_16,
+        _column_18,
+        _column_50,
+        _column_51,
+      ],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape12 settings = Shape12(
+    source: i0.VersionedTable(
+      entityName: 'settings',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY("key")'],
+      columns: [_column_48, _column_49],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  late final Shape19 pendingDeletes = Shape19(
+    source: i0.VersionedTable(
+      entityName: 'pending_deletes',
+      withoutRowId: false,
+      isStrict: false,
+      tableConstraints: ['PRIMARY KEY(sync_id)'],
+      columns: [_column_54, _column_52, _column_53],
+      attachedDatabase: database,
+    ),
+    alias: null,
+  );
+  final i1.Index foodEntriesEatenAt = i1.Index(
+    'food_entries_eaten_at',
+    'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
+  );
+  final i1.Index foodEntriesSyncId = i1.Index(
+    'food_entries_sync_id',
+    'CREATE UNIQUE INDEX food_entries_sync_id ON food_entries (sync_id)',
+  );
+  final i1.Index phasesSyncId = i1.Index(
+    'phases_sync_id',
+    'CREATE UNIQUE INDEX phases_sync_id ON phases (sync_id)',
+  );
+  final i1.Index extraBurnsSyncId = i1.Index(
+    'extra_burns_sync_id',
+    'CREATE UNIQUE INDEX extra_burns_sync_id ON extra_burns (sync_id)',
+  );
+}
+
+class Shape15 extends i0.VersionedTable {
+  Shape15({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get day =>
+      columnsByName['day']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get item =>
+      columnsByName['item']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get checkedAt =>
+      columnsByName['checked_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<double> get amount =>
+      columnsByName['amount']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<int> get pendingSync =>
+      columnsByName['pending_sync']! as i1.GeneratedColumn<int>;
+}
+
+class Shape16 extends i0.VersionedTable {
+  Shape16({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<int> get id =>
+      columnsByName['id']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get name =>
+      columnsByName['name']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get startDay =>
+      columnsByName['start_day']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get endDay =>
+      columnsByName['end_day']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get hypothesis =>
+      columnsByName['hypothesis']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<double> get targetKcal =>
+      columnsByName['target_kcal']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<double> get targetProteinG =>
+      columnsByName['target_protein_g']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<int> get creatine =>
+      columnsByName['creatine']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get conclusion =>
+      columnsByName['conclusion']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get createdAt =>
+      columnsByName['created_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get syncId =>
+      columnsByName['sync_id']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get pendingSync =>
+      columnsByName['pending_sync']! as i1.GeneratedColumn<int>;
+}
+
+class Shape17 extends i0.VersionedTable {
+  Shape17({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<int> get id =>
+      columnsByName['id']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get sex =>
+      columnsByName['sex']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get birthYear =>
+      columnsByName['birth_year']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<double> get heightCm =>
+      columnsByName['height_cm']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<String> get activity =>
+      columnsByName['activity']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<double> get weightKg =>
+      columnsByName['weight_kg']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<double> get tdeeKcal =>
+      columnsByName['tdee_kcal']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<String> get energyMode =>
+      columnsByName['energy_mode']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get updatedAt =>
+      columnsByName['updated_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<int> get pendingSync =>
+      columnsByName['pending_sync']! as i1.GeneratedColumn<int>;
+}
+
+class Shape18 extends i0.VersionedTable {
+  Shape18({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<int> get id =>
+      columnsByName['id']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get day =>
+      columnsByName['day']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<double> get kcal =>
+      columnsByName['kcal']! as i1.GeneratedColumn<double>;
+  i1.GeneratedColumn<String> get note =>
+      columnsByName['note']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get createdAt =>
+      columnsByName['created_at']! as i1.GeneratedColumn<int>;
+  i1.GeneratedColumn<String> get syncId =>
+      columnsByName['sync_id']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get pendingSync =>
+      columnsByName['pending_sync']! as i1.GeneratedColumn<int>;
+}
+
+class Shape19 extends i0.VersionedTable {
+  Shape19({required super.source, required super.alias}) : super.aliased();
+  i1.GeneratedColumn<String> get entity =>
+      columnsByName['entity']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<String> get syncId =>
+      columnsByName['sync_id']! as i1.GeneratedColumn<String>;
+  i1.GeneratedColumn<int> get deletedAt =>
+      columnsByName['deleted_at']! as i1.GeneratedColumn<int>;
+}
+
+i1.GeneratedColumn<String> _column_54(String aliasedName) =>
+    i1.GeneratedColumn<String>(
+      'entity',
+      aliasedName,
+      false,
+      type: i1.DriftSqlType.string,
+      $customConstraints: 'NOT NULL DEFAULT \'food_entries\'',
+      defaultValue: const i1.CustomExpression('\'food_entries\''),
+    );
 i0.MigrationStepWithVersion migrationSteps({
   required Future<void> Function(i1.Migrator m, Schema2 schema) from1To2,
   required Future<void> Function(i1.Migrator m, Schema3 schema) from2To3,
@@ -2480,6 +2803,7 @@ i0.MigrationStepWithVersion migrationSteps({
   required Future<void> Function(i1.Migrator m, Schema10 schema) from9To10,
   required Future<void> Function(i1.Migrator m, Schema11 schema) from10To11,
   required Future<void> Function(i1.Migrator m, Schema12 schema) from11To12,
+  required Future<void> Function(i1.Migrator m, Schema13 schema) from12To13,
 }) {
   return (currentVersion, database) async {
     switch (currentVersion) {
@@ -2538,6 +2862,11 @@ i0.MigrationStepWithVersion migrationSteps({
         final migrator = i1.Migrator(database, schema);
         await from11To12(migrator, schema);
         return 12;
+      case 12:
+        final schema = Schema13(database: database);
+        final migrator = i1.Migrator(database, schema);
+        await from12To13(migrator, schema);
+        return 13;
       default:
         throw ArgumentError.value('Unknown migration from $currentVersion');
     }
@@ -2556,6 +2885,7 @@ i1.OnUpgrade stepByStep({
   required Future<void> Function(i1.Migrator m, Schema10 schema) from9To10,
   required Future<void> Function(i1.Migrator m, Schema11 schema) from10To11,
   required Future<void> Function(i1.Migrator m, Schema12 schema) from11To12,
+  required Future<void> Function(i1.Migrator m, Schema13 schema) from12To13,
 }) => i0.VersionedSchema.stepByStepHelper(
   step: migrationSteps(
     from1To2: from1To2,
@@ -2569,5 +2899,6 @@ i1.OnUpgrade stepByStep({
     from9To10: from9To10,
     from10To11: from10To11,
     from11To12: from11To12,
+    from12To13: from12To13,
   ),
 );

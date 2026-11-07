@@ -87,6 +87,14 @@ class FoodEntries extends Table {
 /// 備份、示範資料每一個查詢都要記得濾掉墓碑，漏一個就出錯。
 /// 改用這張小小的待辦表記下「這個 syncId 被刪了」，上傳成功就移除。
 class PendingDeletes extends Table {
+  /// 哪一張表（v13）。有 SQL 預設值，所以升級時不用重建資料表。
+  TextColumn get entity =>
+      text().withDefault(const Constant('food_entries'))();
+
+  /// 自動編號的表放 syncId（UUID），自然鍵的表放 "day|item"。
+  ///
+  /// 主鍵維持只有這一欄：兩種鍵的形狀不同（UUID vs "2026-11-07|creatine"），
+  /// 本來就不會相撞。改成複合主鍵要重建整張表，不值得。
   TextColumn get syncId => text()();
   DateTimeColumn get deletedAt => dateTime().withDefault(currentDateAndTime)();
 
@@ -158,10 +166,16 @@ class DailyChecks extends Table {
   /// 劑量（v7，單位見 [CheckItem.unit]）；舊紀錄沒有劑量。
   RealColumn get amount => real().nullable()();
 
+  /// 有待上傳的本機變更（v13）。自然鍵的表不需要 syncId，
+  /// 伺服器端以 (user_id, day, item) 為鍵。
+  BoolColumn get pendingSync =>
+      boolean().withDefault(const Constant(true))();
+
   @override
   Set<Column> get primaryKey => {day, item};
 }
 
+@TableIndex(name: 'phases_sync_id', columns: {#syncId}, unique: true)
 /// 實驗階段（v3）：一段期間固定改變某些做法（例如高蛋白 + 肌酸），看身體組成怎麼變。
 class Phases extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -184,6 +198,11 @@ class Phases extends Table {
   /// 結束後的心得。
   TextColumn get conclusion => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// 同步用的全域唯一識別（v13），理由同 [FoodEntries.syncId]。
+  TextColumn get syncId => text().nullable().clientDefault(newUuidV4)();
+  BoolColumn get pendingSync =>
+      boolean().withDefault(const Constant(true))();
 }
 
 enum Sex {
@@ -232,6 +251,7 @@ class DailyActivity extends Table {
   Set<Column> get primaryKey => {day};
 }
 
+@TableIndex(name: 'extra_burns_sync_id', columns: {#syncId}, unique: true)
 /// 自訂消耗（v6）：手錶沒記錄到的活動（例如沒戴錶的運動），加進當天的每日消耗。
 class ExtraBurns extends Table {
   IntColumn get id => integer().autoIncrement()();
@@ -241,6 +261,11 @@ class ExtraBurns extends Table {
   RealColumn get kcal => real()();
   TextColumn get note => text().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// 同步用的全域唯一識別（v13），理由同 [FoodEntries.syncId]。
+  TextColumn get syncId => text().nullable().clientDefault(newUuidV4)();
+  BoolColumn get pendingSync =>
+      boolean().withDefault(const Constant(true))();
 }
 
 /// 個人資料（v4），只有一列（id = 1）。TDEE 算好後固定存下來，
@@ -262,6 +287,10 @@ class Profiles extends Table {
   TextColumn get energyMode =>
       textEnum<EnergyMode>().withDefault(const Constant('watch'))();
   DateTimeColumn get updatedAt => dateTime()();
+
+  /// 有待上傳的本機變更（v13）。伺服器端一個人一列（body_profiles）。
+  BoolColumn get pendingSync =>
+      boolean().withDefault(const Constant(true))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -287,7 +316,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 12;
+  int get schemaVersion => 13;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -351,16 +380,33 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(schema.pendingDeletes);
         // 先補完值才能建 unique index：既有的列現在全是 NULL，
         // SQLite 的 unique index 雖然允許多個 NULL，但補完後才建比較不會有意外。
-        await backfillSyncIds();
+        await backfillFoodSyncIds();
         await m.createIndex(schema.foodEntriesSyncId);
+      },
+      // 其餘資料表也納入同步（v13）。
+      from12To13: (m, schema) async {
+        await m.addColumn(schema.dailyChecks, schema.dailyChecks.pendingSync);
+        await m.addColumn(schema.profiles, schema.profiles.pendingSync);
+        await m.addColumn(schema.phases, schema.phases.syncId);
+        await m.addColumn(schema.phases, schema.phases.pendingSync);
+        await m.addColumn(schema.extraBurns, schema.extraBurns.syncId);
+        await m.addColumn(schema.extraBurns, schema.extraBurns.pendingSync);
+        // entity 有 SQL 預設值，舊的待辦都是飲食紀錄
+        await m.addColumn(schema.pendingDeletes, schema.pendingDeletes.entity);
+        await backfillPhaseAndBurnSyncIds();
+        await m.createIndex(schema.phasesSyncId);
+        await m.createIndex(schema.extraBurnsSyncId);
       },
     ),
   );
 
-  /// 升級到 v12 時，幫既有的飲食紀錄補上 syncId。
+  /// 升級到 v12 時幫既有的飲食紀錄補上 syncId。
   ///
   /// 這些是使用者在單機時期累積的真實資料，第一次登入後會整批當成自己的上傳。
-  Future<void> backfillSyncIds() async {
+  /// 補完才建 unique index。
+  ///
+  /// 每一版的補值要分開寫：11→12 跑的時候 phases.sync_id 這一欄還不存在。
+  Future<void> backfillFoodSyncIds() async {
     final rows = await (select(
       foodEntries,
     )..where((r) => r.syncId.isNull())).get();
@@ -375,6 +421,34 @@ class AppDatabase extends _$AppDatabase {
       }
     });
   }
+
+  /// 升級到 v13 時幫既有的實驗階段與自訂消耗補上 syncId。
+  Future<void> backfillPhaseAndBurnSyncIds() async {
+    final phaseRows = await (select(
+      phases,
+    )..where((r) => r.syncId.isNull())).get();
+    final burns = await (select(
+      extraBurns,
+    )..where((r) => r.syncId.isNull())).get();
+    if (phaseRows.isEmpty && burns.isEmpty) return;
+    await batch((b) {
+      for (final row in phaseRows) {
+        b.update(
+          phases,
+          PhasesCompanion(syncId: Value(newUuidV4())),
+          where: (r) => r.id.equals(row.id),
+        );
+      }
+      for (final row in burns) {
+        b.update(
+          extraBurns,
+          ExtraBurnsCompanion(syncId: Value(newUuidV4())),
+          where: (r) => r.id.equals(row.id),
+        );
+      }
+    });
+  }
+
 
   /// v11 之前的資料（升級或匯入舊備份）沒有 customized / sourceKey：
   ///

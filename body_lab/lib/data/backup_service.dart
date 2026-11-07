@@ -5,13 +5,15 @@ import 'package:drift/drift.dart';
 import '../utils/uuid.dart';
 import 'database.dart';
 import 'settings_repository.dart';
+import 'sync_entities.dart';
 
 /// 備份檔格式版本；改了內容結構就 +1，並在 [BackupService.restore] 處理舊版。
 ///
 /// - 1：飲食、一鍵項目、打勾、階段、個人資料
 /// - 2：加入自訂消耗（extraBurns）；讀 1 版時視為沒有
 /// - 3：飲食紀錄帶 syncId / pendingSync；讀 2 版以下時現場補 syncId
-const int kBackupFormat = 3;
+/// - 4：階段與自訂消耗也帶 syncId，打勾與個人資料帶 pendingSync
+const int kBackupFormat = 4;
 
 class BackupFormatException implements Exception {
   BackupFormatException(this.message);
@@ -128,11 +130,32 @@ class BackupService {
         for (final t in list('mealTemplates'))
           MealTemplate.fromJson({'sourceKey': null, 'customized': false, ...t}),
       ];
-      checks = list('dailyChecks').map(DailyCheck.fromJson).toList();
-      phases = list('phases').map(Phase.fromJson).toList();
+      // 還原回來的全部標成待上傳：這台就是要把它們送上去。
+      // 上傳是以鍵為準的 upsert，重複送不會產生重複列。
+      checks = [
+        for (final c in list('dailyChecks'))
+          DailyCheck.fromJson({...c, 'pendingSync': true}),
+      ];
+      // v13 之前的備份沒有 syncId
+      phases = [
+        for (final p in list('phases'))
+          Phase.fromJson({'syncId': newUuidV4(), ...p, 'pendingSync': true}),
+      ];
       final p = json['profile'];
-      profile = p == null ? null : Profile.fromJson(p as Map<String, dynamic>);
-      extra = list('extraBurns').map(ExtraBurn.fromJson).toList();
+      profile = p == null
+          ? null
+          : Profile.fromJson({
+              ...p as Map<String, dynamic>,
+              'pendingSync': true,
+            });
+      extra = [
+        for (final e in list('extraBurns'))
+          ExtraBurn.fromJson({
+            'syncId': newUuidV4(),
+            ...e,
+            'pendingSync': true,
+          }),
+      ];
     } catch (e) {
       throw BackupFormatException('備份檔內容有誤：$e');
     }
@@ -154,10 +177,15 @@ class BackupService {
       await _db.batch((b) {
         b.insertAll(_db.mealTemplates, templates);
         b.insertAll(_db.foodEntries, food);
-        // 還原回來的 syncId 若還掛著刪除待辦，會在下次同步時被當成已刪除。
+        // 還原回來的鍵若還掛著刪除待辦，會在下次同步時被當成已刪除。
         b.deleteWhere(
           _db.pendingDeletes,
-          (r) => r.syncId.isIn([for (final e in food) e.syncId].nonNulls),
+          (r) => r.syncId.isIn([
+            ...[for (final e in food) e.syncId].nonNulls,
+            ...[for (final p in phases) p.syncId].nonNulls,
+            ...[for (final e in extra) e.syncId].nonNulls,
+            for (final c in checks) checkKey(c.day, c.item),
+          ]),
         );
         b.insertAll(_db.dailyChecks, checks);
         b.insertAll(_db.phases, phases);

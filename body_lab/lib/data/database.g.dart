@@ -2260,8 +2260,29 @@ class $DailyChecksTable extends DailyChecks
     type: DriftSqlType.double,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _pendingSyncMeta = const VerificationMeta(
+    'pendingSync',
+  );
   @override
-  List<GeneratedColumn> get $columns => [day, item, checkedAt, amount];
+  late final GeneratedColumn<bool> pendingSync = GeneratedColumn<bool>(
+    'pending_sync',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pending_sync" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    day,
+    item,
+    checkedAt,
+    amount,
+    pendingSync,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -2296,6 +2317,15 @@ class $DailyChecksTable extends DailyChecks
         amount.isAcceptableOrUnknown(data['amount']!, _amountMeta),
       );
     }
+    if (data.containsKey('pending_sync')) {
+      context.handle(
+        _pendingSyncMeta,
+        pendingSync.isAcceptableOrUnknown(
+          data['pending_sync']!,
+          _pendingSyncMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2323,6 +2353,10 @@ class $DailyChecksTable extends DailyChecks
         DriftSqlType.double,
         data['${effectivePrefix}amount'],
       ),
+      pendingSync: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending_sync'],
+      )!,
     );
   }
 
@@ -2343,11 +2377,16 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
 
   /// 劑量（v7，單位見 [CheckItem.unit]）；舊紀錄沒有劑量。
   final double? amount;
+
+  /// 有待上傳的本機變更（v13）。自然鍵的表不需要 syncId，
+  /// 伺服器端以 (user_id, day, item) 為鍵。
+  final bool pendingSync;
   const DailyCheck({
     required this.day,
     required this.item,
     required this.checkedAt,
     this.amount,
+    required this.pendingSync,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2362,6 +2401,7 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
     if (!nullToAbsent || amount != null) {
       map['amount'] = Variable<double>(amount);
     }
+    map['pending_sync'] = Variable<bool>(pendingSync);
     return map;
   }
 
@@ -2373,6 +2413,7 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
       amount: amount == null && nullToAbsent
           ? const Value.absent()
           : Value(amount),
+      pendingSync: Value(pendingSync),
     );
   }
 
@@ -2388,6 +2429,7 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
       ),
       checkedAt: serializer.fromJson<DateTime>(json['checkedAt']),
       amount: serializer.fromJson<double?>(json['amount']),
+      pendingSync: serializer.fromJson<bool>(json['pendingSync']),
     );
   }
   @override
@@ -2400,6 +2442,7 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
       ),
       'checkedAt': serializer.toJson<DateTime>(checkedAt),
       'amount': serializer.toJson<double?>(amount),
+      'pendingSync': serializer.toJson<bool>(pendingSync),
     };
   }
 
@@ -2408,11 +2451,13 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
     CheckItem? item,
     DateTime? checkedAt,
     Value<double?> amount = const Value.absent(),
+    bool? pendingSync,
   }) => DailyCheck(
     day: day ?? this.day,
     item: item ?? this.item,
     checkedAt: checkedAt ?? this.checkedAt,
     amount: amount.present ? amount.value : this.amount,
+    pendingSync: pendingSync ?? this.pendingSync,
   );
   DailyCheck copyWithCompanion(DailyChecksCompanion data) {
     return DailyCheck(
@@ -2420,6 +2465,9 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
       item: data.item.present ? data.item.value : this.item,
       checkedAt: data.checkedAt.present ? data.checkedAt.value : this.checkedAt,
       amount: data.amount.present ? data.amount.value : this.amount,
+      pendingSync: data.pendingSync.present
+          ? data.pendingSync.value
+          : this.pendingSync,
     );
   }
 
@@ -2429,13 +2477,14 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
           ..write('day: $day, ')
           ..write('item: $item, ')
           ..write('checkedAt: $checkedAt, ')
-          ..write('amount: $amount')
+          ..write('amount: $amount, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(day, item, checkedAt, amount);
+  int get hashCode => Object.hash(day, item, checkedAt, amount, pendingSync);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2443,7 +2492,8 @@ class DailyCheck extends DataClass implements Insertable<DailyCheck> {
           other.day == this.day &&
           other.item == this.item &&
           other.checkedAt == this.checkedAt &&
-          other.amount == this.amount);
+          other.amount == this.amount &&
+          other.pendingSync == this.pendingSync);
 }
 
 class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
@@ -2451,12 +2501,14 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
   final Value<CheckItem> item;
   final Value<DateTime> checkedAt;
   final Value<double?> amount;
+  final Value<bool> pendingSync;
   final Value<int> rowid;
   const DailyChecksCompanion({
     this.day = const Value.absent(),
     this.item = const Value.absent(),
     this.checkedAt = const Value.absent(),
     this.amount = const Value.absent(),
+    this.pendingSync = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   DailyChecksCompanion.insert({
@@ -2464,6 +2516,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     required CheckItem item,
     required DateTime checkedAt,
     this.amount = const Value.absent(),
+    this.pendingSync = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : day = Value(day),
        item = Value(item),
@@ -2473,6 +2526,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     Expression<String>? item,
     Expression<DateTime>? checkedAt,
     Expression<double>? amount,
+    Expression<bool>? pendingSync,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2480,6 +2534,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
       if (item != null) 'item': item,
       if (checkedAt != null) 'checked_at': checkedAt,
       if (amount != null) 'amount': amount,
+      if (pendingSync != null) 'pending_sync': pendingSync,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2489,6 +2544,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     Value<CheckItem>? item,
     Value<DateTime>? checkedAt,
     Value<double?>? amount,
+    Value<bool>? pendingSync,
     Value<int>? rowid,
   }) {
     return DailyChecksCompanion(
@@ -2496,6 +2552,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
       item: item ?? this.item,
       checkedAt: checkedAt ?? this.checkedAt,
       amount: amount ?? this.amount,
+      pendingSync: pendingSync ?? this.pendingSync,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2517,6 +2574,9 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
     if (amount.present) {
       map['amount'] = Variable<double>(amount.value);
     }
+    if (pendingSync.present) {
+      map['pending_sync'] = Variable<bool>(pendingSync.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2530,6 +2590,7 @@ class DailyChecksCompanion extends UpdateCompanion<DailyCheck> {
           ..write('item: $item, ')
           ..write('checkedAt: $checkedAt, ')
           ..write('amount: $amount, ')
+          ..write('pendingSync: $pendingSync, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -2658,6 +2719,31 @@ class $PhasesTable extends Phases with TableInfo<$PhasesTable, Phase> {
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: newUuidV4,
+  );
+  static const VerificationMeta _pendingSyncMeta = const VerificationMeta(
+    'pendingSync',
+  );
+  @override
+  late final GeneratedColumn<bool> pendingSync = GeneratedColumn<bool>(
+    'pending_sync',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pending_sync" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2670,6 +2756,8 @@ class $PhasesTable extends Phases with TableInfo<$PhasesTable, Phase> {
     creatine,
     conclusion,
     createdAt,
+    syncId,
+    pendingSync,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2749,6 +2837,21 @@ class $PhasesTable extends Phases with TableInfo<$PhasesTable, Phase> {
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    }
+    if (data.containsKey('pending_sync')) {
+      context.handle(
+        _pendingSyncMeta,
+        pendingSync.isAcceptableOrUnknown(
+          data['pending_sync']!,
+          _pendingSyncMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2798,6 +2901,14 @@ class $PhasesTable extends Phases with TableInfo<$PhasesTable, Phase> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      ),
+      pendingSync: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending_sync'],
+      )!,
     );
   }
 
@@ -2828,6 +2939,10 @@ class Phase extends DataClass implements Insertable<Phase> {
   /// 結束後的心得。
   final String? conclusion;
   final DateTime createdAt;
+
+  /// 同步用的全域唯一識別（v13），理由同 [FoodEntries.syncId]。
+  final String? syncId;
+  final bool pendingSync;
   const Phase({
     required this.id,
     required this.name,
@@ -2839,6 +2954,8 @@ class Phase extends DataClass implements Insertable<Phase> {
     required this.creatine,
     this.conclusion,
     required this.createdAt,
+    this.syncId,
+    required this.pendingSync,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2861,6 +2978,10 @@ class Phase extends DataClass implements Insertable<Phase> {
       map['conclusion'] = Variable<String>(conclusion);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || syncId != null) {
+      map['sync_id'] = Variable<String>(syncId);
+    }
+    map['pending_sync'] = Variable<bool>(pendingSync);
     return map;
   }
 
@@ -2884,6 +3005,10 @@ class Phase extends DataClass implements Insertable<Phase> {
           ? const Value.absent()
           : Value(conclusion),
       createdAt: Value(createdAt),
+      syncId: syncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncId),
+      pendingSync: Value(pendingSync),
     );
   }
 
@@ -2903,6 +3028,8 @@ class Phase extends DataClass implements Insertable<Phase> {
       creatine: serializer.fromJson<bool>(json['creatine']),
       conclusion: serializer.fromJson<String?>(json['conclusion']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      syncId: serializer.fromJson<String?>(json['syncId']),
+      pendingSync: serializer.fromJson<bool>(json['pendingSync']),
     );
   }
   @override
@@ -2919,6 +3046,8 @@ class Phase extends DataClass implements Insertable<Phase> {
       'creatine': serializer.toJson<bool>(creatine),
       'conclusion': serializer.toJson<String?>(conclusion),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'syncId': serializer.toJson<String?>(syncId),
+      'pendingSync': serializer.toJson<bool>(pendingSync),
     };
   }
 
@@ -2933,6 +3062,8 @@ class Phase extends DataClass implements Insertable<Phase> {
     bool? creatine,
     Value<String?> conclusion = const Value.absent(),
     DateTime? createdAt,
+    Value<String?> syncId = const Value.absent(),
+    bool? pendingSync,
   }) => Phase(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -2946,6 +3077,8 @@ class Phase extends DataClass implements Insertable<Phase> {
     creatine: creatine ?? this.creatine,
     conclusion: conclusion.present ? conclusion.value : this.conclusion,
     createdAt: createdAt ?? this.createdAt,
+    syncId: syncId.present ? syncId.value : this.syncId,
+    pendingSync: pendingSync ?? this.pendingSync,
   );
   Phase copyWithCompanion(PhasesCompanion data) {
     return Phase(
@@ -2967,6 +3100,10 @@ class Phase extends DataClass implements Insertable<Phase> {
           ? data.conclusion.value
           : this.conclusion,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      pendingSync: data.pendingSync.present
+          ? data.pendingSync.value
+          : this.pendingSync,
     );
   }
 
@@ -2982,7 +3119,9 @@ class Phase extends DataClass implements Insertable<Phase> {
           ..write('targetProteinG: $targetProteinG, ')
           ..write('creatine: $creatine, ')
           ..write('conclusion: $conclusion, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncId: $syncId, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -2999,6 +3138,8 @@ class Phase extends DataClass implements Insertable<Phase> {
     creatine,
     conclusion,
     createdAt,
+    syncId,
+    pendingSync,
   );
   @override
   bool operator ==(Object other) =>
@@ -3013,7 +3154,9 @@ class Phase extends DataClass implements Insertable<Phase> {
           other.targetProteinG == this.targetProteinG &&
           other.creatine == this.creatine &&
           other.conclusion == this.conclusion &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.syncId == this.syncId &&
+          other.pendingSync == this.pendingSync);
 }
 
 class PhasesCompanion extends UpdateCompanion<Phase> {
@@ -3027,6 +3170,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
   final Value<bool> creatine;
   final Value<String?> conclusion;
   final Value<DateTime> createdAt;
+  final Value<String?> syncId;
+  final Value<bool> pendingSync;
   const PhasesCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -3038,6 +3183,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
     this.creatine = const Value.absent(),
     this.conclusion = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   });
   PhasesCompanion.insert({
     this.id = const Value.absent(),
@@ -3050,6 +3197,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
     this.creatine = const Value.absent(),
     this.conclusion = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   }) : name = Value(name),
        startDay = Value(startDay),
        endDay = Value(endDay);
@@ -3064,6 +3213,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
     Expression<bool>? creatine,
     Expression<String>? conclusion,
     Expression<DateTime>? createdAt,
+    Expression<String>? syncId,
+    Expression<bool>? pendingSync,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3076,6 +3227,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
       if (creatine != null) 'creatine': creatine,
       if (conclusion != null) 'conclusion': conclusion,
       if (createdAt != null) 'created_at': createdAt,
+      if (syncId != null) 'sync_id': syncId,
+      if (pendingSync != null) 'pending_sync': pendingSync,
     });
   }
 
@@ -3090,6 +3243,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
     Value<bool>? creatine,
     Value<String?>? conclusion,
     Value<DateTime>? createdAt,
+    Value<String?>? syncId,
+    Value<bool>? pendingSync,
   }) {
     return PhasesCompanion(
       id: id ?? this.id,
@@ -3102,6 +3257,8 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
       creatine: creatine ?? this.creatine,
       conclusion: conclusion ?? this.conclusion,
       createdAt: createdAt ?? this.createdAt,
+      syncId: syncId ?? this.syncId,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 
@@ -3138,6 +3295,12 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (pendingSync.present) {
+      map['pending_sync'] = Variable<bool>(pendingSync.value);
+    }
     return map;
   }
 
@@ -3153,7 +3316,9 @@ class PhasesCompanion extends UpdateCompanion<Phase> {
           ..write('targetProteinG: $targetProteinG, ')
           ..write('creatine: $creatine, ')
           ..write('conclusion: $conclusion, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncId: $syncId, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -3256,6 +3421,21 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     type: DriftSqlType.dateTime,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _pendingSyncMeta = const VerificationMeta(
+    'pendingSync',
+  );
+  @override
+  late final GeneratedColumn<bool> pendingSync = GeneratedColumn<bool>(
+    'pending_sync',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pending_sync" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3267,6 +3447,7 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     tdeeKcal,
     energyMode,
     updatedAt,
+    pendingSync,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3323,6 +3504,15 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('pending_sync')) {
+      context.handle(
+        _pendingSyncMeta,
+        pendingSync.isAcceptableOrUnknown(
+          data['pending_sync']!,
+          _pendingSyncMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -3374,6 +3564,10 @@ class $ProfilesTable extends Profiles with TableInfo<$ProfilesTable, Profile> {
         DriftSqlType.dateTime,
         data['${effectivePrefix}updated_at'],
       )!,
+      pendingSync: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending_sync'],
+      )!,
     );
   }
 
@@ -3406,6 +3600,9 @@ class Profile extends DataClass implements Insertable<Profile> {
   /// 每日消耗的算法（v5）。
   final EnergyMode energyMode;
   final DateTime updatedAt;
+
+  /// 有待上傳的本機變更（v13）。伺服器端一個人一列（body_profiles）。
+  final bool pendingSync;
   const Profile({
     required this.id,
     required this.sex,
@@ -3416,6 +3613,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     required this.tdeeKcal,
     required this.energyMode,
     required this.updatedAt,
+    required this.pendingSync,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3439,6 +3637,7 @@ class Profile extends DataClass implements Insertable<Profile> {
       );
     }
     map['updated_at'] = Variable<DateTime>(updatedAt);
+    map['pending_sync'] = Variable<bool>(pendingSync);
     return map;
   }
 
@@ -3453,6 +3652,7 @@ class Profile extends DataClass implements Insertable<Profile> {
       tdeeKcal: Value(tdeeKcal),
       energyMode: Value(energyMode),
       updatedAt: Value(updatedAt),
+      pendingSync: Value(pendingSync),
     );
   }
 
@@ -3477,6 +3677,7 @@ class Profile extends DataClass implements Insertable<Profile> {
         serializer.fromJson<String>(json['energyMode']),
       ),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+      pendingSync: serializer.fromJson<bool>(json['pendingSync']),
     );
   }
   @override
@@ -3498,6 +3699,7 @@ class Profile extends DataClass implements Insertable<Profile> {
         $ProfilesTable.$converterenergyMode.toJson(energyMode),
       ),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
+      'pendingSync': serializer.toJson<bool>(pendingSync),
     };
   }
 
@@ -3511,6 +3713,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     double? tdeeKcal,
     EnergyMode? energyMode,
     DateTime? updatedAt,
+    bool? pendingSync,
   }) => Profile(
     id: id ?? this.id,
     sex: sex ?? this.sex,
@@ -3521,6 +3724,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     tdeeKcal: tdeeKcal ?? this.tdeeKcal,
     energyMode: energyMode ?? this.energyMode,
     updatedAt: updatedAt ?? this.updatedAt,
+    pendingSync: pendingSync ?? this.pendingSync,
   );
   Profile copyWithCompanion(ProfilesCompanion data) {
     return Profile(
@@ -3535,6 +3739,9 @@ class Profile extends DataClass implements Insertable<Profile> {
           ? data.energyMode.value
           : this.energyMode,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      pendingSync: data.pendingSync.present
+          ? data.pendingSync.value
+          : this.pendingSync,
     );
   }
 
@@ -3549,7 +3756,8 @@ class Profile extends DataClass implements Insertable<Profile> {
           ..write('weightKg: $weightKg, ')
           ..write('tdeeKcal: $tdeeKcal, ')
           ..write('energyMode: $energyMode, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -3565,6 +3773,7 @@ class Profile extends DataClass implements Insertable<Profile> {
     tdeeKcal,
     energyMode,
     updatedAt,
+    pendingSync,
   );
   @override
   bool operator ==(Object other) =>
@@ -3578,7 +3787,8 @@ class Profile extends DataClass implements Insertable<Profile> {
           other.weightKg == this.weightKg &&
           other.tdeeKcal == this.tdeeKcal &&
           other.energyMode == this.energyMode &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.pendingSync == this.pendingSync);
 }
 
 class ProfilesCompanion extends UpdateCompanion<Profile> {
@@ -3591,6 +3801,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
   final Value<double> tdeeKcal;
   final Value<EnergyMode> energyMode;
   final Value<DateTime> updatedAt;
+  final Value<bool> pendingSync;
   const ProfilesCompanion({
     this.id = const Value.absent(),
     this.sex = const Value.absent(),
@@ -3601,6 +3812,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     this.tdeeKcal = const Value.absent(),
     this.energyMode = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   });
   ProfilesCompanion.insert({
     this.id = const Value.absent(),
@@ -3612,6 +3824,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     required double tdeeKcal,
     this.energyMode = const Value.absent(),
     required DateTime updatedAt,
+    this.pendingSync = const Value.absent(),
   }) : sex = Value(sex),
        birthYear = Value(birthYear),
        heightCm = Value(heightCm),
@@ -3629,6 +3842,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Expression<double>? tdeeKcal,
     Expression<String>? energyMode,
     Expression<DateTime>? updatedAt,
+    Expression<bool>? pendingSync,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3640,6 +3854,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       if (tdeeKcal != null) 'tdee_kcal': tdeeKcal,
       if (energyMode != null) 'energy_mode': energyMode,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (pendingSync != null) 'pending_sync': pendingSync,
     });
   }
 
@@ -3653,6 +3868,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     Value<double>? tdeeKcal,
     Value<EnergyMode>? energyMode,
     Value<DateTime>? updatedAt,
+    Value<bool>? pendingSync,
   }) {
     return ProfilesCompanion(
       id: id ?? this.id,
@@ -3664,6 +3880,7 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
       tdeeKcal: tdeeKcal ?? this.tdeeKcal,
       energyMode: energyMode ?? this.energyMode,
       updatedAt: updatedAt ?? this.updatedAt,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 
@@ -3703,6 +3920,9 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<DateTime>(updatedAt.value);
     }
+    if (pendingSync.present) {
+      map['pending_sync'] = Variable<bool>(pendingSync.value);
+    }
     return map;
   }
 
@@ -3717,7 +3937,8 @@ class ProfilesCompanion extends UpdateCompanion<Profile> {
           ..write('weightKg: $weightKg, ')
           ..write('tdeeKcal: $tdeeKcal, ')
           ..write('energyMode: $energyMode, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -4052,8 +4273,41 @@ class $ExtraBurnsTable extends ExtraBurns
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
   @override
-  List<GeneratedColumn> get $columns => [id, day, kcal, note, createdAt];
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: newUuidV4,
+  );
+  static const VerificationMeta _pendingSyncMeta = const VerificationMeta(
+    'pendingSync',
+  );
+  @override
+  late final GeneratedColumn<bool> pendingSync = GeneratedColumn<bool>(
+    'pending_sync',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pending_sync" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    day,
+    kcal,
+    note,
+    createdAt,
+    syncId,
+    pendingSync,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4097,6 +4351,21 @@ class $ExtraBurnsTable extends ExtraBurns
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    }
+    if (data.containsKey('pending_sync')) {
+      context.handle(
+        _pendingSyncMeta,
+        pendingSync.isAcceptableOrUnknown(
+          data['pending_sync']!,
+          _pendingSyncMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4126,6 +4395,14 @@ class $ExtraBurnsTable extends ExtraBurns
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      ),
+      pendingSync: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending_sync'],
+      )!,
     );
   }
 
@@ -4143,12 +4420,18 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
   final double kcal;
   final String? note;
   final DateTime createdAt;
+
+  /// 同步用的全域唯一識別（v13），理由同 [FoodEntries.syncId]。
+  final String? syncId;
+  final bool pendingSync;
   const ExtraBurn({
     required this.id,
     required this.day,
     required this.kcal,
     this.note,
     required this.createdAt,
+    this.syncId,
+    required this.pendingSync,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4160,6 +4443,10 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
       map['note'] = Variable<String>(note);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || syncId != null) {
+      map['sync_id'] = Variable<String>(syncId);
+    }
+    map['pending_sync'] = Variable<bool>(pendingSync);
     return map;
   }
 
@@ -4170,6 +4457,10 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
       kcal: Value(kcal),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       createdAt: Value(createdAt),
+      syncId: syncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncId),
+      pendingSync: Value(pendingSync),
     );
   }
 
@@ -4184,6 +4475,8 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
       kcal: serializer.fromJson<double>(json['kcal']),
       note: serializer.fromJson<String?>(json['note']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      syncId: serializer.fromJson<String?>(json['syncId']),
+      pendingSync: serializer.fromJson<bool>(json['pendingSync']),
     );
   }
   @override
@@ -4195,6 +4488,8 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
       'kcal': serializer.toJson<double>(kcal),
       'note': serializer.toJson<String?>(note),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'syncId': serializer.toJson<String?>(syncId),
+      'pendingSync': serializer.toJson<bool>(pendingSync),
     };
   }
 
@@ -4204,12 +4499,16 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
     double? kcal,
     Value<String?> note = const Value.absent(),
     DateTime? createdAt,
+    Value<String?> syncId = const Value.absent(),
+    bool? pendingSync,
   }) => ExtraBurn(
     id: id ?? this.id,
     day: day ?? this.day,
     kcal: kcal ?? this.kcal,
     note: note.present ? note.value : this.note,
     createdAt: createdAt ?? this.createdAt,
+    syncId: syncId.present ? syncId.value : this.syncId,
+    pendingSync: pendingSync ?? this.pendingSync,
   );
   ExtraBurn copyWithCompanion(ExtraBurnsCompanion data) {
     return ExtraBurn(
@@ -4218,6 +4517,10 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
       kcal: data.kcal.present ? data.kcal.value : this.kcal,
       note: data.note.present ? data.note.value : this.note,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      pendingSync: data.pendingSync.present
+          ? data.pendingSync.value
+          : this.pendingSync,
     );
   }
 
@@ -4228,13 +4531,16 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
           ..write('day: $day, ')
           ..write('kcal: $kcal, ')
           ..write('note: $note, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncId: $syncId, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, day, kcal, note, createdAt);
+  int get hashCode =>
+      Object.hash(id, day, kcal, note, createdAt, syncId, pendingSync);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4243,7 +4549,9 @@ class ExtraBurn extends DataClass implements Insertable<ExtraBurn> {
           other.day == this.day &&
           other.kcal == this.kcal &&
           other.note == this.note &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.syncId == this.syncId &&
+          other.pendingSync == this.pendingSync);
 }
 
 class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
@@ -4252,12 +4560,16 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
   final Value<double> kcal;
   final Value<String?> note;
   final Value<DateTime> createdAt;
+  final Value<String?> syncId;
+  final Value<bool> pendingSync;
   const ExtraBurnsCompanion({
     this.id = const Value.absent(),
     this.day = const Value.absent(),
     this.kcal = const Value.absent(),
     this.note = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   });
   ExtraBurnsCompanion.insert({
     this.id = const Value.absent(),
@@ -4265,6 +4577,8 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
     required double kcal,
     this.note = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   }) : day = Value(day),
        kcal = Value(kcal);
   static Insertable<ExtraBurn> custom({
@@ -4273,6 +4587,8 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
     Expression<double>? kcal,
     Expression<String>? note,
     Expression<DateTime>? createdAt,
+    Expression<String>? syncId,
+    Expression<bool>? pendingSync,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4280,6 +4596,8 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
       if (kcal != null) 'kcal': kcal,
       if (note != null) 'note': note,
       if (createdAt != null) 'created_at': createdAt,
+      if (syncId != null) 'sync_id': syncId,
+      if (pendingSync != null) 'pending_sync': pendingSync,
     });
   }
 
@@ -4289,6 +4607,8 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
     Value<double>? kcal,
     Value<String?>? note,
     Value<DateTime>? createdAt,
+    Value<String?>? syncId,
+    Value<bool>? pendingSync,
   }) {
     return ExtraBurnsCompanion(
       id: id ?? this.id,
@@ -4296,6 +4616,8 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
       kcal: kcal ?? this.kcal,
       note: note ?? this.note,
       createdAt: createdAt ?? this.createdAt,
+      syncId: syncId ?? this.syncId,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 
@@ -4317,6 +4639,12 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (pendingSync.present) {
+      map['pending_sync'] = Variable<bool>(pendingSync.value);
+    }
     return map;
   }
 
@@ -4327,7 +4655,9 @@ class ExtraBurnsCompanion extends UpdateCompanion<ExtraBurn> {
           ..write('day: $day, ')
           ..write('kcal: $kcal, ')
           ..write('note: $note, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncId: $syncId, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -4544,6 +4874,16 @@ class $PendingDeletesTable extends PendingDeletes
   final GeneratedDatabase attachedDatabase;
   final String? _alias;
   $PendingDeletesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _entityMeta = const VerificationMeta('entity');
+  @override
+  late final GeneratedColumn<String> entity = GeneratedColumn<String>(
+    'entity',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('food_entries'),
+  );
   static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
   @override
   late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
@@ -4566,7 +4906,7 @@ class $PendingDeletesTable extends PendingDeletes
     defaultValue: currentDateAndTime,
   );
   @override
-  List<GeneratedColumn> get $columns => [syncId, deletedAt];
+  List<GeneratedColumn> get $columns => [entity, syncId, deletedAt];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4579,6 +4919,12 @@ class $PendingDeletesTable extends PendingDeletes
   }) {
     final context = VerificationContext();
     final data = instance.toColumns(true);
+    if (data.containsKey('entity')) {
+      context.handle(
+        _entityMeta,
+        entity.isAcceptableOrUnknown(data['entity']!, _entityMeta),
+      );
+    }
     if (data.containsKey('sync_id')) {
       context.handle(
         _syncIdMeta,
@@ -4602,6 +4948,10 @@ class $PendingDeletesTable extends PendingDeletes
   PendingDelete map(Map<String, dynamic> data, {String? tablePrefix}) {
     final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
     return PendingDelete(
+      entity: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}entity'],
+      )!,
       syncId: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}sync_id'],
@@ -4620,12 +4970,24 @@ class $PendingDeletesTable extends PendingDeletes
 }
 
 class PendingDelete extends DataClass implements Insertable<PendingDelete> {
+  /// 哪一張表（v13）。有 SQL 預設值，所以升級時不用重建資料表。
+  final String entity;
+
+  /// 自動編號的表放 syncId（UUID），自然鍵的表放 "day|item"。
+  ///
+  /// 主鍵維持只有這一欄：兩種鍵的形狀不同（UUID vs "2026-11-07|creatine"），
+  /// 本來就不會相撞。改成複合主鍵要重建整張表，不值得。
   final String syncId;
   final DateTime deletedAt;
-  const PendingDelete({required this.syncId, required this.deletedAt});
+  const PendingDelete({
+    required this.entity,
+    required this.syncId,
+    required this.deletedAt,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    map['entity'] = Variable<String>(entity);
     map['sync_id'] = Variable<String>(syncId);
     map['deleted_at'] = Variable<DateTime>(deletedAt);
     return map;
@@ -4633,6 +4995,7 @@ class PendingDelete extends DataClass implements Insertable<PendingDelete> {
 
   PendingDeletesCompanion toCompanion(bool nullToAbsent) {
     return PendingDeletesCompanion(
+      entity: Value(entity),
       syncId: Value(syncId),
       deletedAt: Value(deletedAt),
     );
@@ -4644,6 +5007,7 @@ class PendingDelete extends DataClass implements Insertable<PendingDelete> {
   }) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return PendingDelete(
+      entity: serializer.fromJson<String>(json['entity']),
       syncId: serializer.fromJson<String>(json['syncId']),
       deletedAt: serializer.fromJson<DateTime>(json['deletedAt']),
     );
@@ -4652,18 +5016,24 @@ class PendingDelete extends DataClass implements Insertable<PendingDelete> {
   Map<String, dynamic> toJson({ValueSerializer? serializer}) {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
+      'entity': serializer.toJson<String>(entity),
       'syncId': serializer.toJson<String>(syncId),
       'deletedAt': serializer.toJson<DateTime>(deletedAt),
     };
   }
 
-  PendingDelete copyWith({String? syncId, DateTime? deletedAt}) =>
-      PendingDelete(
-        syncId: syncId ?? this.syncId,
-        deletedAt: deletedAt ?? this.deletedAt,
-      );
+  PendingDelete copyWith({
+    String? entity,
+    String? syncId,
+    DateTime? deletedAt,
+  }) => PendingDelete(
+    entity: entity ?? this.entity,
+    syncId: syncId ?? this.syncId,
+    deletedAt: deletedAt ?? this.deletedAt,
+  );
   PendingDelete copyWithCompanion(PendingDeletesCompanion data) {
     return PendingDelete(
+      entity: data.entity.present ? data.entity.value : this.entity,
       syncId: data.syncId.present ? data.syncId.value : this.syncId,
       deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
     );
@@ -4672,6 +5042,7 @@ class PendingDelete extends DataClass implements Insertable<PendingDelete> {
   @override
   String toString() {
     return (StringBuffer('PendingDelete(')
+          ..write('entity: $entity, ')
           ..write('syncId: $syncId, ')
           ..write('deletedAt: $deletedAt')
           ..write(')'))
@@ -4679,35 +5050,41 @@ class PendingDelete extends DataClass implements Insertable<PendingDelete> {
   }
 
   @override
-  int get hashCode => Object.hash(syncId, deletedAt);
+  int get hashCode => Object.hash(entity, syncId, deletedAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is PendingDelete &&
+          other.entity == this.entity &&
           other.syncId == this.syncId &&
           other.deletedAt == this.deletedAt);
 }
 
 class PendingDeletesCompanion extends UpdateCompanion<PendingDelete> {
+  final Value<String> entity;
   final Value<String> syncId;
   final Value<DateTime> deletedAt;
   final Value<int> rowid;
   const PendingDeletesCompanion({
+    this.entity = const Value.absent(),
     this.syncId = const Value.absent(),
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PendingDeletesCompanion.insert({
+    this.entity = const Value.absent(),
     required String syncId,
     this.deletedAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : syncId = Value(syncId);
   static Insertable<PendingDelete> custom({
+    Expression<String>? entity,
     Expression<String>? syncId,
     Expression<DateTime>? deletedAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
+      if (entity != null) 'entity': entity,
       if (syncId != null) 'sync_id': syncId,
       if (deletedAt != null) 'deleted_at': deletedAt,
       if (rowid != null) 'rowid': rowid,
@@ -4715,11 +5092,13 @@ class PendingDeletesCompanion extends UpdateCompanion<PendingDelete> {
   }
 
   PendingDeletesCompanion copyWith({
+    Value<String>? entity,
     Value<String>? syncId,
     Value<DateTime>? deletedAt,
     Value<int>? rowid,
   }) {
     return PendingDeletesCompanion(
+      entity: entity ?? this.entity,
       syncId: syncId ?? this.syncId,
       deletedAt: deletedAt ?? this.deletedAt,
       rowid: rowid ?? this.rowid,
@@ -4729,6 +5108,9 @@ class PendingDeletesCompanion extends UpdateCompanion<PendingDelete> {
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
+    if (entity.present) {
+      map['entity'] = Variable<String>(entity.value);
+    }
     if (syncId.present) {
       map['sync_id'] = Variable<String>(syncId.value);
     }
@@ -4744,6 +5126,7 @@ class PendingDeletesCompanion extends UpdateCompanion<PendingDelete> {
   @override
   String toString() {
     return (StringBuffer('PendingDeletesCompanion(')
+          ..write('entity: $entity, ')
           ..write('syncId: $syncId, ')
           ..write('deletedAt: $deletedAt, ')
           ..write('rowid: $rowid')
@@ -4775,6 +5158,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'food_entries_sync_id',
     'CREATE UNIQUE INDEX food_entries_sync_id ON food_entries (sync_id)',
   );
+  late final Index phasesSyncId = Index(
+    'phases_sync_id',
+    'CREATE UNIQUE INDEX phases_sync_id ON phases (sync_id)',
+  );
+  late final Index extraBurnsSyncId = Index(
+    'extra_burns_sync_id',
+    'CREATE UNIQUE INDEX extra_burns_sync_id ON extra_burns (sync_id)',
+  );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -4792,6 +5183,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     pendingDeletes,
     foodEntriesEatenAt,
     foodEntriesSyncId,
+    phasesSyncId,
+    extraBurnsSyncId,
   ];
 }
 
@@ -5865,6 +6258,7 @@ typedef $$DailyChecksTableCreateCompanionBuilder =
       required CheckItem item,
       required DateTime checkedAt,
       Value<double?> amount,
+      Value<bool> pendingSync,
       Value<int> rowid,
     });
 typedef $$DailyChecksTableUpdateCompanionBuilder =
@@ -5873,6 +6267,7 @@ typedef $$DailyChecksTableUpdateCompanionBuilder =
       Value<CheckItem> item,
       Value<DateTime> checkedAt,
       Value<double?> amount,
+      Value<bool> pendingSync,
       Value<int> rowid,
     });
 
@@ -5905,6 +6300,11 @@ class $$DailyChecksTableFilterComposer
     column: $table.amount,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$DailyChecksTableOrderingComposer
@@ -5935,6 +6335,11 @@ class $$DailyChecksTableOrderingComposer
     column: $table.amount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$DailyChecksTableAnnotationComposer
@@ -5957,6 +6362,11 @@ class $$DailyChecksTableAnnotationComposer
 
   GeneratedColumn<double> get amount =>
       $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  GeneratedColumn<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => column,
+  );
 }
 
 class $$DailyChecksTableTableManager
@@ -5994,12 +6404,14 @@ class $$DailyChecksTableTableManager
                 Value<CheckItem> item = const Value.absent(),
                 Value<DateTime> checkedAt = const Value.absent(),
                 Value<double?> amount = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DailyChecksCompanion(
                 day: day,
                 item: item,
                 checkedAt: checkedAt,
                 amount: amount,
+                pendingSync: pendingSync,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -6008,12 +6420,14 @@ class $$DailyChecksTableTableManager
                 required CheckItem item,
                 required DateTime checkedAt,
                 Value<double?> amount = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => DailyChecksCompanion.insert(
                 day: day,
                 item: item,
                 checkedAt: checkedAt,
                 amount: amount,
+                pendingSync: pendingSync,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
@@ -6061,6 +6475,8 @@ typedef $$PhasesTableCreateCompanionBuilder = PhasesCompanion Function({
   Value<bool> creatine,
   Value<String?> conclusion,
   Value<DateTime> createdAt,
+  Value<String?> syncId,
+  Value<bool> pendingSync,
 });
 typedef $$PhasesTableUpdateCompanionBuilder = PhasesCompanion Function({
   Value<int> id,
@@ -6073,6 +6489,8 @@ typedef $$PhasesTableUpdateCompanionBuilder = PhasesCompanion Function({
   Value<bool> creatine,
   Value<String?> conclusion,
   Value<DateTime> createdAt,
+  Value<String?> syncId,
+  Value<bool> pendingSync,
 });
 
 class $$PhasesTableFilterComposer
@@ -6131,6 +6549,16 @@ class $$PhasesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6193,6 +6621,16 @@ class $$PhasesTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$PhasesTableAnnotationComposer
@@ -6241,6 +6679,14 @@ class $$PhasesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => column,
+  );
 }
 
 class $$PhasesTableTableManager
@@ -6281,6 +6727,8 @@ class $$PhasesTableTableManager
                 Value<bool> creatine = const Value.absent(),
                 Value<String?> conclusion = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => PhasesCompanion(
                 id: id,
                 name: name,
@@ -6292,6 +6740,8 @@ class $$PhasesTableTableManager
                 creatine: creatine,
                 conclusion: conclusion,
                 createdAt: createdAt,
+                syncId: syncId,
+                pendingSync: pendingSync,
               ),
           createCompanionCallback:
               ({
@@ -6305,6 +6755,8 @@ class $$PhasesTableTableManager
                 Value<bool> creatine = const Value.absent(),
                 Value<String?> conclusion = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => PhasesCompanion.insert(
                 id: id,
                 name: name,
@@ -6316,6 +6768,8 @@ class $$PhasesTableTableManager
                 creatine: creatine,
                 conclusion: conclusion,
                 createdAt: createdAt,
+                syncId: syncId,
+                pendingSync: pendingSync,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -6358,6 +6812,7 @@ typedef $$ProfilesTableCreateCompanionBuilder = ProfilesCompanion Function({
   required double tdeeKcal,
   Value<EnergyMode> energyMode,
   required DateTime updatedAt,
+  Value<bool> pendingSync,
 });
 typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<int> id,
@@ -6369,6 +6824,7 @@ typedef $$ProfilesTableUpdateCompanionBuilder = ProfilesCompanion Function({
   Value<double> tdeeKcal,
   Value<EnergyMode> energyMode,
   Value<DateTime> updatedAt,
+  Value<bool> pendingSync,
 });
 
 class $$ProfilesTableFilterComposer
@@ -6427,6 +6883,11 @@ class $$ProfilesTableFilterComposer
     column: $table.updatedAt,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnFilters<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$ProfilesTableOrderingComposer
@@ -6482,6 +6943,11 @@ class $$ProfilesTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ProfilesTableAnnotationComposer
@@ -6522,6 +6988,11 @@ class $$ProfilesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => column,
+  );
 }
 
 class $$ProfilesTableTableManager
@@ -6561,6 +7032,7 @@ class $$ProfilesTableTableManager
                 Value<double> tdeeKcal = const Value.absent(),
                 Value<EnergyMode> energyMode = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => ProfilesCompanion(
                 id: id,
                 sex: sex,
@@ -6571,6 +7043,7 @@ class $$ProfilesTableTableManager
                 tdeeKcal: tdeeKcal,
                 energyMode: energyMode,
                 updatedAt: updatedAt,
+                pendingSync: pendingSync,
               ),
           createCompanionCallback:
               ({
@@ -6583,6 +7056,7 @@ class $$ProfilesTableTableManager
                 required double tdeeKcal,
                 Value<EnergyMode> energyMode = const Value.absent(),
                 required DateTime updatedAt,
+                Value<bool> pendingSync = const Value.absent(),
               }) => ProfilesCompanion.insert(
                 id: id,
                 sex: sex,
@@ -6593,6 +7067,7 @@ class $$ProfilesTableTableManager
                 tdeeKcal: tdeeKcal,
                 energyMode: energyMode,
                 updatedAt: updatedAt,
+                pendingSync: pendingSync,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -6808,6 +7283,8 @@ typedef $$ExtraBurnsTableCreateCompanionBuilder = ExtraBurnsCompanion Function({
   required double kcal,
   Value<String?> note,
   Value<DateTime> createdAt,
+  Value<String?> syncId,
+  Value<bool> pendingSync,
 });
 typedef $$ExtraBurnsTableUpdateCompanionBuilder = ExtraBurnsCompanion Function({
   Value<int> id,
@@ -6815,6 +7292,8 @@ typedef $$ExtraBurnsTableUpdateCompanionBuilder = ExtraBurnsCompanion Function({
   Value<double> kcal,
   Value<String?> note,
   Value<DateTime> createdAt,
+  Value<String?> syncId,
+  Value<bool> pendingSync,
 });
 
 class $$ExtraBurnsTableFilterComposer
@@ -6848,6 +7327,16 @@ class $$ExtraBurnsTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -6885,6 +7374,16 @@ class $$ExtraBurnsTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$ExtraBurnsTableAnnotationComposer
@@ -6910,6 +7409,14 @@ class $$ExtraBurnsTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => column,
+  );
 }
 
 class $$ExtraBurnsTableTableManager
@@ -6948,12 +7455,16 @@ class $$ExtraBurnsTableTableManager
                 Value<double> kcal = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => ExtraBurnsCompanion(
                 id: id,
                 day: day,
                 kcal: kcal,
                 note: note,
                 createdAt: createdAt,
+                syncId: syncId,
+                pendingSync: pendingSync,
               ),
           createCompanionCallback:
               ({
@@ -6962,12 +7473,16 @@ class $$ExtraBurnsTableTableManager
                 required double kcal,
                 Value<String?> note = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => ExtraBurnsCompanion.insert(
                 id: id,
                 day: day,
                 kcal: kcal,
                 note: note,
                 createdAt: createdAt,
+                syncId: syncId,
+                pendingSync: pendingSync,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -7136,12 +7651,14 @@ typedef $$SettingsTableProcessedTableManager =
     >;
 typedef $$PendingDeletesTableCreateCompanionBuilder =
     PendingDeletesCompanion Function({
+      Value<String> entity,
       required String syncId,
       Value<DateTime> deletedAt,
       Value<int> rowid,
     });
 typedef $$PendingDeletesTableUpdateCompanionBuilder =
     PendingDeletesCompanion Function({
+      Value<String> entity,
       Value<String> syncId,
       Value<DateTime> deletedAt,
       Value<int> rowid,
@@ -7156,6 +7673,11 @@ class $$PendingDeletesTableFilterComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnFilters<String> get entity => $composableBuilder(
+    column: $table.entity,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<String> get syncId => $composableBuilder(
     column: $table.syncId,
     builder: (column) => ColumnFilters(column),
@@ -7176,6 +7698,11 @@ class $$PendingDeletesTableOrderingComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  ColumnOrderings<String> get entity => $composableBuilder(
+    column: $table.entity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get syncId => $composableBuilder(
     column: $table.syncId,
     builder: (column) => ColumnOrderings(column),
@@ -7196,6 +7723,9 @@ class $$PendingDeletesTableAnnotationComposer
     super.$addJoinBuilderToRootComposer,
     super.$removeJoinBuilderFromRootComposer,
   });
+  GeneratedColumn<String> get entity =>
+      $composableBuilder(column: $table.entity, builder: (column) => column);
+
   GeneratedColumn<String> get syncId =>
       $composableBuilder(column: $table.syncId, builder: (column) => column);
 
@@ -7236,20 +7766,24 @@ class $$PendingDeletesTableTableManager
               $$PendingDeletesTableAnnotationComposer($db: db, $table: table),
           updateCompanionCallback:
               ({
+                Value<String> entity = const Value.absent(),
                 Value<String> syncId = const Value.absent(),
                 Value<DateTime> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PendingDeletesCompanion(
+                entity: entity,
                 syncId: syncId,
                 deletedAt: deletedAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
               ({
+                Value<String> entity = const Value.absent(),
                 required String syncId,
                 Value<DateTime> deletedAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => PendingDeletesCompanion.insert(
+                entity: entity,
                 syncId: syncId,
                 deletedAt: deletedAt,
                 rowid: rowid,

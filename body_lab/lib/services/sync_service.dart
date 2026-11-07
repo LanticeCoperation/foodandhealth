@@ -1,13 +1,12 @@
 import 'package:drift/drift.dart';
 
 import '../data/database.dart';
+import '../data/sync_entities.dart';
 import 'sync_api.dart';
+import 'sync_tables.dart';
 
 /// 這台裝置認領的帳號 uid。第一次登入時寫入，之後用來擋「換帳號登入」。
 const kSyncOwnerUidKey = 'syncOwnerUid';
-
-/// 上次下拉到的伺服器時間（ISO8601）。
-const kSyncCursorKey = 'syncCursor';
 
 /// 上次同步成功的本機時間（ISO8601）。只拿來顯示。
 const kSyncLastOkKey = 'syncLastOk';
@@ -16,7 +15,7 @@ const kSyncLastOkKey = 'syncLastOk';
 ///
 /// 伺服器的 `updated_at` 取的是交易開始時間，一筆交易可能在我們讀過游標之後
 /// 才 commit——完全等於游標的話就會永遠漏掉它。往回多抓一點，
-/// 重複的部分用 syncId 去重，重抓無害。
+/// 重複的部分靠 upsert 的冪等性吸收，重抓無害。
 const Duration kCursorSlack = Duration(seconds: 5);
 
 /// 下拉一次抓幾列。
@@ -58,10 +57,9 @@ class SyncResult {
       '上傳 $uploaded 筆、刪除 $deleted 筆、下載 $pulled 筆、本機移除 $removedLocally 筆';
 }
 
-/// 飲食紀錄的雙向同步。
+/// 跨裝置同步。
 ///
-/// 只處理 `food_entries` 一張表——它是目前唯一有伺服器 schema 與驗證過契約的
-/// （見 infra/supabase/migrations/0002）。其他表之後各自再加。
+/// 每張表的規則寫在 [syncTables]；健康資料快取只上傳，見 [_pushHealthCaches]。
 class SyncService {
   SyncService(this._db, this._api);
 
@@ -94,26 +92,39 @@ class SyncService {
 
   /// 還有多少本機變更在等著上傳。離家時看這個就知道累積了多少。
   Future<int> pendingCount() async {
-    final edits = await (_db.selectOnly(_db.foodEntries)
-          ..addColumns([_db.foodEntries.id.count()])
-          ..where(_db.foodEntries.pendingSync.equals(true)))
-        .getSingle();
-    final deletes = await (_db.selectOnly(_db.pendingDeletes)
-          ..addColumns([_db.pendingDeletes.syncId.count()]))
-        .getSingle();
-    return (edits.read(_db.foodEntries.id.count()) ?? 0) +
-        (deletes.read(_db.pendingDeletes.syncId.count()) ?? 0);
+    var total = 0;
+    for (final table in syncTables) {
+      total += await table.pendingCount(_db);
+    }
+    total += (await _db.select(_db.pendingDeletes).get()).length;
+    return total;
   }
 
   Future<SyncResult> sync() async {
-    final pushed = await _push();
-    final pulled = await _pull();
+    var uploaded = 0;
+    var deleted = 0;
+    var pulled = 0;
+    var removed = 0;
+
+    for (final table in syncTables) {
+      final r = await _pushTable(table);
+      uploaded += r.$1;
+      deleted += r.$2;
+    }
+    uploaded += await _pushHealthCaches();
+    for (final table in syncTables) {
+      if (!table.pullable) continue;
+      final r = await _pullTable(table);
+      pulled += r.$1;
+      removed += r.$2;
+    }
+
     await _writeSetting(kSyncLastOkKey, DateTime.now().toIso8601String());
     return SyncResult(
-      uploaded: pushed.$1,
-      deleted: pushed.$2,
-      pulled: pulled.$1,
-      removedLocally: pulled.$2,
+      uploaded: uploaded,
+      deleted: deleted,
+      pulled: pulled,
+      removedLocally: removed,
     );
   }
 
@@ -121,82 +132,117 @@ class SyncService {
   // 上傳
   // ---------------------------------------------------------------------
 
-  Future<(int uploaded, int deleted)> _push() async {
-    final deletes = await _db.select(_db.pendingDeletes).get();
-    if (deletes.isNotEmpty) {
-      await _api.markDeleted([for (final d in deletes) d.syncId]);
-      await (_db.delete(_db.pendingDeletes)..where(
-        (r) => r.syncId.isIn([for (final d in deletes) d.syncId]),
-      )).go();
+  Future<(int uploaded, int deleted)> _pushTable(SyncTable table) async {
+    var deleted = 0;
+    if (table.entity.isNotEmpty) {
+      final pending = await (_db.select(
+        _db.pendingDeletes,
+      )..where((r) => r.entity.equals(table.entity))).get();
+      if (pending.isNotEmpty) {
+        await _api.markDeleted(table.remote, [
+          for (final d in pending) _deleteKey(table, d.syncId),
+        ]);
+        await (_db.delete(_db.pendingDeletes)..where(
+              (r) =>
+                  r.entity.equals(table.entity) &
+                  r.syncId.isIn([for (final d in pending) d.syncId]),
+            ))
+            .go();
+        deleted = pending.length;
+      }
     }
 
-    final pending = await (_db.select(_db.foodEntries)
-          ..where((r) => r.pendingSync.equals(true) & r.syncId.isNotNull()))
-        .get();
-    if (pending.isEmpty) return (0, deletes.length);
-
-    await _api.upsertFoodEntries([for (final e in pending) _toRow(e)]);
+    final rows = await table.pendingRows(_db);
+    if (rows.isEmpty) return (0, deleted);
+    await _api.upsert(table.remote, table.onConflict, rows);
 
     // 只有「送出去之後沒再被改過」的才清掉待上傳旗標。
-    // 上傳期間使用者可能又改了同一筆，無條件清掉會把那次修改弄丟。
-    await _db.transaction(() async {
-      for (final sent in pending) {
-        final current = await (_db.select(
-          _db.foodEntries,
-        )..where((r) => r.id.equals(sent.id))).getSingleOrNull();
-        if (current == null) continue;
-        if (!_sameContent(sent, current)) continue;
-        await (_db.update(_db.foodEntries)..where((r) => r.id.equals(sent.id)))
-            .write(const FoodEntriesCompanion(pendingSync: Value(false)));
-      }
-    });
-    return (pending.length, deletes.length);
+    // 每張表的 clearPending 都帶內容條件比對，上傳期間使用者又改了同一筆時
+    // 條件就對不上，旗標留著，下一輪再送。
+    await _db.transaction(() => table.clearPending(_db, rows));
+    return (rows.length, deleted);
   }
 
-  static bool _sameContent(FoodEntry a, FoodEntry b) =>
-      a.syncId == b.syncId &&
-      a.eatenAt == b.eatenAt &&
-      a.meal == b.meal &&
-      a.name == b.name &&
-      a.servings == b.servings &&
-      a.kcal == b.kcal &&
-      a.proteinG == b.proteinG &&
-      a.carbsG == b.carbsG &&
-      a.fatG == b.fatG &&
-      a.note == b.note;
+  /// 待辦表裡的鍵換成伺服器的等值條件。
+  Map<String, String> _deleteKey(SyncTable table, String key) {
+    if (table.entity == kEntityDailyChecks) {
+      final parts = key.split('|');
+      return {'day': parts.first, 'item': parts.last};
+    }
+    return {'sync_id': key};
+  }
 
-  Map<String, dynamic> _toRow(FoodEntry e) => {
-    'sync_id': e.syncId,
-    'eaten_at': e.eatenAt.toUtc().toIso8601String(),
-    'meal': e.meal.name,
-    'name': e.name,
-    'servings': e.servings,
-    'kcal': e.kcal,
-    'protein_g': e.proteinG,
-    'carbs_g': e.carbsG,
-    'fat_g': e.fatG,
-    'note': e.note,
-    'created_at': e.createdAt.toUtc().toIso8601String(),
-    // 這筆在本機還在，所以明確復活伺服器上的墓碑：
-    // 不送的話 merge-duplicates 會保留舊的 deleted_at，
-    // 「刪除後又復原」就同步不回來。
-    'deleted_at': null,
-  };
+  /// 健康資料快取：只上傳，用 syncedAt 當游標判斷哪些是新的。
+  Future<int> _pushHealthCaches() async {
+    var count = 0;
+
+    final bmCursor = await _readSetting(kBodyMetricsPushCursor);
+    final bmSince = bmCursor == null ? null : DateTime.parse(bmCursor);
+    final metrics = await (_db.select(_db.dailyBodyMetrics)..where(
+          (r) => bmSince == null
+              ? const Constant(true)
+              : r.syncedAt.isBiggerThanValue(bmSince),
+        ))
+        .get();
+    if (metrics.isNotEmpty) {
+      await _api.upsert('body_metrics', 'user_id,day', [
+        for (final m in metrics)
+          {
+            'day': m.day,
+            'measured_at': m.measuredAt.toUtc().toIso8601String(),
+            'weight_kg': m.weightKg,
+            'body_fat_percent': m.bodyFatPercent,
+            'lean_mass_kg': m.leanMassKg,
+            'lean_mass_estimated': m.leanMassEstimated,
+            'deleted_at': null,
+          },
+      ]);
+      final newest = metrics
+          .map((m) => m.syncedAt)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      await _writeSetting(kBodyMetricsPushCursor, newest.toIso8601String());
+      count += metrics.length;
+    }
+
+    final daCursor = await _readSetting(kDailyActivityPushCursor);
+    final daSince = daCursor == null ? null : DateTime.parse(daCursor);
+    final activity = await (_db.select(_db.dailyActivity)..where(
+          (r) => daSince == null
+              ? const Constant(true)
+              : r.syncedAt.isBiggerThanValue(daSince),
+        ))
+        .get();
+    if (activity.isNotEmpty) {
+      await _api.upsert('daily_activity', 'user_id,day', [
+        for (final a in activity)
+          {'day': a.day, 'active_kcal': a.activeKcal, 'deleted_at': null},
+      ]);
+      final newest = activity
+          .map((a) => a.syncedAt)
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+      await _writeSetting(kDailyActivityPushCursor, newest.toIso8601String());
+      count += activity.length;
+    }
+    return count;
+  }
 
   // ---------------------------------------------------------------------
   // 下拉
   // ---------------------------------------------------------------------
 
-  Future<(int pulled, int removed)> _pull() async {
-    final cursorText = await _readSetting(kSyncCursorKey);
+  Future<(int pulled, int removed)> _pullTable(SyncTable table) async {
+    final key = 'syncCursor_${table.remote}';
+    final cursorText = await _readSetting(key);
     final cursor = cursorText == null ? null : DateTime.parse(cursorText);
+
     // 整輪下拉用同一個 since，靠 offset 翻頁翻到底，最後才推進游標。
     // 邊翻邊推進游標的話，updated_at 相同的列會在頁與頁之間互相擠掉。
     final since = cursor?.subtract(kCursorSlack);
     final rows = <Map<String, dynamic>>[];
     var offset = 0;
     while (true) {
-      final page = await _api.fetchFoodEntries(
+      final page = await _api.fetch(
+        table.remote,
         since: since,
         offset: offset,
         limit: kPageSize,
@@ -210,72 +256,19 @@ class SyncService {
     }
     if (rows.isEmpty) return (0, 0);
 
-    final uid = _api.currentUserId;
-    var pulled = 0;
-    var removed = 0;
     DateTime? newest;
-
-    await _db.transaction(() async {
-      for (final row in rows) {
-        final updatedAt = DateTime.parse(row['updated_at'] as String).toUtc();
-        if (newest == null || updatedAt.isAfter(newest!)) newest = updatedAt;
-
-        final syncId = row['sync_id'] as String;
-        final local = await (_db.select(
-          _db.foodEntries,
-        )..where((r) => r.syncId.equals(syncId))).getSingleOrNull();
-
-        // 本機還沒上傳的修改優先，下一輪上傳時以它為準
-        if (local != null && local.pendingSync) continue;
-
-        // 家人的資料不落地：本機資料庫只放自己的
-        if (uid != null && row['user_id'] != uid) continue;
-
-        if (row['deleted_at'] != null) {
-          if (local != null) {
-            await (_db.delete(
-              _db.foodEntries,
-            )..where((r) => r.id.equals(local.id))).go();
-            removed++;
-          }
-          continue;
-        }
-
-        final companion = FoodEntriesCompanion(
-          id: local == null ? const Value.absent() : Value(local.id),
-          syncId: Value(syncId),
-          eatenAt: Value(DateTime.parse(row['eaten_at'] as String).toLocal()),
-          meal: Value(MealType.values.byName(row['meal'] as String)),
-          name: Value(row['name'] as String),
-          servings: Value((row['servings'] as num).toDouble()),
-          kcal: Value((row['kcal'] as num?)?.toDouble()),
-          proteinG: Value((row['protein_g'] as num?)?.toDouble()),
-          carbsG: Value((row['carbs_g'] as num?)?.toDouble()),
-          fatG: Value((row['fat_g'] as num?)?.toDouble()),
-          note: Value(row['note'] as String?),
-          createdAt: Value(
-            DateTime.parse(row['created_at'] as String).toLocal(),
-          ),
-          // 範本還沒同步，所以拉回來的紀錄接不上本機的範本 id
-          templateId: const Value(null),
-          // 剛從伺服器拿回來的就是最新的，不要再排進上傳
-          pendingSync: const Value(false),
-        );
-        if (local == null) {
-          await _db.into(_db.foodEntries).insert(companion);
-        } else {
-          await (_db.update(
-            _db.foodEntries,
-          )..where((r) => r.id.equals(local.id))).write(companion);
-        }
-        pulled++;
-      }
-    });
-
-    if (newest != null) {
-      await _writeSetting(kSyncCursorKey, newest!.toIso8601String());
+    for (final row in rows) {
+      final updatedAt = DateTime.parse(row['updated_at'] as String).toUtc();
+      if (newest == null || updatedAt.isAfter(newest)) newest = updatedAt;
     }
-    return (pulled, removed);
+
+    final result = await _db.transaction(
+      () => table.applyPulled!(_db, rows),
+    );
+    if (newest != null) {
+      await _writeSetting(key, newest.toIso8601String());
+    }
+    return result;
   }
 
   // ---------------------------------------------------------------------

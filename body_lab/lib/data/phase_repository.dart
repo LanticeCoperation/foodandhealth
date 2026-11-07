@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../utils/dates.dart';
 import 'database.dart';
+import 'sync_entities.dart';
 
 /// 預設一個階段 4 週。
 const int kDefaultPhaseDays = 28;
@@ -58,15 +59,32 @@ class PhaseRepository {
       );
       if (overlap != null) throw PhaseOverlapException(overlap);
       if (id == null) return _db.into(_db.phases).insert(phase);
-      await (_db.update(
-        _db.phases,
-      )..where((r) => r.id.equals(id))).write(phase);
+      await (_db.update(_db.phases)..where((r) => r.id.equals(id))).write(
+        // 改過就要重新排隊上傳；呼叫端給的 companion 多半沒帶這一欄
+        phase.copyWith(pendingSync: const Value(true)),
+      );
       return id;
     });
   }
 
-  Future<void> delete(int id) =>
-      (_db.delete(_db.phases)..where((r) => r.id.equals(id))).go();
+  /// 本機硬刪除，另外在待辦表記下 syncId（理由見 [PendingDeletes]）。
+  Future<void> delete(int id) => _db.transaction(() async {
+    final row = await (_db.select(
+      _db.phases,
+    )..where((r) => r.id.equals(id))).getSingleOrNull();
+    final syncId = row?.syncId;
+    if (syncId != null) {
+      await _db
+          .into(_db.pendingDeletes)
+          .insertOnConflictUpdate(
+            PendingDeletesCompanion.insert(
+              entity: const Value(kEntityPhases),
+              syncId: syncId,
+            ),
+          );
+    }
+    await (_db.delete(_db.phases)..where((r) => r.id.equals(id))).go();
+  });
 
   Future<Phase?> _findOverlap(
     String start,

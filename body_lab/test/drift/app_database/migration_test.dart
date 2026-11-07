@@ -14,6 +14,7 @@ import 'generated/schema_v9.dart' as v9;
 import 'generated/schema_v10.dart' as v10;
 import 'generated/schema_v11.dart' as v11;
 import 'generated/schema_v12.dart' as v12;
+import 'generated/schema_v13.dart' as v13;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -261,6 +262,87 @@ void main() {
         expect(byName['蛋白粉（1 匙）']!.sourceKey, 'protein_powder');
         expect(byName['雞蛋（1 顆）']!.sourceKey, 'egg');
         expect(byName['水煮蛋']!.sourceKey, null);
+      },
+    );
+  });
+
+
+  test('v12 → v13 階段與自訂消耗補上唯一的 syncId，打勾與個人資料標成待上傳', () async {
+    final createdAt = DateTime(2026, 11, 1).millisecondsSinceEpoch ~/ 1000;
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 12,
+      newVersion: 13,
+      createOld: v12.DatabaseAtV12.new,
+      createNew: v13.DatabaseAtV13.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insertAll(oldDb.phases, [
+          v12.PhasesData(
+            id: 1,
+            name: '高蛋白 + 肌酸',
+            startDay: '2026-10-01',
+            endDay: '2026-10-28',
+            creatine: 1,
+            createdAt: createdAt,
+          ),
+          v12.PhasesData(
+            id: 2,
+            name: '減脂',
+            startDay: '2026-11-01',
+            endDay: '2026-11-28',
+            creatine: 0,
+            createdAt: createdAt,
+          ),
+        ]);
+        batch.insertAll(oldDb.extraBurns, [
+          v12.ExtraBurnsData(
+            id: 1,
+            day: '2026-11-05',
+            kcal: 300,
+            note: '爬山',
+            createdAt: createdAt,
+          ),
+        ]);
+        batch.insertAll(oldDb.dailyChecks, [
+          v12.DailyChecksData(
+            day: '2026-11-05',
+            item: 'creatine',
+            checkedAt: createdAt,
+            amount: 5,
+          ),
+        ]);
+        batch.insert(
+          oldDb.pendingDeletes,
+          v12.PendingDeletesData(syncId: 'old-food-id', deletedAt: createdAt),
+        );
+      },
+      validateItems: (newDb) async {
+        final phases = await newDb.select(newDb.phases).get();
+        final ids = [for (final p in phases) p.syncId];
+        expect(ids.whereType<String>(), hasLength(2));
+        expect(ids.toSet(), hasLength(2), reason: 'syncId 不能重複');
+        expect(phases.every((p) => p.pendingSync == 1), isTrue);
+        // 其他欄位原封不動
+        final byId = {for (final p in phases) p.id: p};
+        expect(byId[1]!.name, '高蛋白 + 肌酸');
+        expect(byId[1]!.creatine, 1);
+        expect(byId[2]!.endDay, '2026-11-28');
+
+        final burns = await newDb.select(newDb.extraBurns).get();
+        expect(burns.single.syncId, isA<String>());
+        expect(burns.single.kcal, 300);
+        expect(burns.single.note, '爬山');
+        expect(burns.single.pendingSync, 1);
+
+        final checks = await newDb.select(newDb.dailyChecks).get();
+        expect(checks.single.pendingSync, 1);
+        expect(checks.single.amount, 5);
+
+        // 舊的刪除待辦要拿到預設的 entity
+        final pending = await newDb.select(newDb.pendingDeletes).get();
+        expect(pending.single.syncId, 'old-food-id');
+        expect(pending.single.entity, 'food_entries');
       },
     );
   });

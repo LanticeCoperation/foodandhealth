@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../utils/dates.dart';
 import 'database.dart';
+import 'sync_entities.dart';
 
 /// 每日打勾（肌酸等），可記劑量。
 class CheckRepository {
@@ -65,13 +66,33 @@ class CheckRepository {
               item: item,
               checkedAt: _clock(),
               amount: Value(dose),
+              // insertOnConflictUpdate 走更新那條路時，不明寫就會留著上次
+              // 同步完的 false，這次的變更就永遠不會被送出去
+              pendingSync: const Value(true),
             ),
           );
-    } else {
-      await (_db.delete(
-            t,
-          )..where((r) => r.day.equals(dayKey(day)) & r.item.equalsValue(item)))
+      // 重新打勾要取消刪除待辦，否則下次同步會把它又標成已刪除
+      await (_db.delete(_db.pendingDeletes)..where(
+            (r) =>
+                r.entity.equals(kEntityDailyChecks) &
+                r.syncId.equals(checkKey(dayKey(day), item)),
+          ))
           .go();
+    } else {
+      await _db.transaction(() async {
+        await _db
+            .into(_db.pendingDeletes)
+            .insertOnConflictUpdate(
+              PendingDeletesCompanion.insert(
+                entity: const Value(kEntityDailyChecks),
+                syncId: checkKey(dayKey(day), item),
+              ),
+            );
+        await (_db.delete(t)..where(
+              (r) => r.day.equals(dayKey(day)) & r.item.equalsValue(item),
+            ))
+            .go();
+      });
     }
   }
 }

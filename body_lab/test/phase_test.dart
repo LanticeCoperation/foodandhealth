@@ -73,6 +73,7 @@ void main() {
       targetProteinG: 150,
       creatine: true,
       createdAt: DateTime(2026, 9, 30),
+      pendingSync: true,
     );
 
     DayTotals food(double kcal, double protein) => DayTotals(

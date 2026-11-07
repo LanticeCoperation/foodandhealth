@@ -14,12 +14,17 @@ class OfflineApi implements SyncApi {
   String? currentUserId = 'user-a';
 
   @override
-  Future<void> upsertFoodEntries(List<Map<String, dynamic>> rows) async {
+  Future<void> upsert(
+    String table,
+    String onConflict,
+    List<Map<String, dynamic>> rows,
+  ) async {
     throw const SocketException('Connection refused');
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchFoodEntries({
+  Future<List<Map<String, dynamic>>> fetch(
+    String table, {
     DateTime? since,
     int offset = 0,
     int limit = 500,
@@ -28,7 +33,10 @@ class OfflineApi implements SyncApi {
   }
 
   @override
-  Future<void> markDeleted(List<String> syncIds) async {
+  Future<void> markDeleted(
+    String table,
+    List<Map<String, String>> keys,
+  ) async {
     throw const SocketException('Connection refused');
   }
 }

@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 
 import '../utils/dates.dart';
 import 'database.dart';
+import 'sync_entities.dart';
 
 class FoodRepository {
   FoodRepository(this._db);
@@ -80,7 +81,10 @@ class FoodRepository {
         await _db
             .into(_db.pendingDeletes)
             .insertOnConflictUpdate(
-              PendingDeletesCompanion.insert(syncId: syncId),
+              PendingDeletesCompanion.insert(
+                entity: const Value(kEntityFoodEntries),
+                syncId: syncId,
+              ),
             );
       }
       await (_db.delete(_db.foodEntries)..where((r) => r.id.equals(id))).go();
@@ -98,8 +102,11 @@ class FoodRepository {
           .insert(entry.copyWith(pendingSync: true));
       final syncId = entry.syncId;
       if (syncId != null) {
-        await (_db.delete(_db.pendingDeletes)
-              ..where((r) => r.syncId.equals(syncId)))
+        await (_db.delete(_db.pendingDeletes)..where(
+              (r) =>
+                  r.entity.equals(kEntityFoodEntries) &
+                  r.syncId.equals(syncId),
+            ))
             .go();
       }
     });
