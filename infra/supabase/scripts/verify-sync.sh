@@ -153,6 +153,54 @@ check "DELETE 被擋（刪除只能走 deleted_at）" 403 \
   "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "apikey: $PUB" \
       -H "Authorization: Bearer $P1" "$BASE/rest/v1/food_entries?sync_id=eq.$S1")"
 
+echo "10 自然鍵的表（daily_checks：user_id + day + item）"
+cat > "$TMP/check.json" <<JSON
+[{"day":"2026-11-07","item":"creatine","checked_at":"2026-11-07T09:00:00Z","amount":5}]
+JSON
+send_code "$P1" POST 'daily_checks?on_conflict=user_id,day,item' "$TMP/check.json"   -H "Prefer: resolution=merge-duplicates" > "$TMP/c1" 2>/dev/null || true
+check "手機一打勾" 201 "$(cat "$TMP/c1")"
+send_code "$P2" POST 'daily_checks?on_conflict=user_id,day,item' "$TMP/check.json"   -H "Prefer: resolution=merge-duplicates" >/dev/null
+check "手機二打同一天同一項，還是 1 列" 1 "$(count_rows "$P1" 'daily_checks?select=day')"
+
+printf '{"deleted_at":"2026-11-07T20:00:00Z"}' > "$TMP/uncheck.json"
+send "$P1" PATCH "daily_checks?day=eq.2026-11-07&item=eq.creatine" "$TMP/uncheck.json"   -H "Prefer: return=minimal" >/dev/null
+check "取消打勾留下墓碑" 1   "$(count_rows "$P1" 'daily_checks?select=day&deleted_at=not.is.null')"
+
+cat > "$TMP/recheck.json" <<JSON
+[{"day":"2026-11-07","item":"creatine","checked_at":"2026-11-07T21:00:00Z","amount":5,"deleted_at":null}]
+JSON
+send_code "$P1" POST 'daily_checks?on_conflict=user_id,day,item' "$TMP/recheck.json"   -H "Prefer: resolution=merge-duplicates" >/dev/null
+check "重新打勾把墓碑救回來" 0   "$(count_rows "$P1" 'daily_checks?select=day&deleted_at=not.is.null')"
+check "家人看得到打勾" 1 "$(count_rows "$TB" 'daily_checks?select=day')"
+check "外人看不到" 0 "$(count_rows "$TC" 'daily_checks?select=day')"
+
+echo "11 單列的表（body_profiles：一個人一列）"
+cat > "$TMP/prof.json" <<JSON
+[{"sex":"male","birth_year":1988,"height_cm":172,"activity":"moderate","weight_kg":74.5,"tdee_kcal":2400,"energy_mode":"watch"}]
+JSON
+send_code "$P1" POST 'body_profiles?on_conflict=user_id' "$TMP/prof.json"   -H "Prefer: resolution=merge-duplicates" > "$TMP/c2" 2>/dev/null || true
+check "手機一寫入個人資料" 201 "$(cat "$TMP/c2")"
+cat > "$TMP/prof2.json" <<JSON
+[{"sex":"male","birth_year":1988,"height_cm":172,"activity":"moderate","weight_kg":73.0,"tdee_kcal":2380,"energy_mode":"watch"}]
+JSON
+send_code "$P2" POST 'body_profiles?on_conflict=user_id' "$TMP/prof2.json"   -H "Prefer: resolution=merge-duplicates" >/dev/null
+check "手機二更新，還是 1 列" 1 "$(count_rows "$P1" 'body_profiles?select=user_id')"
+check "值是後寫的那個" "73"   "$(psql_q "select weight_kg::int from public.body_profiles where user_id=(select id from auth.users where email='$A')" | tr -d ' ')"
+
+echo "12 健康快取只上傳（body_metrics）"
+cat > "$TMP/bm.json" <<JSON
+[{"day":"2026-11-07","measured_at":"2026-11-07T07:00:00Z","weight_kg":74.2,"body_fat_percent":18.5,"lean_mass_estimated":false}]
+JSON
+send_code "$P1" POST 'body_metrics?on_conflict=user_id,day' "$TMP/bm.json"   -H "Prefer: resolution=merge-duplicates" > "$TMP/c3" 2>/dev/null || true
+check "上傳體重" 201 "$(cat "$TMP/c3")"
+check "家人看得到體重" 1 "$(count_rows "$TB" 'body_metrics?select=day')"
+check "外人看不到體重" 0 "$(count_rows "$TC" 'body_metrics?select=day')"
+
+echo "13 其餘的表也不給硬刪除"
+for t in daily_checks body_metrics phases extra_burns body_profiles; do
+  check "$t 的 DELETE 被擋" 403     "$(curl -s -o /dev/null -w '%{http_code}' -X DELETE -H "apikey: $PUB"         -H "Authorization: Bearer $P1" "$BASE/rest/v1/$t?user_id=not.is.null")"
+done
+
 echo
 echo "通過 $PASS 項，失敗 $FAIL 項"
 [ "$FAIL" = "0" ]
