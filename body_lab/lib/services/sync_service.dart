@@ -16,6 +16,12 @@ const kSyncCursorKey = 'syncCursor';
 /// 重複的部分用 syncId 去重，重抓無害。
 const Duration kCursorSlack = Duration(seconds: 5);
 
+/// 下拉一次抓幾列。
+///
+/// 伺服器的 `PGRST_DB_MAX_ROWS` 預設是 1000，不分頁的話第一次同步會被截斷，
+/// 而被截掉的列 updated_at 早於新游標，之後再也不會被抓回來——悄悄少資料。
+const int kPageSize = 500;
+
 /// 本機資料已經屬於另一個帳號。
 class WrongOwnerException implements Exception {
   WrongOwnerException(this.existingUid, this.incomingUid);
@@ -161,9 +167,24 @@ class SyncService {
   Future<(int pulled, int removed)> _pull() async {
     final cursorText = await _readSetting(kSyncCursorKey);
     final cursor = cursorText == null ? null : DateTime.parse(cursorText);
-    final rows = await _api.fetchFoodEntries(
-      since: cursor?.subtract(kCursorSlack),
-    );
+    // 整輪下拉用同一個 since，靠 offset 翻頁翻到底，最後才推進游標。
+    // 邊翻邊推進游標的話，updated_at 相同的列會在頁與頁之間互相擠掉。
+    final since = cursor?.subtract(kCursorSlack);
+    final rows = <Map<String, dynamic>>[];
+    var offset = 0;
+    while (true) {
+      final page = await _api.fetchFoodEntries(
+        since: since,
+        offset: offset,
+        limit: kPageSize,
+      );
+      // 收到的列數可能少於要求的 limit——伺服器的 PGRST_DB_MAX_ROWS 壓在
+      // 我們的 limit 之上。所以「比 limit 短」不代表沒了，要收到空頁才算完，
+      // 而且 offset 要照實際收到的筆數推進。
+      if (page.isEmpty) break;
+      rows.addAll(page);
+      offset += page.length;
+    }
     if (rows.isEmpty) return (0, 0);
 
     final uid = _api.currentUserId;

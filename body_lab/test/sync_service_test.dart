@@ -32,14 +32,36 @@ class FakeSyncApi implements SyncApi {
     }
   }
 
+  /// 一頁最多幾列（模擬伺服器的 PGRST_DB_MAX_ROWS）。測分頁時調小。
+  int pageSize = 1000;
+
   @override
-  Future<List<Map<String, dynamic>>> fetchFoodEntries({DateTime? since}) async {
-    return [
-      for (final r in rows.values)
-        if (since == null ||
-            !DateTime.parse(r['updated_at'] as String).isBefore(since))
-          Map<String, dynamic>.from(r),
-    ];
+  Future<List<Map<String, dynamic>>> fetchFoodEntries({
+    DateTime? since,
+    int offset = 0,
+    int limit = 500,
+  }) async {
+    final all =
+        [
+          for (final r in rows.values)
+            if ((currentUserId == null || r['user_id'] == currentUserId) &&
+                (since == null ||
+                    !DateTime.parse(
+                      r['updated_at'] as String,
+                    ).isBefore(since)))
+              Map<String, dynamic>.from(r),
+        ]..sort((a, b) {
+          final t = (a['updated_at'] as String).compareTo(
+            b['updated_at'] as String,
+          );
+          return t != 0
+              ? t
+              : (a['sync_id'] as String).compareTo(b['sync_id'] as String);
+        });
+    final take = limit < pageSize ? limit : pageSize;
+    if (offset >= all.length) return const [];
+    final end = offset + take;
+    return all.sublist(offset, end > all.length ? all.length : end);
   }
 
   @override
@@ -242,6 +264,28 @@ void main() {
     );
   });
 
+  test('超過一頁也要全部拉回來，游標不會把被截掉的列吃掉', () async {
+    // 伺服器一頁只給 2 列，本機要靠翻頁才拿得齊
+    api.pageSize = 2;
+    for (var i = 0; i < 5; i++) {
+      await repo1.add(meal(DateTime(2026, 11, 7, 8 + i), 'M$i', kcal: 100.0 + i));
+    }
+    expect((await sync1.sync()).uploaded, 5);
+
+    expect((await sync2.sync()).pulled, 5, reason: '一頁 2 列也要翻到底');
+    expect(await rowsOf(db2), hasLength(5));
+
+    // 再同步一次：游標往回退 5 秒，所以剛剛那幾筆會被重抓——
+    // 這是刻意的（見 kCursorSlack）。重點是重抓必須是冪等的，不能長出重複列。
+    await sync2.sync();
+    expect(await rowsOf(db2), hasLength(5));
+    expect(
+      (await rowsOf(db2)).map((r) => r.syncId).toSet(),
+      hasLength(5),
+      reason: '重抓不能產生重複列',
+    );
+  });
+
   group('認領', () {
     test('第一次登入寫下 ownerUid', () async {
       await sync1.claimForCurrentUser();
@@ -282,8 +326,11 @@ class _RacingApi implements SyncApi {
   }
 
   @override
-  Future<List<Map<String, dynamic>>> fetchFoodEntries({DateTime? since}) =>
-      _inner.fetchFoodEntries(since: since);
+  Future<List<Map<String, dynamic>>> fetchFoodEntries({
+    DateTime? since,
+    int offset = 0,
+    int limit = 500,
+  }) => _inner.fetchFoodEntries(since: since, offset: offset, limit: limit);
 
   @override
   Future<void> markDeleted(List<String> syncIds) =>
