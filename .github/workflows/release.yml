@@ -3,12 +3,13 @@ name: Release builds
 # push 到 main：iOS（未簽名 .ipa）與 Android（正式簽名 APK）平行編譯，
 # 兩邊都成功後一起放到固定的 Release「latest」，網址不變、直接下載。
 on:
-  # 自動觸發暫時關閉（同步功能開發中）。
-  # 每次 push 到 main 都會更新固定的 Release「latest」，
-  # build number 又是 CI run number，純後端的改動也會讓手機跳出「有新版」。
-  # 要開回來就把下面兩行的註解拿掉。
-  # push:
-  #   branches: [main]
+  # 刻意只留手動觸發。
+  #
+  # 這個 workflow 一跑就會更新固定的 Release「latest」，而 build number 是
+  # CI run number——純後端或文件的改動也會讓家人手機跳出「有新版」，
+  # 但 App 內容一個字都沒變。要發版時自己到 Actions 按 Run workflow。
+  #
+  # 編譯有沒有壞由 ci.yml 顧（它有一個只編不發的 iOS job），不需要靠這個。
   workflow_dispatch:
 
 concurrency:

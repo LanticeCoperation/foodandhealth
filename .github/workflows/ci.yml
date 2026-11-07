@@ -1,9 +1,8 @@
 name: CI
 
 on:
-  # 自動觸發暫時關閉（同步功能開發中）。要開回來就把下面兩行的註解拿掉。
-  # push:
-  #   branches: [main]
+  push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
