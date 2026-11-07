@@ -37,3 +37,23 @@ jobs:
       - run: flutter analyze
       - run: flutter test
       - run: flutter build apk --debug
+
+  # iOS 只能在 macOS 上編，而 release.yml 一跑就會更新對外的「latest」Release。
+  # 這個 job 只編不發，用來確認 iOS 這邊沒壞——加了原生外掛（例如 supabase_flutter）
+  # 之後尤其要跑，Android 編得過不代表 iOS 編得過。
+  ios:
+    name: iOS 編得過嗎（不簽名、不發佈）
+    runs-on: macos-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: body_lab
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.4
+          cache: true
+      - run: flutter pub get
+      - run: flutter build ios --release --no-codesign
