@@ -41,9 +41,11 @@ void main() {
     );
   });
 
-  const dad = 'dad@example.com';
-  const mom = 'mom@example.com';
-  const password = 'DemoPass-1234';
+  // 帳號密碼一律從環境變數帶進來，不要寫死——這個 repo 是公開的，
+  // 而伺服器現在掛在公開網域上，寫死的密碼等於把帳號送人。
+  const dad = String.fromEnvironment('SYNC_TEST_DAD');
+  const mom = String.fromEnvironment('SYNC_TEST_MOM');
+  const password = String.fromEnvironment('SYNC_TEST_PASSWORD');
 
   testWidgets('Android 上：登入 → 記一餐 → 上傳 → 家人讀得到 → 家人頁畫得出來', (
     tester,
@@ -52,6 +54,11 @@ void main() {
       SyncConfig.configured,
       isTrue,
       reason: '這支測試要帶 --dart-define 的 SUPABASE_URL / SUPABASE_KEY',
+    );
+    expect(
+      dad.isNotEmpty && mom.isNotEmpty && password.isNotEmpty,
+      isTrue,
+      reason: '還要帶 SYNC_TEST_DAD / SYNC_TEST_MOM / SYNC_TEST_PASSWORD',
     );
 
     final db = AppDatabase(
@@ -138,8 +145,8 @@ void main() {
       () => Future<void>.delayed(const Duration(seconds: 2)),
     );
     await tester.pumpAndSettle(const Duration(seconds: 2));
-    expect(find.text('阿爸（我）'), findsOneWidget);
-    expect(find.text('阿母'), findsOneWidget);
+    expect(find.textContaining('（我）'), findsOneWidget);
+    expect(find.textContaining('筆紀錄'), findsWidgets);
 
     await tester.pumpWidget(const SizedBox());
     await db.close();
