@@ -17,6 +17,8 @@ Body Lab 跨裝置同步與家人共享用的後端。**先在本機 Docker 開�
 1. `utils/add-new-auth-keys.sh` 自動取消註解了 4 行（啟用非對稱金鑰）：
    `GOTRUE_JWT_KEYS`、`API_JWT_JWKS`、`JWT_JWKS`、`SUPABASE_JWKS`
 2. `.env` 的開發用設定（見下）
+3. `.gitignore` 多加一行 `.env.old`——`utils/generate-keys.sh` 用 `sed -i.old` 改 `.env`，
+   會留下一份**含真實金鑰**的 `.env.old` 且不會自己刪掉。NAS 上產金鑰時同樣會留，記得清掉。
 
 ### 本機啟動
 
