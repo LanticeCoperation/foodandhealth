@@ -9,6 +9,9 @@ const kSyncOwnerUidKey = 'syncOwnerUid';
 /// 上次下拉到的伺服器時間（ISO8601）。
 const kSyncCursorKey = 'syncCursor';
 
+/// 上次同步成功的本機時間（ISO8601）。只拿來顯示。
+const kSyncLastOkKey = 'syncLastOk';
+
 /// 下拉時從游標往回退的秒數。
 ///
 /// 伺服器的 `updated_at` 取的是交易開始時間，一筆交易可能在我們讀過游標之後
@@ -83,9 +86,29 @@ class SyncService {
   /// 這台認領過的帳號 uid；還沒登入過是 null。
   Future<String?> ownerUid() => _readSetting(kSyncOwnerUidKey);
 
+  /// 上次同步成功的時間（本機時鐘，只拿來顯示）。
+  Future<DateTime?> lastSyncedAt() async {
+    final v = await _readSetting(kSyncLastOkKey);
+    return v == null ? null : DateTime.tryParse(v);
+  }
+
+  /// 還有多少本機變更在等著上傳。離家時看這個就知道累積了多少。
+  Future<int> pendingCount() async {
+    final edits = await (_db.selectOnly(_db.foodEntries)
+          ..addColumns([_db.foodEntries.id.count()])
+          ..where(_db.foodEntries.pendingSync.equals(true)))
+        .getSingle();
+    final deletes = await (_db.selectOnly(_db.pendingDeletes)
+          ..addColumns([_db.pendingDeletes.syncId.count()]))
+        .getSingle();
+    return (edits.read(_db.foodEntries.id.count()) ?? 0) +
+        (deletes.read(_db.pendingDeletes.syncId.count()) ?? 0);
+  }
+
   Future<SyncResult> sync() async {
     final pushed = await _push();
     final pulled = await _pull();
+    await _writeSetting(kSyncLastOkKey, DateTime.now().toIso8601String());
     return SyncResult(
       uploaded: pushed.$1,
       deleted: pushed.$2,

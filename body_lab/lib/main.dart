@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -26,13 +28,24 @@ import 'screens/analysis_screen.dart';
 import 'screens/trend_screen.dart';
 import 'services/catalog_updater.dart';
 import 'services/health_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase;
+
+import 'services/sync_config.dart';
 import 'services/sync_controller.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_update.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kAdsEnabled) MobileAds.instance.initialize();
+  // 有設定同步伺服器才初始化。supabase_flutter 負責把登入的 session 存到
+  // 裝置上，沒有它的話 App 一關掉就要重新登入。
+  if (SyncConfig.configured) {
+    await Supabase.initialize(
+      url: SyncConfig.url,
+      publishableKey: SyncConfig.publishableKey,
+    );
+  }
   runApp(
     BodyLabApp(
       services: AppServices(AppDatabase(), HealthService()),
@@ -132,13 +145,34 @@ class _HomeShell extends StatefulWidget {
   State<_HomeShell> createState() => _HomeShellState();
 }
 
-class _HomeShellState extends State<_HomeShell> {
+class _HomeShellState extends State<_HomeShell> with WidgetsBindingObserver {
   int _index = 0;
   late final List<Widget> _pages;
+
+  /// 啟動與回到前景時各試一次同步。
+  ///
+  /// 伺服器在家裡的 NAS 上，人不在家時一定連不到——那是正常狀況，
+  /// [SyncController.autoSync] 會安靜地把變更留在本機排隊，回到家再送。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(widget.services.sync.autoSync());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    if (widget.services.sync.available) {
+      unawaited(widget.services.sync.autoSync());
+    }
     final s = widget.services;
     _pages = [
       BodyScreen(

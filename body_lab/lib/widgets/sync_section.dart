@@ -23,6 +23,32 @@ class _SyncSectionState extends State<SyncSection> {
   void initState() {
     super.initState();
     widget.controller.addListener(_onChange);
+    widget.controller.refreshStatus();
+  }
+
+  String _statusLine(SyncController c) {
+    final parts = <String>[];
+    if (c.pendingCount > 0) {
+      parts.add('${c.pendingCount} 筆等著上傳');
+    } else {
+      parts.add('沒有待上傳的變更');
+    }
+    final at = c.lastSyncedAt;
+    if (at != null) {
+      final d = DateTime.now().difference(at);
+      final ago = d.inMinutes < 1
+          ? '剛剛'
+          : d.inHours < 1
+          ? '${d.inMinutes} 分鐘前'
+          : d.inDays < 1
+          ? '${d.inHours} 小時前'
+          : '${d.inDays} 天前';
+      parts.add('上次同步 $ago');
+    } else {
+      parts.add('還沒同步過');
+    }
+    if (c.offline) parts.add('目前連不到伺服器');
+    return parts.join('・');
   }
 
   @override
@@ -64,6 +90,25 @@ class _SyncSectionState extends State<SyncSection> {
                   : '登入後，這支手機上的飲食紀錄會同步到你的其他裝置，家人也看得到。',
               style: theme.textTheme.bodySmall,
             ),
+            if (c.signedIn) ...[
+              const SizedBox(height: 2),
+              Text(
+                _statusLine(c),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: c.offline
+                      ? theme.colorScheme.outline
+                      : theme.textTheme.bodySmall?.color,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '平常照常記錄就好，變更會留在這支手機上；'
+                '回到家連得到伺服器時自動送出。',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             if (!c.signedIn) ...[
               TextField(

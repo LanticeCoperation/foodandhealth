@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'dart:io';
+
+import 'package:http/http.dart' show ClientException;
 
 import 'package:flutter/foundation.dart';
-import 'package:supabase/supabase.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/database.dart';
 import 'sync_api.dart';
@@ -31,12 +34,17 @@ class FamilyDaySummary {
 ///
 /// 沒設定 [SyncConfig] 時 [available] 是 false，整個同步區塊不顯示。
 class SyncController extends ChangeNotifier {
-  SyncController(this._db, {SupabaseClient? client})
+  /// [client] 不給時用 `Supabase.instance.client`——那是 main() 初始化過、
+  /// 會把 session 存到裝置上的那一個。自己 new 一個 [SupabaseClient] 的話
+  /// session 只活在記憶體裡，App 一關就要重新登入。
+  SyncController(this._db, {SupabaseClient? client, SyncApi? api})
     : _client =
-          client ??
-          (SyncConfig.configured
-              ? SupabaseClient(SyncConfig.url, SyncConfig.publishableKey)
-              : null) {
+          client ?? (SyncConfig.configured ? Supabase.instance.client : null),
+      _testApi = api {
+    if (_testApi != null) {
+      _service = SyncService(_db, _testApi);
+      return;
+    }
     if (_client != null) {
       _service = SyncService(_db, SupabaseSyncApi(_client));
       _authSub = _client.auth.onAuthStateChange.listen((_) {
@@ -47,17 +55,35 @@ class SyncController extends ChangeNotifier {
 
   final AppDatabase _db;
   final SupabaseClient? _client;
+
+  /// 測試用的假伺服器；正式執行時是 null。
+  final SyncApi? _testApi;
   SyncService? _service;
   StreamSubscription<AuthState>? _authSub;
 
   bool _busy = false;
   String? _lastMessage;
+  DateTime? _lastSyncedAt;
+  int _pending = 0;
+  bool _offline = false;
 
-  bool get available => _client != null;
+  bool get available => _client != null || _testApi != null;
   bool get busy => _busy;
   String? get lastMessage => _lastMessage;
+
+  /// 上次同步成功的時間；從來沒成功過是 null。
+  DateTime? get lastSyncedAt => _lastSyncedAt;
+
+  /// 還有幾筆本機變更在排隊。
+  int get pendingCount => _pending;
+
+  /// 上次嘗試時連不到伺服器（多半是不在家裡的網路上）。
+  bool get offline => _offline;
   String? get email => _client?.auth.currentUser?.email;
-  bool get signedIn => _client?.auth.currentUser != null;
+  bool get signedIn =>
+      _testApi != null
+          ? _testApi.currentUserId != null
+          : _client?.auth.currentUser != null;
 
   @override
   void dispose() {
@@ -92,6 +118,58 @@ class SyncController extends ChangeNotifier {
       final result = await _service!.sync();
       _lastMessage = result.idle ? '已是最新' : result.toString();
     });
+  }
+
+  /// 自動同步：App 啟動與回到前景時各試一次。
+  ///
+  /// 伺服器在家裡的 NAS 上，所以人不在家時每次都會連不上——這是正常狀況，
+  /// 不是錯誤。連不到就安靜地把變更留在本機排隊，回到家再送，
+  /// 不要跳錯誤訊息打擾使用者。
+  Future<void> autoSync() async {
+    if (!signedIn || _busy) {
+      await refreshStatus();
+      return;
+    }
+    _busy = true;
+    notifyListeners();
+    try {
+      final result = await _service!.sync();
+      _offline = false;
+      if (!result.idle) _lastMessage = result.toString();
+    } on SyncRejected catch (e) {
+      _lastMessage = e.message;
+    } catch (e) {
+      // 連線類的錯誤安靜處理，其他的才留訊息
+      if (_looksOffline(e)) {
+        _offline = true;
+      } else {
+        _lastMessage = '同步失敗：$e';
+      }
+    } finally {
+      _busy = false;
+      await refreshStatus();
+    }
+  }
+
+  static bool _looksOffline(Object e) {
+    if (e is SocketException || e is TimeoutException) return true;
+    if (e is ClientException) return true;
+    final text = e.toString().toLowerCase();
+    return text.contains('socketexception') ||
+        text.contains('failed host lookup') ||
+        text.contains('connection refused') ||
+        text.contains('connection timed out') ||
+        text.contains('network is unreachable');
+  }
+
+  /// 重新讀「上次同步時間」與「待上傳筆數」。
+  Future<void> refreshStatus() async {
+    final service = _service;
+    if (service != null) {
+      _lastSyncedAt = await service.lastSyncedAt();
+      _pending = await service.pendingCount();
+    }
+    notifyListeners();
   }
 
   /// 這台認領的帳號 uid；還沒登入過是 null。
