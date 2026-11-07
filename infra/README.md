@@ -230,6 +230,24 @@ OAuth consent screen 若停在 testing 模式，記得把家人的 email 加進�
 - NAS 規格要先確認：整套 stack 吃好幾 GB 記憶體，且不少 ARM 機種的 Container Manager
   跑不起來。真的卡，再考慮拿掉 analytics/vector、imgproxy、functions 這幾個服務。
 
+### 上 NAS 之後，App 這邊要做的事
+
+HTTPS 憑證你自己處理。憑證好了之後，App 端還有這幾步才會通：
+
+1. **在 repo 的 Settings → Secrets 加兩個值**：
+   - `SUPABASE_URL`——必須是 `https://`。iPhone 的 ATS 擋明文，
+     而且實機沒有像 Android debug 那樣的例外可以偷渡
+   - `SUPABASE_KEY`——NAS 上那份 `.env` 的 `SUPABASE_PUBLISHABLE_KEY`
+     （這把金鑰本來就會被打包進 App，不是祕密；擋住資料的是 RLS）
+2. `release.yml` 已經會把這兩個 secret 用 `--dart-define` 帶進建置。
+   沒設的話帶空字串，`SyncConfig.configured` 是 false，發出去的版本同步整個關閉。
+3. **把 `.github/workflows/release.yml` 的 `push` 觸發打開**（現在是註解掉的），
+   或手動 `workflow_dispatch` 發一版。
+4. 用 `scripts/admin.sh` 建家人的帳號、建家庭、加成員。
+5. 在 NAS 上跑一次 `verify-rls.sh` 與 `verify-sync.sh`。
+
+NAS 換過金鑰的話，上面那兩個 secret 要跟著換，而且要重發一版 App。
+
 ### 更新上游
 
 ```bash
