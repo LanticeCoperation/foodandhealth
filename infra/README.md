@@ -250,6 +250,42 @@ OAuth consent screen 若停在 testing 模式，記得把家人的 email 加進�
 - NAS 規格要先確認：整套 stack 吃好幾 GB 記憶體，且不少 ARM 機種的 Container Manager
   跑不起來。真的卡，再考慮拿掉 analytics/vector、imgproxy、functions 這幾個服務。
 
+### HTTPS：用 Synology 的反向代理，不要用 compose 裡的 Caddy
+
+上游的 compose 附了 `docker-compose.caddy.yml`，但**這個環境不要用它**。
+DSM 本來就佔著 80 / 443，而且自己就有 Let's Encrypt 和自動續約。
+讓 DSM 當反向代理，port 不會打架，之後 Supabase 搬到 NAS 上時也只要改一下目標位址。
+
+架構：
+
+```
+網際網路 → 防火牆轉 80/443 → Synology（憑證 + 反向代理）→ Supabase 主機:8000
+```
+
+**安全性前提已經成立**：api gateway 本身就擋著 Studio——不帶 basic auth 打 `/`
+會回 401（實測過）。所以把整個 :8000 代理出去是可以的，管理介面不會裸奔。
+
+DSM 那邊要設兩件事：
+
+1. **憑證**：控制台 → 安全性 → 憑證 → 新增 → Let's Encrypt，填你的網域。
+   （這一步需要外部的 80 能進得來，Let's Encrypt 的 HTTP-01 驗證走那個 port。）
+2. **反向代理**：控制台 → 登入入口網站 → 進階 → 反向代理伺服器 → 新增
+   - 來源：HTTPS、你的網域、443
+   - 目的地：HTTP、跑 Supabase 那台的區網 IP、8000
+   - 自訂標頭要加上 **WebSocket**（Realtime 以後會用到）
+
+Supabase 主機那端：`.env` 的 `SUPABASE_PUBLIC_URL` 與 `API_EXTERNAL_URL`
+改成 `https://<你的網域>`，然後重啟 auth。
+
+**注意 `API_EXTERNAL_URL` 同時是 JWT 的 issuer**，改了之後既有的 token 全部失效——
+所以要趁沒人在用的時候改。
+
+Windows 當主機時，防火牆要放行區網進來的 8000（這是系統設定，請自己執行）：
+
+```bash
+netsh advfirewall firewall add rule name="Supabase 8000" dir=in action=allow protocol=TCP localport=8000 remoteip=localsubnet
+```
+
 ### 上 NAS 之後，App 這邊要做的事
 
 HTTPS 憑證你自己處理。憑證好了之後，App 端還有這幾步才會通：
