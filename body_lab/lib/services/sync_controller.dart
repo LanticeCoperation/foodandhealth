@@ -20,6 +20,8 @@ class FamilyDaySummary {
     required this.kcal,
     required this.proteinG,
     required this.entries,
+    this.weightKg,
+    this.bodyFatPercent,
   });
 
   final String userId;
@@ -28,6 +30,10 @@ class FamilyDaySummary {
   final double kcal;
   final double proteinG;
   final int entries;
+
+  /// 這天的體重 / 體脂（來自 body_metrics，只上傳的健康快取）；沒量就是 null。
+  final double? weightKg;
+  final double? bodyFatPercent;
 }
 
 /// 把登入狀態與 [SyncService] 包成畫面好用的形狀。
@@ -190,6 +196,24 @@ class SyncController extends ChangeNotifier {
         .gte('eaten_at', start.toUtc().toIso8601String())
         .lt('eaten_at', end.toUtc().toIso8601String())
         .isFilter('deleted_at', null);
+    final dayKey =
+        '${start.year.toString().padLeft(4, '0')}-'
+        '${start.month.toString().padLeft(2, '0')}-'
+        '${start.day.toString().padLeft(2, '0')}';
+    final metrics = await client
+        .from('body_metrics')
+        .select('user_id,weight_kg,body_fat_percent')
+        .eq('day', dayKey)
+        .isFilter('deleted_at', null);
+    final weight = <String, double>{};
+    final fat = <String, double>{};
+    for (final m in metrics) {
+      final uid = m['user_id'] as String;
+      final w = (m['weight_kg'] as num?)?.toDouble();
+      if (w != null) weight[uid] = w;
+      final f = (m['body_fat_percent'] as num?)?.toDouble();
+      if (f != null) fat[uid] = f;
+    }
 
     final names = <String, String>{
       for (final p in profiles)
@@ -216,6 +240,8 @@ class SyncController extends ChangeNotifier {
           kcal: kcal[entry.key] ?? 0,
           proteinG: protein[entry.key] ?? 0,
           entries: count[entry.key] ?? 0,
+          weightKg: weight[entry.key],
+          bodyFatPercent: fat[entry.key],
         ),
     ];
     // 自己排最前面，其他依名稱

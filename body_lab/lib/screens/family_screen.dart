@@ -87,7 +87,15 @@ class _FamilyScreenState extends State<FamilyScreen> {
                         ),
                       ),
                       title: Text(r.isSelf ? '${r.displayName}（我）' : r.displayName),
-                      subtitle: Text('${r.entries} 筆紀錄'),
+                      subtitle: Text(
+                        [
+                          '${r.entries} 筆紀錄',
+                          if (r.weightKg != null)
+                            '${r.weightKg!.toStringAsFixed(1)} kg',
+                          if (r.bodyFatPercent != null)
+                            '體脂 ${r.bodyFatPercent!.toStringAsFixed(1)}%',
+                        ].join('・'),
+                      ),
                       trailing: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.end,

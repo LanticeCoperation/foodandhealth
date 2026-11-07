@@ -119,6 +119,11 @@ sh scripts/admin.sh list
 
 - `0001_identity.sql`——`profiles`、`families`、`family_members` 與 RLS
 - `0002_food_entries.sql`——第一張真的會同步的表，對應 drift 的 `FoodEntries`
+- `0003_rest_of_the_data.sql`——其餘的表，三種不同的規則（見下）
+
+**範本（`MealTemplates`）刻意沒有同步。** 同步它就得跨裝置重新對應
+`FoodEntries.templateId`，而範本本來就是每台自己的順手工具，
+常用的那些預設項目目錄已經會發下去。
 
 兩個驗證腳本，**搬到 NAS 之後都要再跑一次**：
 
@@ -149,6 +154,21 @@ sh scripts/verify-sync.sh   # 15 項：多台同步的語意
   `now()` 是交易開始時間，一筆交易可能在游標讀過之後才 commit。
 - **家人唯讀**靠「給 select policy、不給 update policy」達成。
   實測過家人 PATCH 會影響 0 列，拿你的 `sync_id` 做 upsert 會被擋。
+
+### 三種表，三種規則
+
+| 類型 | 表 | 規則 |
+|---|---|---|
+| 自動編號 | `food_entries`、`phases`、`extra_burns` | 裝置產的 `sync_id` 當鍵，雙向 |
+| 自然鍵 | `daily_checks`、`body_profiles` | 伺服器以 `(user_id, day, item)` / `(user_id)` 為鍵，雙向 |
+| 健康快取 | `body_metrics`、`daily_activity` | **只上傳，不下拉** |
+
+健康快取只上傳的理由：正本在 Apple 健康 / Health Connect。下拉回本機的列會被
+下一次健康資料整理覆蓋，而且 `fromThisApp` 可能跟著跑到沒寫過它的裝置上，
+那台就會以為自己刪得掉 Apple 健康裡的紀錄。放上伺服器只為了家人看得到。
+
+`body_profiles` 刻意不併進 `public.profiles`——後者是身分表，家人讀得到裡面的
+`display_name`；性別、身高、TDEE 是另一回事，要能單獨決定給不給看。
 
 幾個實測確認的點，之後寫 `0002` 時要沿用：
 
