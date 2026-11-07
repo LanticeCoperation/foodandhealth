@@ -3,8 +3,12 @@ name: Release builds
 # push 到 main：iOS（未簽名 .ipa）與 Android（正式簽名 APK）平行編譯，
 # 兩邊都成功後一起放到固定的 Release「latest」，網址不變、直接下載。
 on:
-  push:
-    branches: [main]
+  # 自動觸發暫時關閉（同步功能開發中）。
+  # 每次 push 到 main 都會更新固定的 Release「latest」，
+  # build number 又是 CI run number，純後端的改動也會讓手機跳出「有新版」。
+  # 要開回來就把下面兩行的註解拿掉。
+  # push:
+  #   branches: [main]
   workflow_dispatch:
 
 concurrency:
