@@ -274,8 +274,13 @@ DSM 那邊要設兩件事：
    - 目的地：HTTP、跑 Supabase 那台的區網 IP、8000
    - 自訂標頭要加上 **WebSocket**（Realtime 以後會用到）
 
-Supabase 主機那端：`.env` 的 `SUPABASE_PUBLIC_URL` 與 `API_EXTERNAL_URL`
-改成 `https://<你的網域>`，然後重啟 auth。
+Supabase 主機那端：`.env` 的 `SUPABASE_PUBLIC_URL`、`API_EXTERNAL_URL`、`SITE_URL`
+改成 `https://<你的網域>`，然後 `docker compose up -d --wait auth studio`。
+
+**Windows 當主機時，防火牆沒放行 8000 的症狀很容易誤判**：TLS 握手會在
+0.03 秒內完成（那是 DSM 回的），然後整整等到逾時都沒有回應。
+Windows 預設對未放行的入站是靜默丟棄而不是拒絕，所以 DSM 一直在等。
+如果是 Supabase 本身掛了，DSM 會很快回 502——**慢＝防火牆，快 502＝後端**。
 
 **注意 `API_EXTERNAL_URL` 同時是 JWT 的 issuer**，改了之後既有的 token 全部失效——
 所以要趁沒人在用的時候改。
