@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
+import '../utils/uuid.dart';
 import 'database.steps.dart';
 
 part 'database.g.dart';
@@ -47,6 +48,7 @@ enum MealType {
 
 /// 飲食紀錄。營養素都是「每份」的值，實際攝取 = 每份 × [servings]。
 @TableIndex(name: 'food_entries_eaten_at', columns: {#eatenAt})
+@TableIndex(name: 'food_entries_sync_id', columns: {#syncId}, unique: true)
 class FoodEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
   DateTimeColumn get eatenAt => dateTime()();
@@ -62,6 +64,34 @@ class FoodEntries extends Table {
   /// 從範本加入時記錄來源範本（v2）。營養素仍複製一份，之後改範本不影響舊紀錄。
   IntColumn get templateId => integer().nullable()();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// 跨裝置同步用的全域唯一識別（v12）。本機的 [id] 是 autoIncrement，
+  /// 兩支手機各自長號碼必定相撞，所以同步的身分必須另外給。
+  ///
+  /// 宣告成 nullable 只是因為 SQLite 不允許對既有資料的表 addColumn NOT NULL，
+  /// 升級時會由 [AppDatabase.backfillSyncIds] 補完。
+  ///
+  /// clientDefault 讓所有插入路徑（手動新增、從範本加入、示範資料）自動拿到值，
+  /// 不必每個呼叫端記得給——漏一個就是一筆永遠不會同步的紀錄。
+  TextColumn get syncId => text().nullable().clientDefault(newUuidV4)();
+
+  /// 有待上傳的本機變更（v12）。下拉寫入的列要設成 false，
+  /// 否則會被當成本機變更無限重傳。
+  BoolColumn get pendingSync =>
+      boolean().withDefault(const Constant(true))();
+}
+
+/// 已刪除、但還沒通知伺服器的飲食紀錄（v12）。
+///
+/// 本機維持硬刪除——改成軟刪除的話，[FoodRepository]、[DatasetRepository]、
+/// 備份、示範資料每一個查詢都要記得濾掉墓碑，漏一個就出錯。
+/// 改用這張小小的待辦表記下「這個 syncId 被刪了」，上傳成功就移除。
+class PendingDeletes extends Table {
+  TextColumn get syncId => text()();
+  DateTimeColumn get deletedAt => dateTime().withDefault(currentDateAndTime)();
+
+  @override
+  Set<Column> get primaryKey => {syncId};
 }
 
 /// 餐點範本（v2）：常吃的外食 / 補充品，營養素是「每份」的值。
@@ -248,6 +278,7 @@ class Profiles extends Table {
     DailyActivity,
     ExtraBurns,
     Settings,
+    PendingDeletes,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -256,7 +287,7 @@ class AppDatabase extends _$AppDatabase {
     : super(executor ?? driftDatabase(name: 'body_lab'));
 
   @override
-  int get schemaVersion => 11;
+  int get schemaVersion => 12;
 
   // 改 schema 的流程：schemaVersion +1 → dart run build_runner build →
   // dart run drift_dev make-migrations → 在 stepByStep 補上 fromNToN+1。
@@ -313,8 +344,37 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(schema.settings);
         await adoptLegacyTemplates();
       },
+      // 跨裝置同步（v12）：飲食紀錄加 syncId / pendingSync，另外加刪除待辦表。
+      from11To12: (m, schema) async {
+        await m.addColumn(schema.foodEntries, schema.foodEntries.syncId);
+        await m.addColumn(schema.foodEntries, schema.foodEntries.pendingSync);
+        await m.createTable(schema.pendingDeletes);
+        // 先補完值才能建 unique index：既有的列現在全是 NULL，
+        // SQLite 的 unique index 雖然允許多個 NULL，但補完後才建比較不會有意外。
+        await backfillSyncIds();
+        await m.createIndex(schema.foodEntriesSyncId);
+      },
     ),
   );
+
+  /// 升級到 v12 時，幫既有的飲食紀錄補上 syncId。
+  ///
+  /// 這些是使用者在單機時期累積的真實資料，第一次登入後會整批當成自己的上傳。
+  Future<void> backfillSyncIds() async {
+    final rows = await (select(
+      foodEntries,
+    )..where((r) => r.syncId.isNull())).get();
+    if (rows.isEmpty) return;
+    await batch((b) {
+      for (final row in rows) {
+        b.update(
+          foodEntries,
+          FoodEntriesCompanion(syncId: Value(newUuidV4())),
+          where: (r) => r.id.equals(row.id),
+        );
+      }
+    });
+  }
 
   /// v11 之前的資料（升級或匯入舊備份）沒有 customized / sourceKey：
   ///

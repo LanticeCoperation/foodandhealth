@@ -684,6 +684,31 @@ class $FoodEntriesTable extends FoodEntries
     requiredDuringInsert: false,
     defaultValue: currentDateAndTime,
   );
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    clientDefault: newUuidV4,
+  );
+  static const VerificationMeta _pendingSyncMeta = const VerificationMeta(
+    'pendingSync',
+  );
+  @override
+  late final GeneratedColumn<bool> pendingSync = GeneratedColumn<bool>(
+    'pending_sync',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("pending_sync" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -698,6 +723,8 @@ class $FoodEntriesTable extends FoodEntries
     note,
     templateId,
     createdAt,
+    syncId,
+    pendingSync,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -778,6 +805,21 @@ class $FoodEntriesTable extends FoodEntries
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    }
+    if (data.containsKey('pending_sync')) {
+      context.handle(
+        _pendingSyncMeta,
+        pendingSync.isAcceptableOrUnknown(
+          data['pending_sync']!,
+          _pendingSyncMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -837,6 +879,14 @@ class $FoodEntriesTable extends FoodEntries
         DriftSqlType.dateTime,
         data['${effectivePrefix}created_at'],
       )!,
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      ),
+      pendingSync: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}pending_sync'],
+      )!,
     );
   }
 
@@ -864,6 +914,20 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
   /// 從範本加入時記錄來源範本（v2）。營養素仍複製一份，之後改範本不影響舊紀錄。
   final int? templateId;
   final DateTime createdAt;
+
+  /// 跨裝置同步用的全域唯一識別（v12）。本機的 [id] 是 autoIncrement，
+  /// 兩支手機各自長號碼必定相撞，所以同步的身分必須另外給。
+  ///
+  /// 宣告成 nullable 只是因為 SQLite 不允許對既有資料的表 addColumn NOT NULL，
+  /// 升級時會由 [AppDatabase.backfillSyncIds] 補完。
+  ///
+  /// clientDefault 讓所有插入路徑（手動新增、從範本加入、示範資料）自動拿到值，
+  /// 不必每個呼叫端記得給——漏一個就是一筆永遠不會同步的紀錄。
+  final String? syncId;
+
+  /// 有待上傳的本機變更（v12）。下拉寫入的列要設成 false，
+  /// 否則會被當成本機變更無限重傳。
+  final bool pendingSync;
   const FoodEntry({
     required this.id,
     required this.eatenAt,
@@ -877,6 +941,8 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
     this.note,
     this.templateId,
     required this.createdAt,
+    this.syncId,
+    required this.pendingSync,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -909,6 +975,10 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
       map['template_id'] = Variable<int>(templateId);
     }
     map['created_at'] = Variable<DateTime>(createdAt);
+    if (!nullToAbsent || syncId != null) {
+      map['sync_id'] = Variable<String>(syncId);
+    }
+    map['pending_sync'] = Variable<bool>(pendingSync);
     return map;
   }
 
@@ -932,6 +1002,10 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
           ? const Value.absent()
           : Value(templateId),
       createdAt: Value(createdAt),
+      syncId: syncId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(syncId),
+      pendingSync: Value(pendingSync),
     );
   }
 
@@ -955,6 +1029,8 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
       note: serializer.fromJson<String?>(json['note']),
       templateId: serializer.fromJson<int?>(json['templateId']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      syncId: serializer.fromJson<String?>(json['syncId']),
+      pendingSync: serializer.fromJson<bool>(json['pendingSync']),
     );
   }
   @override
@@ -975,6 +1051,8 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
       'note': serializer.toJson<String?>(note),
       'templateId': serializer.toJson<int?>(templateId),
       'createdAt': serializer.toJson<DateTime>(createdAt),
+      'syncId': serializer.toJson<String?>(syncId),
+      'pendingSync': serializer.toJson<bool>(pendingSync),
     };
   }
 
@@ -991,6 +1069,8 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
     Value<String?> note = const Value.absent(),
     Value<int?> templateId = const Value.absent(),
     DateTime? createdAt,
+    Value<String?> syncId = const Value.absent(),
+    bool? pendingSync,
   }) => FoodEntry(
     id: id ?? this.id,
     eatenAt: eatenAt ?? this.eatenAt,
@@ -1004,6 +1084,8 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
     note: note.present ? note.value : this.note,
     templateId: templateId.present ? templateId.value : this.templateId,
     createdAt: createdAt ?? this.createdAt,
+    syncId: syncId.present ? syncId.value : this.syncId,
+    pendingSync: pendingSync ?? this.pendingSync,
   );
   FoodEntry copyWithCompanion(FoodEntriesCompanion data) {
     return FoodEntry(
@@ -1021,6 +1103,10 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
           ? data.templateId.value
           : this.templateId,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      pendingSync: data.pendingSync.present
+          ? data.pendingSync.value
+          : this.pendingSync,
     );
   }
 
@@ -1038,7 +1124,9 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
           ..write('fatG: $fatG, ')
           ..write('note: $note, ')
           ..write('templateId: $templateId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncId: $syncId, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -1057,6 +1145,8 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
     note,
     templateId,
     createdAt,
+    syncId,
+    pendingSync,
   );
   @override
   bool operator ==(Object other) =>
@@ -1073,7 +1163,9 @@ class FoodEntry extends DataClass implements Insertable<FoodEntry> {
           other.fatG == this.fatG &&
           other.note == this.note &&
           other.templateId == this.templateId &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.syncId == this.syncId &&
+          other.pendingSync == this.pendingSync);
 }
 
 class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
@@ -1089,6 +1181,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
   final Value<String?> note;
   final Value<int?> templateId;
   final Value<DateTime> createdAt;
+  final Value<String?> syncId;
+  final Value<bool> pendingSync;
   const FoodEntriesCompanion({
     this.id = const Value.absent(),
     this.eatenAt = const Value.absent(),
@@ -1102,6 +1196,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
     this.note = const Value.absent(),
     this.templateId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   });
   FoodEntriesCompanion.insert({
     this.id = const Value.absent(),
@@ -1116,6 +1212,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
     this.note = const Value.absent(),
     this.templateId = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.syncId = const Value.absent(),
+    this.pendingSync = const Value.absent(),
   }) : eatenAt = Value(eatenAt),
        meal = Value(meal),
        name = Value(name);
@@ -1132,6 +1230,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
     Expression<String>? note,
     Expression<int>? templateId,
     Expression<DateTime>? createdAt,
+    Expression<String>? syncId,
+    Expression<bool>? pendingSync,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1146,6 +1246,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
       if (note != null) 'note': note,
       if (templateId != null) 'template_id': templateId,
       if (createdAt != null) 'created_at': createdAt,
+      if (syncId != null) 'sync_id': syncId,
+      if (pendingSync != null) 'pending_sync': pendingSync,
     });
   }
 
@@ -1162,6 +1264,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
     Value<String?>? note,
     Value<int?>? templateId,
     Value<DateTime>? createdAt,
+    Value<String?>? syncId,
+    Value<bool>? pendingSync,
   }) {
     return FoodEntriesCompanion(
       id: id ?? this.id,
@@ -1176,6 +1280,8 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
       note: note ?? this.note,
       templateId: templateId ?? this.templateId,
       createdAt: createdAt ?? this.createdAt,
+      syncId: syncId ?? this.syncId,
+      pendingSync: pendingSync ?? this.pendingSync,
     );
   }
 
@@ -1220,6 +1326,12 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
     if (createdAt.present) {
       map['created_at'] = Variable<DateTime>(createdAt.value);
     }
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (pendingSync.present) {
+      map['pending_sync'] = Variable<bool>(pendingSync.value);
+    }
     return map;
   }
 
@@ -1237,7 +1349,9 @@ class FoodEntriesCompanion extends UpdateCompanion<FoodEntry> {
           ..write('fatG: $fatG, ')
           ..write('note: $note, ')
           ..write('templateId: $templateId, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('syncId: $syncId, ')
+          ..write('pendingSync: $pendingSync')
           ..write(')'))
         .toString();
   }
@@ -4424,6 +4538,220 @@ class SettingsCompanion extends UpdateCompanion<Setting> {
   }
 }
 
+class $PendingDeletesTable extends PendingDeletes
+    with TableInfo<$PendingDeletesTable, PendingDelete> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $PendingDeletesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _syncIdMeta = const VerificationMeta('syncId');
+  @override
+  late final GeneratedColumn<String> syncId = GeneratedColumn<String>(
+    'sync_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _deletedAtMeta = const VerificationMeta(
+    'deletedAt',
+  );
+  @override
+  late final GeneratedColumn<DateTime> deletedAt = GeneratedColumn<DateTime>(
+    'deleted_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [syncId, deletedAt];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'pending_deletes';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<PendingDelete> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('sync_id')) {
+      context.handle(
+        _syncIdMeta,
+        syncId.isAcceptableOrUnknown(data['sync_id']!, _syncIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_syncIdMeta);
+    }
+    if (data.containsKey('deleted_at')) {
+      context.handle(
+        _deletedAtMeta,
+        deletedAt.isAcceptableOrUnknown(data['deleted_at']!, _deletedAtMeta),
+      );
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {syncId};
+  @override
+  PendingDelete map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return PendingDelete(
+      syncId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}sync_id'],
+      )!,
+      deletedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}deleted_at'],
+      )!,
+    );
+  }
+
+  @override
+  $PendingDeletesTable createAlias(String alias) {
+    return $PendingDeletesTable(attachedDatabase, alias);
+  }
+}
+
+class PendingDelete extends DataClass implements Insertable<PendingDelete> {
+  final String syncId;
+  final DateTime deletedAt;
+  const PendingDelete({required this.syncId, required this.deletedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['sync_id'] = Variable<String>(syncId);
+    map['deleted_at'] = Variable<DateTime>(deletedAt);
+    return map;
+  }
+
+  PendingDeletesCompanion toCompanion(bool nullToAbsent) {
+    return PendingDeletesCompanion(
+      syncId: Value(syncId),
+      deletedAt: Value(deletedAt),
+    );
+  }
+
+  factory PendingDelete.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return PendingDelete(
+      syncId: serializer.fromJson<String>(json['syncId']),
+      deletedAt: serializer.fromJson<DateTime>(json['deletedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'syncId': serializer.toJson<String>(syncId),
+      'deletedAt': serializer.toJson<DateTime>(deletedAt),
+    };
+  }
+
+  PendingDelete copyWith({String? syncId, DateTime? deletedAt}) =>
+      PendingDelete(
+        syncId: syncId ?? this.syncId,
+        deletedAt: deletedAt ?? this.deletedAt,
+      );
+  PendingDelete copyWithCompanion(PendingDeletesCompanion data) {
+    return PendingDelete(
+      syncId: data.syncId.present ? data.syncId.value : this.syncId,
+      deletedAt: data.deletedAt.present ? data.deletedAt.value : this.deletedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingDelete(')
+          ..write('syncId: $syncId, ')
+          ..write('deletedAt: $deletedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(syncId, deletedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is PendingDelete &&
+          other.syncId == this.syncId &&
+          other.deletedAt == this.deletedAt);
+}
+
+class PendingDeletesCompanion extends UpdateCompanion<PendingDelete> {
+  final Value<String> syncId;
+  final Value<DateTime> deletedAt;
+  final Value<int> rowid;
+  const PendingDeletesCompanion({
+    this.syncId = const Value.absent(),
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  PendingDeletesCompanion.insert({
+    required String syncId,
+    this.deletedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  }) : syncId = Value(syncId);
+  static Insertable<PendingDelete> custom({
+    Expression<String>? syncId,
+    Expression<DateTime>? deletedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (syncId != null) 'sync_id': syncId,
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  PendingDeletesCompanion copyWith({
+    Value<String>? syncId,
+    Value<DateTime>? deletedAt,
+    Value<int>? rowid,
+  }) {
+    return PendingDeletesCompanion(
+      syncId: syncId ?? this.syncId,
+      deletedAt: deletedAt ?? this.deletedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (syncId.present) {
+      map['sync_id'] = Variable<String>(syncId.value);
+    }
+    if (deletedAt.present) {
+      map['deleted_at'] = Variable<DateTime>(deletedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('PendingDeletesCompanion(')
+          ..write('syncId: $syncId, ')
+          ..write('deletedAt: $deletedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -4438,9 +4766,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $DailyActivityTable dailyActivity = $DailyActivityTable(this);
   late final $ExtraBurnsTable extraBurns = $ExtraBurnsTable(this);
   late final $SettingsTable settings = $SettingsTable(this);
+  late final $PendingDeletesTable pendingDeletes = $PendingDeletesTable(this);
   late final Index foodEntriesEatenAt = Index(
     'food_entries_eaten_at',
     'CREATE INDEX food_entries_eaten_at ON food_entries (eaten_at)',
+  );
+  late final Index foodEntriesSyncId = Index(
+    'food_entries_sync_id',
+    'CREATE UNIQUE INDEX food_entries_sync_id ON food_entries (sync_id)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -4456,7 +4789,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     dailyActivity,
     extraBurns,
     settings,
+    pendingDeletes,
     foodEntriesEatenAt,
+    foodEntriesSyncId,
   ];
 }
 
@@ -4762,6 +5097,8 @@ typedef $$FoodEntriesTableCreateCompanionBuilder =
       Value<String?> note,
       Value<int?> templateId,
       Value<DateTime> createdAt,
+      Value<String?> syncId,
+      Value<bool> pendingSync,
     });
 typedef $$FoodEntriesTableUpdateCompanionBuilder =
     FoodEntriesCompanion Function({
@@ -4777,6 +5114,8 @@ typedef $$FoodEntriesTableUpdateCompanionBuilder =
       Value<String?> note,
       Value<int?> templateId,
       Value<DateTime> createdAt,
+      Value<String?> syncId,
+      Value<bool> pendingSync,
     });
 
 class $$FoodEntriesTableFilterComposer
@@ -4846,6 +5185,16 @@ class $$FoodEntriesTableFilterComposer
 
   ColumnFilters<DateTime> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4918,6 +5267,16 @@ class $$FoodEntriesTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$FoodEntriesTableAnnotationComposer
@@ -4966,6 +5325,14 @@ class $$FoodEntriesTableAnnotationComposer
 
   GeneratedColumn<DateTime> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<bool> get pendingSync => $composableBuilder(
+    column: $table.pendingSync,
+    builder: (column) => column,
+  );
 }
 
 class $$FoodEntriesTableTableManager
@@ -5011,6 +5378,8 @@ class $$FoodEntriesTableTableManager
                 Value<String?> note = const Value.absent(),
                 Value<int?> templateId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => FoodEntriesCompanion(
                 id: id,
                 eatenAt: eatenAt,
@@ -5024,6 +5393,8 @@ class $$FoodEntriesTableTableManager
                 note: note,
                 templateId: templateId,
                 createdAt: createdAt,
+                syncId: syncId,
+                pendingSync: pendingSync,
               ),
           createCompanionCallback:
               ({
@@ -5039,6 +5410,8 @@ class $$FoodEntriesTableTableManager
                 Value<String?> note = const Value.absent(),
                 Value<int?> templateId = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
+                Value<String?> syncId = const Value.absent(),
+                Value<bool> pendingSync = const Value.absent(),
               }) => FoodEntriesCompanion.insert(
                 id: id,
                 eatenAt: eatenAt,
@@ -5052,6 +5425,8 @@ class $$FoodEntriesTableTableManager
                 note: note,
                 templateId: templateId,
                 createdAt: createdAt,
+                syncId: syncId,
+                pendingSync: pendingSync,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -6759,6 +7134,160 @@ typedef $$SettingsTableProcessedTableManager =
       Setting,
       PrefetchHooks Function()
     >;
+typedef $$PendingDeletesTableCreateCompanionBuilder =
+    PendingDeletesCompanion Function({
+      required String syncId,
+      Value<DateTime> deletedAt,
+      Value<int> rowid,
+    });
+typedef $$PendingDeletesTableUpdateCompanionBuilder =
+    PendingDeletesCompanion Function({
+      Value<String> syncId,
+      Value<DateTime> deletedAt,
+      Value<int> rowid,
+    });
+
+class $$PendingDeletesTableFilterComposer
+    extends Composer<_$AppDatabase, $PendingDeletesTable> {
+  $$PendingDeletesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$PendingDeletesTableOrderingComposer
+    extends Composer<_$AppDatabase, $PendingDeletesTable> {
+  $$PendingDeletesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get syncId => $composableBuilder(
+    column: $table.syncId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get deletedAt => $composableBuilder(
+    column: $table.deletedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$PendingDeletesTableAnnotationComposer
+    extends Composer<_$AppDatabase, $PendingDeletesTable> {
+  $$PendingDeletesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get syncId =>
+      $composableBuilder(column: $table.syncId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get deletedAt =>
+      $composableBuilder(column: $table.deletedAt, builder: (column) => column);
+}
+
+class $$PendingDeletesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $PendingDeletesTable,
+          PendingDelete,
+          $$PendingDeletesTableFilterComposer,
+          $$PendingDeletesTableOrderingComposer,
+          $$PendingDeletesTableAnnotationComposer,
+          $$PendingDeletesTableCreateCompanionBuilder,
+          $$PendingDeletesTableUpdateCompanionBuilder,
+          (
+            PendingDelete,
+            BaseReferences<_$AppDatabase, $PendingDeletesTable, PendingDelete>,
+          ),
+          PendingDelete,
+          PrefetchHooks Function()
+        > {
+  $$PendingDeletesTableTableManager(
+    _$AppDatabase db,
+    $PendingDeletesTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$PendingDeletesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$PendingDeletesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$PendingDeletesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> syncId = const Value.absent(),
+                Value<DateTime> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingDeletesCompanion(
+                syncId: syncId,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String syncId,
+                Value<DateTime> deletedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => PendingDeletesCompanion.insert(
+                syncId: syncId,
+                deletedAt: deletedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$PendingDeletesTable, PendingDelete>(table),
+                  BaseReferences<
+                    _$AppDatabase,
+                    $PendingDeletesTable,
+                    PendingDelete
+                  >(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$PendingDeletesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $PendingDeletesTable,
+      PendingDelete,
+      $$PendingDeletesTableFilterComposer,
+      $$PendingDeletesTableOrderingComposer,
+      $$PendingDeletesTableAnnotationComposer,
+      $$PendingDeletesTableCreateCompanionBuilder,
+      $$PendingDeletesTableUpdateCompanionBuilder,
+      (
+        PendingDelete,
+        BaseReferences<_$AppDatabase, $PendingDeletesTable, PendingDelete>,
+      ),
+      PendingDelete,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -6781,4 +7310,6 @@ class $AppDatabaseManager {
       $$ExtraBurnsTableTableManager(_db, _db.extraBurns);
   $$SettingsTableTableManager get settings =>
       $$SettingsTableTableManager(_db, _db.settings);
+  $$PendingDeletesTableTableManager get pendingDeletes =>
+      $$PendingDeletesTableTableManager(_db, _db.pendingDeletes);
 }

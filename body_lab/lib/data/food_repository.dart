@@ -48,19 +48,57 @@ class FoodRepository {
     return byDay.map((day, entries) => MapEntry(day, DayTotals.of(entries)));
   }
 
+  /// syncId 由 [FoodEntries.syncId] 的 clientDefault 自動帶入，呼叫端不用管。
   Future<int> add(FoodEntriesCompanion entry) =>
       _db.into(_db.foodEntries).insert(entry);
 
   /// 以 id 覆蓋整筆（[entry] 需含 id 與所有欄位）。
-  Future<void> save(Insertable<FoodEntry> entry) =>
-      _db.update(_db.foodEntries).replace(entry);
+  ///
+  /// 一定要重新標成待上傳：呼叫端通常是拿既有的列改幾個欄位再存回來，
+  /// 那筆的 pendingSync 可能是上次同步完留下的 false。
+  Future<void> save(Insertable<FoodEntry> entry) async {
+    await _db.update(_db.foodEntries).replace(entry);
+    final row = entry.toColumns(false);
+    final id = row['id'];
+    if (id is Variable) {
+      await (_db.update(_db.foodEntries)
+            ..where((r) => r.id.equals(id.value as int)))
+          .write(const FoodEntriesCompanion(pendingSync: Value(true)));
+    }
+  }
 
-  Future<void> delete(int id) =>
-      (_db.delete(_db.foodEntries)..where((r) => r.id.equals(id))).go();
+  /// 本機硬刪除，另外在待辦表記下 syncId，之後通知伺服器。
+  ///
+  /// 本機不做軟刪除：那會讓每一個讀飲食紀錄的查詢都得記得濾掉墓碑。
+  Future<void> delete(int id) async {
+    await _db.transaction(() async {
+      final row = await (_db.select(
+        _db.foodEntries,
+      )..where((r) => r.id.equals(id))).getSingleOrNull();
+      final syncId = row?.syncId;
+      if (syncId != null) {
+        await _db
+            .into(_db.pendingDeletes)
+            .insertOnConflictUpdate(
+              PendingDeletesCompanion.insert(syncId: syncId),
+            );
+      }
+      await (_db.delete(_db.foodEntries)..where((r) => r.id.equals(id))).go();
+    });
+  }
 
-  /// 復原刪除：用原本的 id 放回去。
-  Future<void> restore(FoodEntry entry) =>
-      _db.into(_db.foodEntries).insert(entry);
+  /// 復原刪除：用原本的 id 放回去，並取消那筆刪除待辦。
+  Future<void> restore(FoodEntry entry) async {
+    await _db.transaction(() async {
+      await _db.into(_db.foodEntries).insert(entry);
+      final syncId = entry.syncId;
+      if (syncId != null) {
+        await (_db.delete(_db.pendingDeletes)
+              ..where((r) => r.syncId.equals(syncId)))
+            .go();
+      }
+    });
+  }
 }
 
 /// 一天的攝取總量；沒填的營養素當 0 計算，[missingKcal] 記錄有幾筆沒填熱量。

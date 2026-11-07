@@ -13,6 +13,7 @@ import 'generated/schema_v8.dart' as v8;
 import 'generated/schema_v9.dart' as v9;
 import 'generated/schema_v10.dart' as v10;
 import 'generated/schema_v11.dart' as v11;
+import 'generated/schema_v12.dart' as v12;
 
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -260,6 +261,88 @@ void main() {
         expect(byName['蛋白粉（1 匙）']!.sourceKey, 'protein_powder');
         expect(byName['雞蛋（1 顆）']!.sourceKey, 'egg');
         expect(byName['水煮蛋']!.sourceKey, null);
+      },
+    );
+  });
+
+  test('v11 → v12 既有飲食紀錄補上唯一的 syncId，其他欄位原封不動', () async {
+    final eatenAt = DateTime(2026, 11, 1, 8).millisecondsSinceEpoch ~/ 1000;
+    final createdAt = DateTime(2026, 11, 1, 8, 5).millisecondsSinceEpoch ~/ 1000;
+
+    await verifier.testWithDataIntegrity(
+      oldVersion: 11,
+      newVersion: 12,
+      createOld: v11.DatabaseAtV11.new,
+      createNew: v12.DatabaseAtV12.new,
+      openTestedDatabase: AppDatabase.new,
+      createItems: (batch, oldDb) {
+        batch.insertAll(oldDb.foodEntries, [
+          v11.FoodEntriesData(
+            id: 1,
+            eatenAt: eatenAt,
+            meal: 'breakfast',
+            name: '燕麥粥',
+            servings: 1,
+            kcal: 350,
+            proteinG: 12,
+            createdAt: createdAt,
+          ),
+          v11.FoodEntriesData(
+            id: 2,
+            eatenAt: eatenAt + 3600,
+            meal: 'lunch',
+            name: '雞腿便當',
+            servings: 1.5,
+            kcal: 700,
+            note: '外食',
+            templateId: 3,
+            createdAt: createdAt,
+          ),
+          v11.FoodEntriesData(
+            id: 3,
+            eatenAt: eatenAt + 7200,
+            meal: 'snack',
+            name: '蛋白粉（1 匙）',
+            servings: 2,
+            createdAt: createdAt,
+          ),
+        ]);
+      },
+      validateItems: (newDb) async {
+        final rows = await newDb.select(newDb.foodEntries).get();
+        expect(rows, hasLength(3));
+
+        // 每一筆都補到值，而且彼此不重複
+        final ids = rows.map((r) => r.syncId).toList();
+        expect(ids.whereType<String>(), hasLength(3));
+        expect(ids.toSet(), hasLength(3));
+        // RFC 4122 v4 的形狀
+        expect(
+          ids.first,
+          matches(
+            RegExp(
+              r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-'
+              r'[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            ),
+          ),
+        );
+
+        // 升級完的資料都還沒上傳過（v12 的產生類別裡 bool 是 int）
+        expect(rows.every((r) => r.pendingSync == 1), isTrue);
+
+        // 其他欄位一個字都不能動
+        final byId = {for (final r in rows) r.id: r};
+        expect(byId[1]!.name, '燕麥粥');
+        expect(byId[1]!.kcal, 350);
+        expect(byId[1]!.proteinG, 12);
+        expect(byId[2]!.servings, 1.5);
+        expect(byId[2]!.note, '外食');
+        expect(byId[2]!.templateId, 3);
+        expect(byId[3]!.kcal, null);
+        expect(byId[1]!.eatenAt, eatenAt);
+
+        // 刪除待辦表是空的
+        expect(await newDb.select(newDb.pendingDeletes).get(), isEmpty);
       },
     );
   });

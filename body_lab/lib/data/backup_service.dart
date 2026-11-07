@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:drift/drift.dart';
 
+import '../utils/uuid.dart';
 import 'database.dart';
 import 'settings_repository.dart';
 
@@ -9,7 +10,8 @@ import 'settings_repository.dart';
 ///
 /// - 1：飲食、一鍵項目、打勾、階段、個人資料
 /// - 2：加入自訂消耗（extraBurns）；讀 1 版時視為沒有
-const int kBackupFormat = 2;
+/// - 3：飲食紀錄帶 syncId / pendingSync；讀 2 版以下時現場補 syncId
+const int kBackupFormat = 3;
 
 class BackupFormatException implements Exception {
   BackupFormatException(this.message);
@@ -107,7 +109,17 @@ class BackupService {
     final Profile? profile;
     final List<ExtraBurn> extra;
     try {
-      food = list('foodEntries').map(FoodEntry.fromJson).toList();
+      // v12 之前的備份沒有 syncId / pendingSync。現場補一組新的 syncId，
+      // 並標成待上傳——還原回來的就是這台的資料，本來就該送上去。
+      // 上傳是以 syncId 為鍵的 upsert，所以同一筆重複送不會產生重複列。
+      food = [
+        for (final e in list('foodEntries'))
+          FoodEntry.fromJson({
+            'syncId': newUuidV4(),
+            'pendingSync': true,
+            ...e,
+          }),
+      ];
       // v11 之前的備份沒有 sourceKey / customized
       templates = [
         for (final t in list('mealTemplates'))
