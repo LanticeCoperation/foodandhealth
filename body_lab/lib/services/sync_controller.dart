@@ -44,8 +44,7 @@ class SyncController extends ChangeNotifier {
   /// 會把 session 存到裝置上的那一個。自己 new 一個 [SupabaseClient] 的話
   /// session 只活在記憶體裡，App 一關就要重新登入。
   SyncController(this._db, {SupabaseClient? client, SyncApi? api})
-    : _client =
-          client ?? (SyncConfig.configured ? Supabase.instance.client : null),
+    : _client = client ?? SyncRuntime.client,
       _testApi = api {
     if (_testApi != null) {
       _service = SyncService(_db, _testApi);

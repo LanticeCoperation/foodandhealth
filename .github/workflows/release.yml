@@ -40,11 +40,10 @@ jobs:
       - run: flutter pub get
       # 不簽名：Sideloadly 安裝時會用使用者自己的 Apple ID 重簽，HealthKit entitlements 會一併保留。
       # build number 用 workflow run number，每次發佈自動 +1；版本名稱沿用 pubspec.yaml
-      # 同步伺服器的位址與金鑰。沒設這兩個 secret 時 --dart-define 帶空字串，
-      # SyncConfig.configured 是 false，發出去的版本同步功能整個關閉。
-      # NAS 架好 HTTPS 之後在 repo 的 Settings → Secrets 加上
-      # SUPABASE_URL（https://…，iOS 的 ATS 擋明文）與 SUPABASE_KEY（publishable key）。
-      - run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }} --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define=SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+      # 刻意不帶同步伺服器的位址與金鑰。
+      # 位址一旦編進 .ipa / .apk，任何人解壓縮就看得到伺服器在哪。
+      # 改由使用者在 App 的設定頁填，存在自己手機上，換伺服器也不用重發版。
+      - run: flutter build ios --release --no-codesign --build-number=${{ github.run_number }}
       - name: Package unsigned ipa
         run: |
           rm -rf ipa && mkdir -p ipa/Payload
@@ -92,11 +91,10 @@ jobs:
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           EOP
       # build number（versionCode）用 workflow run number，只增不減；App 用它判斷有沒有新版
-      # 同步伺服器的位址與金鑰。沒設這兩個 secret 時 --dart-define 帶空字串，
-      # SyncConfig.configured 是 false，發出去的版本同步功能整個關閉。
-      # NAS 架好 HTTPS 之後在 repo 的 Settings → Secrets 加上
-      # SUPABASE_URL（https://…，iOS 的 ATS 擋明文）與 SUPABASE_KEY（publishable key）。
-      - run: flutter build apk --release --build-number=${{ github.run_number }} --dart-define=SUPABASE_URL=${{ secrets.SUPABASE_URL }} --dart-define=SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}
+      # 刻意不帶同步伺服器的位址與金鑰。
+      # 位址一旦編進 .ipa / .apk，任何人解壓縮就看得到伺服器在哪。
+      # 改由使用者在 App 的設定頁填，存在自己手機上，換伺服器也不用重發版。
+      - run: flutter build apk --release --build-number=${{ github.run_number }}
       - run: cp build/app/outputs/flutter-apk/app-release.apk build/body_lab.apk
       - uses: actions/upload-artifact@v4
         with:

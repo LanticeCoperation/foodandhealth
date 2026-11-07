@@ -55,4 +55,30 @@ void main() {
     expect(await settings.geminiApiKey(), 'AIza-test');
     expect(await CatalogUpdater(db).appliedVersion(), 0);
   });
+
+  group('同步伺服器', () {
+    test('沒設定時兩個都是 null', () async {
+      expect(await settings.syncUrl(), isNull);
+      expect(await settings.syncKey(), isNull);
+    });
+
+    test('存得起來也讀得回來', () async {
+      await settings.setSyncServer('https://example.test', 'sb_publishable_abc');
+      expect(await settings.syncUrl(), 'https://example.test');
+      expect(await settings.syncKey(), 'sb_publishable_abc');
+    });
+
+    test('清空等於關掉同步', () async {
+      await settings.setSyncServer('https://example.test', 'sb_publishable_abc');
+      await settings.setSyncServer('', '');
+      expect(await settings.syncUrl(), isNull);
+      expect(await settings.syncKey(), isNull);
+    });
+
+    test('前後空白會被修掉', () async {
+      await settings.setSyncServer('  https://example.test  ', '  key  ');
+      expect(await settings.syncUrl(), 'https://example.test');
+      expect(await settings.syncKey(), 'key');
+    });
+  });
 }

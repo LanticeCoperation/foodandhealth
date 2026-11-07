@@ -37,9 +37,12 @@ void main() {
   // AppServices 的建構子裡。
   setUpAll(() async {
     await Supabase.initialize(
-      url: SyncConfig.url,
-      publishableKey: SyncConfig.publishableKey,
+      url: SyncConfig.compiledUrl,
+      publishableKey: SyncConfig.compiledKey,
     );
+    // main() 不會跑，所以要自己把 client 放進去
+    SyncRuntime.client = Supabase.instance.client;
+    SyncRuntime.url = SyncConfig.compiledUrl;
   });
 
   // 帳號密碼一律從環境變數帶進來，不要寫死——這個 repo 是公開的，
@@ -52,7 +55,7 @@ void main() {
     tester,
   ) async {
     expect(
-      SyncConfig.configured,
+      SyncConfig.compiledUrl.isNotEmpty && SyncConfig.compiledKey.isNotEmpty,
       isTrue,
       reason: '這支測試要帶 --dart-define 的 SUPABASE_URL / SUPABASE_KEY',
     );
@@ -112,7 +115,7 @@ void main() {
       expect(syncId, isNotNull);
 
       // 換家人的帳號從伺服器讀
-      final asMom = SupabaseClient(SyncConfig.url, SyncConfig.publishableKey);
+      final asMom = SupabaseClient(SyncConfig.compiledUrl, SyncConfig.compiledKey);
       await asMom.auth.signInWithPassword(email: mom, password: password);
       final seen = await asMom
           .schema(kBodyLabSchema)

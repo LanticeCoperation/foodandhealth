@@ -413,7 +413,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   ],
                   if (widget.sync != null) ...[
                     const SizedBox(height: 24),
-                    SyncSection(controller: widget.sync!),
+                    SyncSection(
+                      controller: widget.sync!,
+                      settings: widget.settings,
+                    ),
                   ],
                   const SizedBox(height: 24),
                   GeminiKeySection(settings: widget.settings),

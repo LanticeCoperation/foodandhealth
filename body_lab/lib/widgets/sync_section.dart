@@ -1,15 +1,22 @@
 import 'package:flutter/material.dart';
 
 import '../screens/family_screen.dart';
+import '../data/settings_repository.dart';
+import '../services/sync_config.dart';
 import '../services/sync_controller.dart';
 
 /// 設定頁裡的「跨裝置同步」區塊。
 ///
 /// 沒設定同步伺服器時整個區塊不顯示（[SyncController.available]）。
 class SyncSection extends StatefulWidget {
-  const SyncSection({super.key, required this.controller});
+  const SyncSection({
+    super.key,
+    required this.controller,
+    required this.settings,
+  });
 
   final SyncController controller;
+  final SettingsRepository settings;
 
   @override
   State<SyncSection> createState() => _SyncSectionState();
@@ -18,6 +25,8 @@ class SyncSection extends StatefulWidget {
 class _SyncSectionState extends State<SyncSection> {
   final _email = TextEditingController();
   final _password = TextEditingController();
+  final _url = TextEditingController();
+  final _key = TextEditingController();
 
   @override
   void initState() {
@@ -56,6 +65,8 @@ class _SyncSectionState extends State<SyncSection> {
     widget.controller.removeListener(_onChange);
     _email.dispose();
     _password.dispose();
+    _url.dispose();
+    _key.dispose();
     super.dispose();
   }
 
@@ -100,11 +111,66 @@ class _SyncSectionState extends State<SyncSection> {
     if (widget.controller.signedIn) _password.clear();
   }
 
+  Future<void> _saveServer() async {
+    await widget.settings.setSyncServer(_url.text, _key.text);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('已儲存，請重新啟動 App 才會生效')),
+    );
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = widget.controller;
-    if (!c.available) return const SizedBox.shrink();
     final theme = Theme.of(context);
+
+    // 還沒設定伺服器：只顯示填寫欄位
+    if (!c.available) {
+      return Card(
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('跨裝置同步', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 4),
+              Text(
+                '填入自己的同步伺服器之後，這支手機的飲食紀錄就會同步到你的'
+                '其他裝置，家人也看得到。位址只存在這支手機上。',
+                style: theme.textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _url,
+                autocorrect: false,
+                keyboardType: TextInputType.url,
+                decoration: const InputDecoration(
+                  labelText: '伺服器位址',
+                  hintText: 'https://…',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _key,
+                autocorrect: false,
+                decoration: const InputDecoration(
+                  labelText: '金鑰（publishable key）',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: _saveServer,
+                child: const Text('儲存'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -195,6 +261,15 @@ class _SyncSectionState extends State<SyncSection> {
               TextButton(
                 onPressed: c.busy ? null : c.signOut,
                 child: const Text('登出'),
+              ),
+            ],
+            if (SyncRuntime.url != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                '伺服器：${SyncRuntime.url}',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ],
             if (c.ownerUid != null) ...[

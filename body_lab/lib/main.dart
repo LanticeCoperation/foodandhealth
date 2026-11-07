@@ -38,20 +38,36 @@ import 'widgets/app_update.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kAdsEnabled) MobileAds.instance.initialize();
-  // 有設定同步伺服器才初始化。supabase_flutter 負責把登入的 session 存到
-  // 裝置上，沒有它的話 App 一關掉就要重新登入。
-  if (SyncConfig.configured) {
-    await Supabase.initialize(
-      url: SyncConfig.url,
-      publishableKey: SyncConfig.publishableKey,
-    );
-  }
+
+  // 資料庫要先開，因為同步伺服器的位址存在裡面（使用者在設定頁填的）。
+  final db = AppDatabase();
+  await _initSync(db);
+
   runApp(
     BodyLabApp(
-      services: AppServices(AppDatabase(), HealthService()),
+      services: AppServices(db, HealthService()),
       analysisBanner: kAdsEnabled ? const AnalysisBannerAd() : null,
     ),
   );
+}
+
+/// 設定頁填的伺服器優先，沒填才用 --dart-define 帶進來的（開發與測試用）。
+///
+/// supabase_flutter 負責把登入的 session 存到裝置上，沒有它的話
+/// App 一關掉就要重新登入。它是全域一次性初始化，所以改了位址要重啟才生效。
+Future<void> _initSync(AppDatabase db) async {
+  final settings = SettingsRepository(db);
+  final url = await settings.syncUrl() ?? SyncConfig.compiledUrl;
+  final key = await settings.syncKey() ?? SyncConfig.compiledKey;
+  if (url.isEmpty || key.isEmpty) return;
+  try {
+    await Supabase.initialize(url: url, publishableKey: key);
+    SyncRuntime.client = Supabase.instance.client;
+    SyncRuntime.url = url;
+  } catch (e) {
+    // 位址填錯之類的，不能讓整個 App 開不起來——同步關掉就好
+    debugPrint('同步初始化失敗，這次啟動不啟用同步：$e');
+  }
 }
 
 /// App 共用的資料庫、健康資料與 repository。
@@ -188,7 +204,7 @@ class _HomeShellState extends State<_HomeShell> with WidgetsBindingObserver {
             body: s.body,
             backup: s.backup,
             settings: s.settings,
-            sync: s.sync.available ? s.sync : null,
+            sync: s.sync,
           ),
           if (kDebugMode)
             DemoDataMenu(
