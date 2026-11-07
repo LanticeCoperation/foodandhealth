@@ -78,7 +78,7 @@ void main() {
         reason: services.sync.lastMessage ?? '登入失敗',
       );
 
-      await services.food.add(
+      final localId = await services.food.add(
         FoodEntriesCompanion.insert(
           eatenAt: DateTime.now(),
           meal: MealType.lunch,
@@ -94,9 +94,13 @@ void main() {
         reason: services.sync.lastMessage,
       );
 
-      // 用這次寫入的 syncId 查，不要用名稱——用名稱的話，
-      // 前幾次跑剩下的資料會讓這項永遠通過。
-      final syncId = (await db.select(db.foodEntries).getSingle()).syncId;
+      // 用這次寫入的那一列的 syncId 查，不要用名稱也不要假設只有一列——
+      // 這個帳號在伺服器上還留著前幾次跑的資料，登入時會被拉回來。
+      final syncId =
+          (await (db.select(db.foodEntries)
+                    ..where((r) => r.id.equals(localId)))
+                  .getSingle())
+              .syncId;
       expect(syncId, isNotNull);
 
       // 換家人的帳號從伺服器讀
@@ -118,6 +122,14 @@ void main() {
 
     await tester.tap(find.byIcon(Icons.person_outline).first);
     await tester.pumpAndSettle(const Duration(seconds: 2));
+
+    // 同步區塊在設定頁的下半部，要先捲過去才畫得出來
+    await tester.scrollUntilVisible(
+      find.text('跨裝置同步'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('跨裝置同步'), findsOneWidget);
 
     await tester.tap(find.text('家人'));
