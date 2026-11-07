@@ -26,6 +26,7 @@ import 'screens/analysis_screen.dart';
 import 'screens/trend_screen.dart';
 import 'services/catalog_updater.dart';
 import 'services/health_service.dart';
+import 'services/sync_controller.dart';
 import 'theme/app_theme.dart';
 import 'widgets/app_update.dart';
 
@@ -53,7 +54,8 @@ class AppServices {
       activity = ActivityRepository(db, health),
       backup = BackupService(db),
       extraBurns = ExtraBurnRepository(db),
-      settings = SettingsRepository(db) {
+      settings = SettingsRepository(db),
+      sync = SyncController(db) {
     dataset = DatasetRepository(
       db,
       body,
@@ -68,8 +70,12 @@ class AppServices {
   final AppDatabase db;
   final HealthService health;
 
-  /// 零碎設定（目前是 Gemini API key）。
+  /// 零碎設定（Gemini API key、同步的歸屬與游標）。
   final SettingsRepository settings;
+
+  /// 跨裝置同步。沒帶 --dart-define 的伺服器設定時 available 是 false，
+  /// 設定頁不會出現同步區塊，App 行為跟加同步之前一樣。
+  final SyncController sync;
 
   /// 預設一鍵項目目錄：啟動時套用內建的，再從 GitHub 抓更新。
   final CatalogUpdater catalog;
@@ -148,6 +154,7 @@ class _HomeShellState extends State<_HomeShell> {
             body: s.body,
             backup: s.backup,
             settings: s.settings,
+            sync: s.sync.available ? s.sync : null,
           ),
           if (kDebugMode)
             DemoDataMenu(

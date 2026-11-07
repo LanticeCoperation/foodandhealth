@@ -4,4 +4,10 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- 只有 debug 版放行明文 HTTP，而且只對本機位址。見 res/xml/。 -->
+    <application
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:replace="android:networkSecurityConfig"
+        xmlns:tools="http://schemas.android.com/tools" />
 </manifest>

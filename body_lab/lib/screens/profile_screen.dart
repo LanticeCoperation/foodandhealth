@@ -13,7 +13,9 @@ import '../utils/trend.dart';
 import '../widgets/app_update.dart';
 import '../data/settings_repository.dart';
 import '../widgets/backup_section.dart';
+import '../services/sync_controller.dart';
 import '../widgets/gemini_key_section.dart';
+import '../widgets/sync_section.dart';
 import '../widgets/nutrition_fields.dart';
 
 /// 身體頁右上角的入口。
@@ -24,12 +26,16 @@ class ProfileButton extends StatelessWidget {
     required this.body,
     required this.backup,
     required this.settings,
+    this.sync,
   });
 
   final ProfileRepository profile;
   final BodyRepository body;
   final BackupService backup;
   final SettingsRepository settings;
+
+  /// 沒設定同步伺服器時是 null，同步區塊不顯示。
+  final SyncController? sync;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +47,7 @@ class ProfileButton extends StatelessWidget {
             body: body,
             backup: backup,
             settings: settings,
+            sync: sync,
           ),
         ),
       ),
@@ -58,12 +65,16 @@ class ProfileScreen extends StatefulWidget {
     required this.body,
     required this.backup,
     required this.settings,
+    this.sync,
   });
 
   final ProfileRepository profile;
   final BodyRepository body;
   final BackupService backup;
   final SettingsRepository settings;
+
+  /// 沒設定同步伺服器時是 null，同步區塊不顯示。
+  final SyncController? sync;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -399,6 +410,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   if (Platform.isIOS || kDebugMode) ...[
                     const SizedBox(height: 24),
                     BackupSection(backup: widget.backup),
+                  ],
+                  if (widget.sync != null) ...[
+                    const SizedBox(height: 24),
+                    SyncSection(controller: widget.sync!),
                   ],
                   const SizedBox(height: 24),
                   GeminiKeySection(settings: widget.settings),
