@@ -117,17 +117,38 @@ sh scripts/admin.sh list
 
 ### 資料庫 migration
 
-`migrations/0001_identity.sql` 建了 `profiles`、`families`、`family_members` 與 RLS。
-資料表（飲食、體重……）等 drift schema 12 一起設計，之後才進 `0002`。
+- `0001_identity.sql`——`profiles`、`families`、`family_members` 與 RLS
+- `0002_food_entries.sql`——第一張真的會同步的表，對應 drift 的 `FoodEntries`
 
-驗證 RLS 真的有隔開：
+兩個驗證腳本，**搬到 NAS 之後都要再跑一次**：
 
 ```bash
-sh scripts/verify-rls.sh
+sh scripts/verify-rls.sh    # 19 項：誰看得到誰
+sh scripts/verify-sync.sh   # 15 項：多台同步的語意
 ```
 
-會自己建三個測試帳號（兩個同家庭、一個在外面）跑 14 項檢查，跑完自動刪掉。
-**搬到 NAS 之後要再跑一次。**
+兩個都會自己建測試帳號、跑完刪掉。`verify-rls.sh` 最後那段是全域檢查，
+以後新增的表只要漏開 RLS 就會在那裡爆。
+
+### 同步的設計（drift schema 12 要對齊）
+
+`0002` 定下來的規則：
+
+- **主鍵是裝置產生的 `sync_id uuid`**，不是本機的 autoIncrement `id`。
+  兩支手機各自長號碼必定相撞。
+- **`user_id` 用戶端不送**，由 `default auth.uid()` 填，insert policy 再擋一次。
+  實測過：拿別人的 user_id 寫入會被擋（403）。
+- **`created_at` 用上傳的值**（那是使用者的真實資料），
+  **`updated_at` 一律由觸發器蓋成 `now()`**。手機時鐘不可信，而這欄是下拉游標——
+  被一支時鐘快的手機寫進未來值，其他台就會漏資料。實測過：謊報 2000 年會被伺服器覆蓋。
+- **刪除是軟刪除**（`deleted_at`），而且沒有給 `authenticated` DELETE 權限。
+  真的刪掉的話另一台永遠不知道這筆沒了。
+- **上傳用 upsert**：`POST ...?on_conflict=sync_id` 搭 `Prefer: resolution=merge-duplicates`。
+  實測過重送同一批不會產生重複列，所以網路不穩重試是安全的。
+- **下拉游標要往回抓幾秒**：`updated_at >= 上次游標 - 5 秒`，多抓的用 `sync_id` 去重。
+  `now()` 是交易開始時間，一筆交易可能在游標讀過之後才 commit。
+- **家人唯讀**靠「給 select policy、不給 update policy」達成。
+  實測過家人 PATCH 會影響 0 列，拿你的 `sync_id` 做 upsert 會被擋。
 
 幾個實測確認的點，之後寫 `0002` 時要沿用：
 
