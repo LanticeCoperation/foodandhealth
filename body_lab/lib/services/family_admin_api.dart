@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 /// 家庭管理畫面用的伺服器端函式。
@@ -35,10 +37,22 @@ class FamilyAdminApi {
       }
       return FamilyAdminResult.failure('伺服器回了看不懂的內容');
     } on FunctionException catch (e) {
-      // 函式自己回的錯誤（密碼不對、email 重複…）會在這裡
+      // 函式自己回的錯誤（密碼不對、email 重複…）會在這裡。
+      // details 不一定是已經解析好的 Map，也可能是原始字串。
       final details = e.details;
       if (details is Map && details['error'] != null) {
         return FamilyAdminResult.failure('${details['error']}');
+      }
+      if (details is String && details.isNotEmpty) {
+        try {
+          final parsed = jsonDecode(details);
+          if (parsed is Map && parsed['error'] != null) {
+            return FamilyAdminResult.failure('${parsed['error']}');
+          }
+        } catch (_) {
+          // 不是 JSON 就原樣顯示
+        }
+        return FamilyAdminResult.failure(details);
       }
       return FamilyAdminResult.failure('呼叫失敗（${e.status}）');
     } catch (e) {
