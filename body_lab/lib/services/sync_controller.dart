@@ -189,8 +189,9 @@ class SyncController extends ChangeNotifier {
     final start = DateTime(day.year, day.month, day.day);
     final end = start.add(const Duration(days: 1));
 
-    final profiles = await client.from('profiles').select('user_id,display_name');
-    final rows = await client
+    final db = client.schema(kBodyLabSchema);
+    final profiles = await db.from('profiles').select('user_id,display_name');
+    final rows = await db
         .from('food_entries')
         .select('user_id,kcal,protein_g,servings')
         .gte('eaten_at', start.toUtc().toIso8601String())
@@ -200,7 +201,7 @@ class SyncController extends ChangeNotifier {
         '${start.year.toString().padLeft(4, '0')}-'
         '${start.month.toString().padLeft(2, '0')}-'
         '${start.day.toString().padLeft(2, '0')}';
-    final metrics = await client
+    final metrics = await db
         .from('body_metrics')
         .select('user_id,weight_kg,body_fat_percent')
         .eq('day', dayKey)

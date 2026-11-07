@@ -41,10 +41,20 @@ class SyncRejected implements Exception {
   String toString() => message;
 }
 
+/// Body Lab 的表放在自己的 schema，不在 public。
+///
+/// 這台 Supabase 是多專案共用的，每個專案一個 schema。public 的
+/// default privileges 會自動把 ALL 權限給 anon，新表預設全開——
+/// 自己的 schema 沒有那個問題，權限要明寫才有。
+const String kBodyLabSchema = 'bodylab';
+
 class SupabaseSyncApi implements SyncApi {
   SupabaseSyncApi(this._client);
 
   final SupabaseClient _client;
+
+  /// 指定 schema 之後才能 from(表名)。
+  SupabaseQuerySchema get _db => _client.schema(kBodyLabSchema);
 
   /// 一次送多少列。太大一包會卡在請求大小上限。
   static const int uploadChunk = 500;
@@ -62,7 +72,7 @@ class SupabaseSyncApi implements SyncApi {
     try {
       for (var i = 0; i < rows.length; i += uploadChunk) {
         final end = (i + uploadChunk).clamp(0, rows.length);
-        await _client
+        await _db
             .from(table)
             .upsert(rows.sublist(i, end), onConflict: onConflict);
       }
@@ -84,7 +94,7 @@ class SupabaseSyncApi implements SyncApi {
     int limit = 500,
   }) async {
     final uid = currentUserId;
-    var query = _client.from(table).select();
+    var query = _db.from(table).select();
     // 只拉自己的。家人的資料本來就不落地，拉回來只是白佔分頁的額度，
     // 還會把真正要的列擠出這一頁。
     if (uid != null) query = query.eq('user_id', uid);
@@ -106,7 +116,7 @@ class SupabaseSyncApi implements SyncApi {
     if (keys.isEmpty) return;
     final now = DateTime.now().toUtc().toIso8601String();
     for (final key in keys) {
-      var q = _client.from(table).update({'deleted_at': now});
+      var q = _db.from(table).update({'deleted_at': now});
       for (final entry in key.entries) {
         q = q.eq(entry.key, entry.value);
       }

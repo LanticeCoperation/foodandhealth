@@ -1,6 +1,7 @@
 import 'package:body_lab/data/database.dart';
 import 'package:body_lab/main.dart';
 import 'package:body_lab/services/catalog_updater.dart';
+import 'package:body_lab/services/sync_api.dart';
 import 'package:body_lab/services/sync_config.dart';
 import 'package:drift/drift.dart' show DatabaseConnection, Value;
 import 'package:drift/native.dart';
@@ -114,6 +115,7 @@ void main() {
       final asMom = SupabaseClient(SyncConfig.url, SyncConfig.publishableKey);
       await asMom.auth.signInWithPassword(email: mom, password: password);
       final seen = await asMom
+          .schema(kBodyLabSchema)
           .from('food_entries')
           .select('sync_id,name')
           .eq('sync_id', syncId!);

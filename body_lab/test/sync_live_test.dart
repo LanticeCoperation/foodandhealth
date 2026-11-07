@@ -84,7 +84,7 @@ void main() {
     // 每次從乾淨的伺服器狀態開始（要用 service_role，見檔頭說明）
     admin = SupabaseClient(url, secret);
     for (final t in _tables) {
-      await admin.from(t).delete().eq('user_id', uid);
+      await admin.schema(kBodyLabSchema).from(t).delete().eq('user_id', uid);
     }
 
     db1 = AppDatabase(NativeDatabase.memory());
@@ -102,7 +102,7 @@ void main() {
 
   tearDown(() async {
     for (final t in _tables) {
-      await admin.from(t).delete().eq('user_id', uid);
+      await admin.schema(kBodyLabSchema).from(t).delete().eq('user_id', uid);
     }
     await db1.close();
     await db2.close();
@@ -147,7 +147,7 @@ void main() {
 
     expect(await rowsOf(db1), hasLength(1));
     expect(await rowsOf(db2), hasLength(1));
-    final server = await phone1.from('food_entries').select();
+    final server = await phone1.schema(kBodyLabSchema).from('food_entries').select();
     expect(server, hasLength(1));
   });
 
@@ -226,7 +226,7 @@ void main() {
     // 兩台各打一次，伺服器上還是一筆
     await repo2check.set(day, CheckItem.creatine, true, amount: 5);
     await sync2.sync();
-    final server = await phone1.from('daily_checks').select();
+    final server = await phone1.schema(kBodyLabSchema).from('daily_checks').select();
     expect(server, hasLength(1));
 
     await repo1check.set(day, CheckItem.creatine, false);
@@ -256,7 +256,7 @@ void main() {
     await sync1.sync();
     await sync2.sync();
     expect((await db2.select(db2.profiles).getSingle()).weightKg, 74.5);
-    final server = await phone1.from('body_profiles').select();
+    final server = await phone1.schema(kBodyLabSchema).from('body_profiles').select();
     expect(server, hasLength(1));
   });
 
@@ -274,7 +274,7 @@ void main() {
         );
     await sync1.sync();
 
-    final server = await phone1.from('body_metrics').select();
+    final server = await phone1.schema(kBodyLabSchema).from('body_metrics').select();
     expect(server, hasLength(1), reason: '要上傳給家人看');
 
     await sync2.sync();
