@@ -84,6 +84,46 @@ class SyncService {
   /// 這台認領過的帳號 uid；還沒登入過是 null。
   Future<String?> ownerUid() => _readSetting(kSyncOwnerUidKey);
 
+  /// 解除這台裝置的歸屬，讓它可以用別的帳號同步。
+  ///
+  /// 換伺服器時一定會用到：新伺服器發的 uid 跟舊的不一樣，
+  /// [claimForCurrentUser] 會把每一支手機都擋在門外，而且沒有別的解法——
+  /// 清掉 App 資料的話本機紀錄也會一起沒。
+  ///
+  /// 除了忘掉歸屬，還要把同步狀態整個歸零：
+  ///
+  /// - 刪掉所有下拉游標。對新伺服器來說舊游標是未來的時間，
+  ///   照著它拉只會什麼都拉不到。
+  /// - 把所有資料重新標成待上傳。新伺服器是空的，不重標就永遠不會送上去。
+  Future<void> resetOwner() async {
+    await _db.transaction(() async {
+      await (_db.delete(_db.settings)..where(
+            (s) =>
+                s.key.equals(kSyncOwnerUidKey) |
+                s.key.equals(kSyncLastOkKey) |
+                s.key.equals(kBodyMetricsPushCursor) |
+                s.key.equals(kDailyActivityPushCursor) |
+                s.key.like('syncCursor_%'),
+          ))
+          .go();
+      await _db
+          .update(_db.foodEntries)
+          .write(const FoodEntriesCompanion(pendingSync: Value(true)));
+      await _db
+          .update(_db.phases)
+          .write(const PhasesCompanion(pendingSync: Value(true)));
+      await _db
+          .update(_db.extraBurns)
+          .write(const ExtraBurnsCompanion(pendingSync: Value(true)));
+      await _db
+          .update(_db.dailyChecks)
+          .write(const DailyChecksCompanion(pendingSync: Value(true)));
+      await _db
+          .update(_db.profiles)
+          .write(const ProfilesCompanion(pendingSync: Value(true)));
+    });
+  }
+
   /// 上次同步成功的時間（本機時鐘，只拿來顯示）。
   Future<DateTime?> lastSyncedAt() async {
     final v = await _readSetting(kSyncLastOkKey);

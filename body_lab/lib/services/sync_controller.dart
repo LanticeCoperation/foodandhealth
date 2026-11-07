@@ -72,6 +72,7 @@ class SyncController extends ChangeNotifier {
   DateTime? _lastSyncedAt;
   int _pending = 0;
   bool _offline = false;
+  String? _ownerUid;
 
   bool get available => _client != null || _testApi != null;
   bool get busy => _busy;
@@ -85,6 +86,16 @@ class SyncController extends ChangeNotifier {
 
   /// 上次嘗試時連不到伺服器（多半是不在家裡的網路上）。
   bool get offline => _offline;
+
+  /// 這支手機的資料綁在哪個帳號上；還沒登入過是 null。
+  String? get ownerUid => _ownerUid;
+
+  String? get _currentUserId =>
+      _testApi != null ? _testApi.currentUserId : _client?.auth.currentUser?.id;
+
+  /// 綁定的帳號跟現在登入的不是同一個——通常是換過伺服器。
+  bool get ownerMismatch =>
+      _ownerUid != null && signedIn && _ownerUid != _currentUserId;
   String? get email => _client?.auth.currentUser?.email;
   bool get signedIn =>
       _testApi != null
@@ -168,18 +179,22 @@ class SyncController extends ChangeNotifier {
         text.contains('network is unreachable');
   }
 
+  /// 解除這支手機的歸屬，讓它可以用別的帳號同步。見 [SyncService.resetOwner]。
+  Future<void> resetOwner() async {
+    await _service?.resetOwner();
+    await refreshStatus();
+  }
+
   /// 重新讀「上次同步時間」與「待上傳筆數」。
   Future<void> refreshStatus() async {
     final service = _service;
     if (service != null) {
       _lastSyncedAt = await service.lastSyncedAt();
       _pending = await service.pendingCount();
+      _ownerUid = await service.ownerUid();
     }
     notifyListeners();
   }
-
-  /// 這台認領的帳號 uid；還沒登入過是 null。
-  Future<String?> ownerUid() async => _service?.ownerUid();
 
   /// 家人（含自己）某一天的攝取概況。資料直接從伺服器讀，不落地。
   Future<List<FamilyDaySummary>> familyDay(DateTime day) async {

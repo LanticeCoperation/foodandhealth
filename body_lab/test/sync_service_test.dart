@@ -323,6 +323,40 @@ void main() {
       expect(await sync1.ownerUid(), uid);
     });
 
+    test('重設歸屬之後可以換帳號，而且所有資料重新排隊上傳', () async {
+      await repo1.add(meal(DateTime(2026, 11, 7, 12), '午餐', kcal: 600));
+      await sync1.claimForCurrentUser();
+      await sync1.sync();
+      // 同步完之後本來不該有待上傳的
+      expect((await rowsOf(db1)).single.pendingSync, isFalse);
+      expect(await sync1.lastSyncedAt(), isNotNull);
+
+      // 換了伺服器：uid 不一樣，原本會被擋
+      api.currentUserId = 'user-on-new-server';
+      expect(
+        () => sync1.claimForCurrentUser(),
+        throwsA(isA<WrongOwnerException>()),
+      );
+
+      await sync1.resetOwner();
+      expect(await sync1.ownerUid(), isNull);
+      expect(
+        await sync1.lastSyncedAt(),
+        isNull,
+        reason: '游標要一起清掉，否則對新伺服器來說是未來的時間，什麼都拉不到',
+      );
+      expect(
+        (await rowsOf(db1)).single.pendingSync,
+        isTrue,
+        reason: '新伺服器是空的，不重新標成待上傳就永遠不會送上去',
+      );
+
+      // 現在可以認領給新帳號，而且資料會整批送上去
+      await sync1.claimForCurrentUser();
+      expect(await sync1.ownerUid(), 'user-on-new-server');
+      expect((await sync1.sync()).uploaded, 1);
+    });
+
     test('換成別的帳號會擋下來', () async {
       await sync1.claimForCurrentUser();
       api.currentUserId = 'someone-else';

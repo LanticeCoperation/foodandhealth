@@ -63,6 +63,37 @@ class _SyncSectionState extends State<SyncSection> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _resetOwner() async {
+    final c = widget.controller;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('重設同步歸屬？'),
+        content: const Text(
+          '這支手機目前的資料綁在一個帳號上。重設之後可以用別的帳號登入，'
+          '而且手機上現有的紀錄會全部重新上傳、歸到新帳號名下。'
+          '換伺服器時才需要這麼做，手機上的資料不會被刪除。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('重設'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await c.resetOwner();
+    if (!mounted) return;
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('已重設，可以用別的帳號登入了')));
+  }
+
   Future<void> _signIn() async {
     await widget.controller.signIn(_email.text, _password.text);
     if (!mounted) return;
@@ -164,6 +195,24 @@ class _SyncSectionState extends State<SyncSection> {
               TextButton(
                 onPressed: c.busy ? null : c.signOut,
                 child: const Text('登出'),
+              ),
+            ],
+            if (c.ownerUid != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                c.ownerMismatch
+                    ? '這支手機的資料屬於另一個帳號（${c.ownerUid!.substring(0, 8)}…），'
+                          '所以不能用現在這個帳號同步。'
+                    : '資料歸屬：${c.ownerUid!.substring(0, 8)}…',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: c.ownerMismatch
+                      ? theme.colorScheme.error
+                      : theme.colorScheme.outline,
+                ),
+              ),
+              TextButton(
+                onPressed: c.busy ? null : _resetOwner,
+                child: const Text('重設同步歸屬'),
               ),
             ],
             if (c.lastMessage != null) ...[
