@@ -20,6 +20,7 @@ FoodEntriesCompanion entry(
 );
 
 void main() {
+  group('同步欄位', _syncTests);
   late AppDatabase db;
   late FoodRepository repo;
 
@@ -100,5 +101,71 @@ void main() {
     );
     expect(totals.keys, [DateTime(2026, 10, 8)]);
     expect(totals[DateTime(2026, 10, 8)]!.proteinG, 30);
+  });
+}
+
+void _syncTests() {
+  late AppDatabase db;
+  late FoodRepository repo;
+
+  setUp(() {
+    db = AppDatabase(NativeDatabase.memory());
+    repo = FoodRepository(db);
+  });
+  tearDown(() => db.close());
+
+  Future<FoodEntry> only() => db.select(db.foodEntries).getSingle();
+
+  test('新增的紀錄自動拿到 RFC 4122 v4 的 syncId，並標成待上傳', () async {
+    await repo.add(entry(DateTime(2026, 11, 7, 12), '午餐', kcal: 600));
+    final row = await only();
+    expect(
+      row.syncId,
+      matches(
+        RegExp(
+          r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-'
+          r'[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+        ),
+      ),
+    );
+    expect(row.pendingSync, isTrue);
+  });
+
+  test('兩筆的 syncId 不會相同', () async {
+    await repo.add(entry(DateTime(2026, 11, 7, 12), 'A'));
+    await repo.add(entry(DateTime(2026, 11, 7, 13), 'B'));
+    final rows = await db.select(db.foodEntries).get();
+    expect(rows.map((r) => r.syncId).toSet(), hasLength(2));
+  });
+
+  test('編輯走畫面那條路（copyWith().toCompanion(true)）不會換掉 syncId', () async {
+    await repo.add(entry(DateTime(2026, 11, 7, 12), '午餐', kcal: 600));
+    final before = await only();
+    // 模擬同步完成
+    await db
+        .update(db.foodEntries)
+        .write(const FoodEntriesCompanion(pendingSync: Value(false)));
+
+    final edited = (await only()).copyWith(kcal: const Value(800));
+    await repo.save(edited.toCompanion(true));
+
+    final after = await only();
+    expect(after.syncId, before.syncId, reason: '換了 syncId 另一台會看成新的一筆');
+    expect(after.kcal, 800);
+    expect(after.pendingSync, isTrue, reason: '改過就要重新上傳');
+  });
+
+  test('刪除會把 syncId 記進待辦表；復原則取消待辦', () async {
+    await repo.add(entry(DateTime(2026, 11, 7, 12), '午餐'));
+    final row = await only();
+
+    await repo.delete(row.id);
+    expect(await db.select(db.foodEntries).get(), isEmpty);
+    final pending = await db.select(db.pendingDeletes).getSingle();
+    expect(pending.syncId, row.syncId);
+
+    await repo.restore(row);
+    expect(await db.select(db.pendingDeletes).get(), isEmpty);
+    expect((await only()).syncId, row.syncId);
   });
 }

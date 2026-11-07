@@ -116,8 +116,11 @@ class BackupService {
         for (final e in list('foodEntries'))
           FoodEntry.fromJson({
             'syncId': newUuidV4(),
-            'pendingSync': true,
             ...e,
+            // 放在 spread 之後：格式 3 的備份可能帶 false，
+            // 但還原回來的資料在這台就是待上傳（upsert 冪等，重送無害），
+            // 而且伺服器有可能是重建過的。
+            'pendingSync': true,
           }),
       ];
       // v11 之前的備份沒有 sourceKey / customized
@@ -151,6 +154,11 @@ class BackupService {
       await _db.batch((b) {
         b.insertAll(_db.mealTemplates, templates);
         b.insertAll(_db.foodEntries, food);
+        // 還原回來的 syncId 若還掛著刪除待辦，會在下次同步時被當成已刪除。
+        b.deleteWhere(
+          _db.pendingDeletes,
+          (r) => r.syncId.isIn([for (final e in food) e.syncId].nonNulls),
+        );
         b.insertAll(_db.dailyChecks, checks);
         b.insertAll(_db.phases, phases);
         if (profile != null) b.insert(_db.profiles, profile);
