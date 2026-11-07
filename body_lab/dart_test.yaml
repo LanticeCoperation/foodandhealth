@@ -1,0 +1,5 @@
+tags:
+  # 需要本機的自架 Supabase 在跑。沒有設 SUPABASE_URL 等環境變數時，
+  # 測試檔自己會 skip，所以平常直接 flutter test 不會失敗。
+  # 跑法見 test/sync_live_test.dart 的說明。
+  server:

@@ -88,9 +88,14 @@ class FoodRepository {
   }
 
   /// 復原刪除：用原本的 id 放回去，並取消那筆刪除待辦。
+  ///
+  /// 一定要標成待上傳：如果刪除已經送出去了，伺服器上有墓碑，
+  /// 不重新上傳的話另一台會一直看到「已刪除」。
   Future<void> restore(FoodEntry entry) async {
     await _db.transaction(() async {
-      await _db.into(_db.foodEntries).insert(entry);
+      await _db
+          .into(_db.foodEntries)
+          .insert(entry.copyWith(pendingSync: true));
       final syncId = entry.syncId;
       if (syncId != null) {
         await (_db.delete(_db.pendingDeletes)
