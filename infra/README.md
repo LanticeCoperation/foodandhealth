@@ -95,6 +95,45 @@ anon 讀 OpenAPI spec，不是設定錯誤。別拿根路徑當健康檢查。
 - 家人的帳號都建好之後，直接 `DISABLE_SIGNUP=true` 最乾淨。
 - `ENABLE_EMAIL_AUTOCONFIRM` 改回 `false`。
 
+### 登入方式的選項（尚未啟用，先記錄調查結果）
+
+不管用哪一種，識別資料歸屬的 ID 都是 **`auth.users.id`**（UUID），不會因為換登入方式而變。
+**不要在裝置端自己產生 owner ID**，否則會變成兩套 ID 空間。
+
+**Email + 密碼**：現在就能用，LAN 上直接通，不需要任何外部設定。
+代價是這個 stack 沒有 SMTP，使用者無法自助重設密碼，要由管理者在 Studio 改。
+
+**Google 登入**：手機上走的是 **ID Token flow**，不是瀏覽器轉址流程——
+`google_sign_in` 在裝置上拿到 ID token，再用 `signInWithIdToken` 打
+`/auth/v1/token?grant_type=id_token`。Google 不會回呼 `API_EXTERNAL_URL`，
+**所以 `API_EXTERNAL_URL` 是 localhost 也不影響**，不必等 NAS 和公開 HTTPS。
+
+啟用時的地雷：
+
+- `docker-compose.yml` 註解裡的 `GOTRUE_EXTERNAL_SKIP_NONCE_CHECK` **無效**。
+  CONFIG.md 明寫它「does not map to a configuration field」，要用的是
+  **`GOTRUE_EXTERNAL_GOOGLE_SKIP_NONCE_CHECK`**。照著 compose 的註解做會卡住。
+- `GOTRUE_EXTERNAL_ALLOWED_ID_TOKEN_ISSUERS` 的預設值已含
+  `https://accounts.google.com`，不用另外設。
+- 取消註解 Google 那幾行會成為第 4 項對上游的改動，記得補在上面。
+
+Google Cloud Console 那邊要自己建（三個 client）：
+
+| 類型 | 用途 |
+|---|---|
+| **Web** | client ID 同時填進伺服器的 `GOOGLE_CLIENT_ID` 與 App 的 `serverClientId`，token 的 audience 才對得上 |
+| **iOS** | reversed client ID 要寫進 Info.plist 當 URL scheme（免費個人帳號可以） |
+| **Android** | 要填 package name + **CI 簽 release APK 用的 keystore SHA-1**；本機 debug build 要另外加 debug SHA-1。這步最常漏 |
+
+OAuth consent screen 若停在 testing 模式，記得把家人的 email 加進測試使用者。
+
+**之後可以補上 Google 而不換 uid**：`linkIdentity` 需要
+`GOTRUE_SECURITY_MANUAL_LINKING_ENABLED`（CONFIG.md 列的預設是 `false`）。
+也就是說先用 Email 密碼上線、之後再掛 Google，不是單行道。
+
+**不要用匿名登入。** session 掉了（例如 `flutter install` 清掉 App 資料）伺服器那份就變孤兒，
+而且等於對外開放免憑證註冊。
+
 ### 搬到 Synology 時
 
 - **`.env` 不在 git 裡**（內含金鑰）。NAS 上請**重新產生一份，不要複製本機這份**：
