@@ -12,7 +12,7 @@ Body Lab 跨裝置同步與家人共享用的後端。**先在本機 Docker 開�
 - 釘選的 ref：**`self-hosted/v0.8.4`**（commit `189adda99d1b56da55fc5a6ee3f849354aaea92a`）
 - 映像檔版本由上游 `docker-compose.yml` 釘選，**不要自己改 tag**——NAS 要跑的是同一份
 
-相對於上游原始檔，這份只有兩類改動：
+相對於上游原始檔，這份只有這幾類改動：
 
 1. `utils/add-new-auth-keys.sh` 自動取消註解了 4 行（啟用非對稱金鑰）：
    `GOTRUE_JWT_KEYS`、`API_JWT_JWKS`、`JWT_JWKS`、`SUPABASE_JWKS`
@@ -84,18 +84,71 @@ anon 讀 OpenAPI spec，不是設定錯誤。別拿根路徑當健康檢查。
 | 變數 | 值 | 原因 |
 |---|---|---|
 | `POOLER_TENANT_ID` | `bodylab` | 上游預設是佔位字串 |
-| `ENABLE_EMAIL_AUTOCONFIRM` | `true` | **開發用**。這個 stack 沒有 mail 服務（`SMTP_HOST=supabase-mail` 指向不存在的容器），不自動確認的話註冊會卡住 |
-
-正式上線前要把 `ENABLE_EMAIL_AUTOCONFIRM` 改回 `false` 並接上真的 SMTP。
+| `DISABLE_SIGNUP` | `true` | **不開放對外註冊**，帳號一律由 `scripts/admin.sh` 建立 |
+| `ENABLE_EMAIL_AUTOCONFIRM` | `true` | 現在其實用不到了（`admin.sh` 建帳號時直接送 `email_confirm:true`），只有舊的自助註冊流程需要。要收緊可以改回 `false` |
 
 ### 開放到外網前一定要先關掉的東西
 
+- `DISABLE_SIGNUP=true`——**`.env.example` 的預設是 `false`**，在 NAS 上重新產 `.env` 之後
+  一定要記得改，不然公開註冊是開著的。
 - `ENABLE_PHONE_SIGNUP=true` 搭 `ENABLE_PHONE_AUTOCONFIRM=true` 而且沒接任何 SMS provider
   ——放到公開網址等於任何人填個手機號就能開帳號。**改成 `false`。**
-- 家人的帳號都建好之後，直接 `DISABLE_SIGNUP=true` 最乾淨。
-- `ENABLE_EMAIL_AUTOCONFIRM` 改回 `false`。
 
-### 登入方式的選項（尚未啟用，先記錄調查結果）
+### 帳號怎麼建（不開放對外註冊）
+
+`.env` 的 `DISABLE_SIGNUP=true`，公開註冊端點會回 `422 signup_disabled`。
+所有帳號都由管理端建立：
+
+```bash
+cd infra/supabase
+sh scripts/admin.sh create-user someone@example.com 顯示名稱   # 密碼省略則自動產生並印出一次
+sh scripts/admin.sh create-family 我家
+sh scripts/admin.sh add-member 我家 someone@example.com owner
+sh scripts/admin.sh list
+```
+
+其他子指令：`set-password`、`delete-user`、`remove-member`。
+腳本用 `SUPABASE_SECRET_KEY` 打 auth 的 admin API，再用 `psql` 寫 profile 與成員，
+**不依賴 jq / node**，NAS 上可以直接跑。Studio 的 Authentication 頁面也能建帳號，
+但那樣不會一併建 `profiles` 那一列，建議統一走腳本。
+
+因為帳號由管理端建，所以**沒有邀請碼、沒有 join_family RPC**——
+使用者自助加入家庭的那一整套 RLS 風險面直接消失了。
+
+### 資料庫 migration
+
+`migrations/0001_identity.sql` 建了 `profiles`、`families`、`family_members` 與 RLS。
+資料表（飲食、體重……）等 drift schema 12 一起設計，之後才進 `0002`。
+
+驗證 RLS 真的有隔開：
+
+```bash
+sh scripts/verify-rls.sh
+```
+
+會自己建三個測試帳號（兩個同家庭、一個在外面）跑 14 項檢查，跑完自動刪掉。
+**搬到 NAS 之後要再跑一次。**
+
+幾個實測確認的點，之後寫 `0002` 時要沿用：
+
+- `public` schema 的 default privileges **會自動把 ALL 權限給 `anon` 和 `authenticated`**。
+  新表預設是全開的，擋住它的只有 RLS。所以每張表都要
+  `revoke all ... from anon`（第二道防線）+ `enable row level security` + 寫好 policy。
+- policy 用的輔助函式放在 `private` schema。放 `public` 的話，
+  default privileges 會把 EXECUTE 給 `anon`，而且 `PGRST_DB_SCHEMAS` 會把它變成
+  `/rest/v1/rpc/...` 端點。
+- 查 `family_members` 的 policy 必須走 `security definer` 函式，否則會無限遞迴。
+- `postgres` 在這個映像檔裡**不是 superuser**，`auth` schema 屬於 `supabase_admin`，
+  所以不要想在 `auth.users` 上掛觸發器。
+- 套用 migration 一定要帶 `-v ON_ERROR_STOP=1`，否則 psql 會略過錯誤繼續跑，
+  留下套到一半的 schema。檔尾要 `notify pgrst, 'reload schema';`，不然 REST 會一直回 PGRST205。
+
+Git Bash 的 curl 在 `-d` 直接帶非 ASCII 字串時，PostgREST 會回 `PGRST102`
+（`Empty or invalid json`）——同樣的內容改走 `--data-binary @檔案` 就正常。
+推測是 ucrt64 的 `curl.exe` 用 ANSI code page 轉參數所致；透過 `docker exec` 的 psql
+處理中文則沒問題。測試腳本因此一律用 ASCII 測試資料，免得測到 shell 的毛病而不是 API 的。
+
+### 登入方式的選項（第一版用 Email 密碼）
 
 不管用哪一種，識別資料歸屬的 ID 都是 **`auth.users.id`**（UUID），不會因為換登入方式而變。
 **不要在裝置端自己產生 owner ID**，否則會變成兩套 ID 空間。
@@ -142,6 +195,8 @@ OAuth consent screen 若停在 testing 模式，記得把家人的 email 加進�
   cp .env.example .env && sh utils/generate-keys.sh --update-env && sh utils/add-new-auth-keys.sh --update-env
   ```
 
+  產完金鑰後**立刻把 `DISABLE_SIGNUP` 改成 `true`、`ENABLE_PHONE_SIGNUP` 改成 `false`**，
+  `.env.example` 的預設值是開放註冊的。
   本機這組密碼在開發過程中被印到終端機過，當成「只在本機用」處理就好。
   目前還沒有任何 App build 內嵌金鑰，現在換零成本。
   之後 App 端填的是 `SUPABASE_PUBLISHABLE_KEY`，NAS 換金鑰時那邊要跟著改。
