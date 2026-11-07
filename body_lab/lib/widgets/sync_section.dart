@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../screens/family_admin_screen.dart';
 import '../screens/family_screen.dart';
 import '../data/settings_repository.dart';
 import '../services/sync_config.dart';
@@ -258,9 +259,27 @@ class _SyncSectionState extends State<SyncSection> {
                 ],
               ),
               const SizedBox(height: 4),
-              TextButton(
-                onPressed: c.busy ? null : c.signOut,
-                child: const Text('登出'),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: c.busy ? null : c.signOut,
+                    child: const Text('登出'),
+                  ),
+                  const Spacer(),
+                  if (c.familyAdmin != null)
+                    TextButton(
+                      onPressed: c.busy
+                          ? null
+                          : () => Navigator.of(context).push(
+                              MaterialPageRoute<void>(
+                                builder: (_) => FamilyAdminScreen(
+                                  api: c.familyAdmin!,
+                                ),
+                              ),
+                            ),
+                      child: const Text('家庭管理'),
+                    ),
+                ],
               ),
             ],
             if (SyncRuntime.url != null) ...[

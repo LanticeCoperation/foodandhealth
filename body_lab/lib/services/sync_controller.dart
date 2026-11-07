@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../data/database.dart';
+import 'family_admin_api.dart';
 import 'sync_api.dart';
 import 'sync_config.dart';
 import 'sync_service.dart';
@@ -88,6 +89,10 @@ class SyncController extends ChangeNotifier {
 
   /// 這支手機的資料綁在哪個帳號上；還沒登入過是 null。
   String? get ownerUid => _ownerUid;
+
+  /// 家庭管理（建帳號、加成員）。沒設定伺服器時是 null。
+  FamilyAdminApi? get familyAdmin =>
+      _client == null ? null : FamilyAdminApi(_client);
 
   String? get _currentUserId =>
       _testApi != null ? _testApi.currentUserId : _client?.auth.currentUser?.id;
